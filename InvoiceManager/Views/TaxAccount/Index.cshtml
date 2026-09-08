@@ -1,0 +1,76 @@
+@model List<InvoiceManager.Models.Entities.TaxAccount>
+@{
+    ViewData["Title"] = "Quản lý Tài khoản thuế (MST)";
+    int? currentId = ViewBag.CurrentTaxAccountId as int?;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-primary mb-1"><i class="bi bi-buildings me-2"></i> Danh sách Tài khoản thuế</h4>
+        <p class="text-muted small mb-0">Quản lý đa công ty / mã số thuế theo mô hình Multi-tenant cô lập dữ liệu</p>
+    </div>
+    @if (User.IsInRole("Admin"))
+    {
+        <a asp-action="Create" class="btn btn-primary btn-sm fw-semibold">
+            <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản thuế mới
+        </a>
+    }
+</div>
+
+<div class="row g-3">
+    @foreach (var acc in Model)
+    {
+        bool isCurrent = currentId == acc.Id;
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm border @(isCurrent ? "border-primary shadow" : "border-light-subtle")">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge @(isCurrent ? "bg-primary" : "bg-secondary") font-monospace fs-6 px-2 py-1">
+                            MST: @acc.TaxCode
+                        </span>
+                        @if (isCurrent)
+                        {
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                <i class="bi bi-check-circle-fill me-1"></i> Đang kích hoạt
+                            </span>
+                        }
+                    </div>
+
+                    <h6 class="fw-bold text-dark mb-2">@acc.CompanyName</h6>
+                    <p class="text-muted small flex-grow-1 mb-3" style="line-height: 1.5;">
+                        <i class="bi bi-geo-alt text-danger me-1"></i> @acc.Address
+                    </p>
+
+                    <div class="border-top pt-2 mb-3 small text-muted">
+                        <div><i class="bi bi-envelope me-1"></i> Email: @(acc.Email ?? "Chưa thiết lập")</div>
+                        <div><i class="bi bi-telephone me-1"></i> SĐT: @(acc.PhoneNumber ?? "Chưa thiết lập")</div>
+                        <div><i class="bi bi-person-badge me-1"></i> Đại diện: @(acc.Representative ?? "Chưa có")</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        @if (!isCurrent)
+                        {
+                            <form asp-action="Switch" method="post" class="flex-fill m-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@acc.Id" />
+                                <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-semibold">
+                                    <i class="bi bi-arrow-left-right me-1"></i> Chọn làm việc
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm flex-fill fw-semibold">
+                                <i class="bi bi-receipt me-1"></i> Xem hóa đơn
+                            </a>
+                        }
+
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal" title="Yêu cầu sửa lỗi / Tính năng">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

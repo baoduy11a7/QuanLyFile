@@ -1,0 +1,633 @@
+@model InvoiceManager.Models.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "Bảng điều khiển & Trung tâm Tra cứu Hóa đơn";
+    var acc = Model.CurrentTaxAccount;
+}
+
+<div class="d-flex flex-column gap-3">
+    <!-- 1. Header & Bộ Chọn Kỳ Quản Lý -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h4 class="fw-bold text-primary mb-1 d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2"></i> Trung Tâm Quản Lý & Tra Cứu Hóa Đơn Điện Tử
+                </h4>
+                <div class="small text-muted d-flex align-items-center gap-2">
+                    <span>Đơn vị: <strong>@acc?.CompanyName</strong></span>
+                    <span class="badge bg-primary-subtle text-primary font-monospace">MST: @acc?.TaxCode</span>
+                    <span>&bull; Kỳ tra cứu: <strong>@Model.FromDate?.ToString("dd/MM/yyyy")</strong> - <strong>@Model.ToDate?.ToString("dd/MM/yyyy")</strong></span>
+                </div>
+            </div>
+
+            <!-- Period Buttons -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a asp-action="Index" asp-route-period="thisMonth" class="btn @(Model.Period == "thisMonth" ? "btn-primary" : "btn-outline-secondary")">Tháng này</a>
+                <a asp-action="Index" asp-route-period="lastMonth" class="btn @(Model.Period == "lastMonth" ? "btn-primary" : "btn-outline-secondary")">Tháng trước</a>
+                <a asp-action="Index" asp-route-period="thisQuarter" class="btn @(Model.Period == "thisQuarter" ? "btn-primary" : "btn-outline-secondary")">Quý này</a>
+                <a asp-action="Index" asp-route-period="thisYear" class="btn @(Model.Period == "thisYear" ? "btn-primary" : "btn-outline-secondary")">Năm 2026</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Hộp Tra Cứu Nhanh Tức Thì (Instant Live Lookup Hub) -->
+    <div class="card border-primary border-opacity-25 shadow-sm" style="background: linear-gradient(to right, #eff6ff, #f8fafc);">
+        <div class="card-body p-4">
+            <div class="row align-items-center g-3">
+                <div class="col-lg-7">
+                    <h5 class="fw-bold text-dark mb-1"><i class="bi bi-search text-primary me-2"></i> Tra Cứu Nhanh Hóa Đơn Điện Tử</h5>
+                    <p class="text-muted small mb-3">Tra cứu tức thì mọi hóa đơn theo <strong>Số HĐ, Ký hiệu, MST người bán, Tên đơn vị hoặc Mã CQT</strong></p>
+                    
+                    <div class="input-group input-group-lg shadow-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-primary"></i></span>
+                        <input type="text" id="dashboardSearchInput" class="form-control border-start-0" placeholder="Nhập số HĐ (vd: 00000001), ký hiệu, MST người bán (vd: 0100109106)..." autocomplete="off" />
+                        <button class="btn btn-primary px-4 fw-semibold" type="button" onclick="performLiveSearch()">
+                            <i class="bi bi-arrow-right-circle me-1"></i> Tìm kiếm
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <div class="bg-white p-3 rounded-3 border shadow-sm small">
+                        <div class="fw-bold text-dark mb-2"><i class="bi bi-lightning-charge text-warning me-1"></i> Lối tắt tra cứu & tiện ích:</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a asp-controller="Invoice" asp-action="Index" asp-route-InvoiceType="MuaVao" asp-route-IsReconciled="false" class="badge bg-danger-subtle text-danger text-decoration-none border border-danger-subtle p-2">
+                                <i class="bi bi-exclamation-circle me-1"></i> @Model.UnreconciledCount HĐ chưa vào sổ
+                            </a>
+                            <a asp-controller="Invoice" asp-action="Index" asp-route-InvoiceType="MuaVao" asp-route-HasTaxCode="true" class="badge bg-success-subtle text-success text-decoration-none border border-success-subtle p-2">
+                                <i class="bi bi-patch-check me-1"></i> @Model.CountWithTaxCode HĐ có mã CQT
+                            </a>
+                            <a asp-controller="Invoice" asp-action="Index" asp-route-InvoiceType="MuaVao" asp-route-IsCashRegister="true" class="badge bg-warning-subtle text-warning text-decoration-none border border-warning-subtle p-2">
+                                <i class="bi bi-calculator me-1"></i> @Model.CountCashRegister HĐ máy tính tiền
+                            </a>
+                            <a href="https://tracuunnt.gdt.gov.vn/tcnnt/mstdn.jsp" target="_blank" class="badge bg-light text-primary text-decoration-none border p-2" title="Mở trang tra cứu MST Tổng cục Thuế">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Tra cứu MST Tổng cục Thuế
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Container Kết Quả Tra Cứu Trực Tiếp (Live Results Container) -->
+            <div id="liveSearchResultsContainer" class="mt-3 d-none">
+                <div class="card border shadow-sm">
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-primary small"><i class="bi bi-list-check me-1"></i> Kết quả tra cứu nhanh (<span id="searchResultCount">0</span>)</span>
+                        <button type="button" class="btn-close btn-sm" onclick="$('#liveSearchResultsContainer').addClass('d-none')"></button>
+                    </div>
+                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0 text-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ký hiệu - Số HĐ</th>
+                                    <th>Ngày lập</th>
+                                    <th>Loại HĐ</th>
+                                    <th>Đơn vị người bán / MST</th>
+                                    <th class="text-end">Tổng tiền (VND)</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Ghi sổ</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="liveSearchResultsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Bộ Thẻ Cân Đối Thuế GTGT & Doanh Thu - Chi Phí (Core Financial Metrics) -->
+    <div class="row g-3">
+        <!-- Hóa đơn Mua vào -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="stat-label text-primary"><i class="bi bi-box-arrow-in-down me-1"></i> Mua vào (Chi phí)</span>
+                        <span class="badge bg-primary-subtle text-primary">@Model.TotalInvoicesPurchase HĐ</span>
+                    </div>
+                    <div class="stat-value text-dark">@Model.TotalAmountPurchase.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between small">
+                        <span class="text-muted">Thuế GTGT khấu trừ:</span>
+                        <strong class="text-danger font-monospace">@Model.TotalTaxAmountPurchase.ToString("N0") đ</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hóa đơn Bán ra -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm border-0 h-100 border-start border-4 border-success">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="stat-label text-success"><i class="bi bi-box-arrow-up me-1"></i> Bán ra (Doanh thu)</span>
+                        <span class="badge bg-success-subtle text-success">@Model.TotalInvoicesSale HĐ</span>
+                    </div>
+                    <div class="stat-value text-dark">@Model.TotalAmountSale.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between small">
+                        <span class="text-muted">Thuế GTGT đầu ra:</span>
+                        <strong class="text-success font-monospace">@Model.TotalTaxAmountSale.ToString("N0") đ</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cân đối Thuế GTGT Dự kiến -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm border-0 h-100 border-start border-4 @(Model.NetVatPayable > 0 ? "border-warning" : "border-info")">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="stat-label @(Model.NetVatPayable > 0 ? "text-warning" : "text-info")">
+                            <i class="bi bi-scales me-1"></i> Cân đối Thuế GTGT
+                        </span>
+                        <span class="badge @(Model.NetVatPayable > 0 ? "bg-warning-subtle text-warning" : "bg-info-subtle text-info")">
+                            @(Model.NetVatPayable > 0 ? "Phải nộp" : "Khấu trừ")
+                        </span>
+                    </div>
+                    <div class="stat-value @(Model.NetVatPayable > 0 ? "text-warning" : "text-info")">
+                        @Math.Abs(Model.NetVatPayable).ToString("N0") <span style="font-size: 0.75rem;">đ</span>
+                    </div>
+                    <div class="mt-2 pt-2 border-top small text-muted">
+                        @(Model.NetVatPayable > 0 
+                            ? "Dự kiến số thuế GTGT phải nộp vào NSNN" 
+                            : "Dự kiến số thuế GTGT còn được khấu trừ chuyển kỳ sau")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tiến độ Ghi sổ Kế toán -->
+        <div class="col-md-6 col-xl-3">
+            <div class="card shadow-sm border-0 h-100 border-start border-4 border-secondary">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="stat-label text-dark"><i class="bi bi-journal-check me-1"></i> Vào Sổ Kế Toán</span>
+                        <span class="fw-bold text-primary small">@Model.ReconciledPercent%</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: @Model.ReconciledPercent%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted">
+                        <span>Đã vào sổ: <strong class="text-success">@Model.ReconciledCount</strong></span>
+                        <span>Chưa vào: <strong class="text-danger">@Model.UnreconciledCount</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Biểu Đồ Phân Tích Tài Chính & Xu Hướng 12 Tháng -->
+    <div class="row g-3">
+        <!-- Biểu đồ Cân đối Mua vào vs Bán ra -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0 fw-bold text-dark">
+                        <i class="bi bi-bar-chart-line text-primary me-2"></i> Xu hướng Doanh thu Bán ra vs Chi phí Mua vào (12 tháng)
+                    </h6>
+                    <span class="badge bg-light text-muted border">Đơn vị: Triệu VND</span>
+                </div>
+                <div class="card-body p-3">
+                    <canvas id="chartCashflow" height="110"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Biểu đồ Cơ Cấu Trạng Thái & CQT -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title mb-0 fw-bold text-dark">
+                        <i class="bi bi-pie-chart text-success me-2"></i> Phân Loại Hóa Đơn & Mã CQT
+                    </h6>
+                </div>
+                <div class="card-body p-3 d-flex flex-column justify-content-center">
+                    <canvas id="chartStatus" height="180"></canvas>
+                    <div class="mt-3 text-center small text-muted">
+                        <span class="badge bg-success-subtle text-success me-1">Có mã: @Model.CountWithTaxCode</span>
+                        <span class="badge bg-secondary-subtle text-secondary me-1">Không mã: @Model.CountWithoutTaxCode</span>
+                        <span class="badge bg-warning-subtle text-warning">MTT: @Model.CountCashRegister</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Tabs Quản Lý Tra Cứu Nghiệp Vụ Chuyên Sâu -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white p-2 border-bottom">
+            <ul class="nav nav-pills" id="dashboardTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-bold small" id="tab-unreconciled-btn" data-bs-toggle="pill" data-bs-target="#tab-unreconciled" type="button" role="tab">
+                        <i class="bi bi-exclamation-triangle text-danger me-1"></i> Hóa đơn chưa vào sổ (@Model.UnreconciledInvoices.Count)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold small" id="tab-highval-btn" data-bs-toggle="pill" data-bs-target="#tab-highval" type="button" role="tab">
+                        <i class="bi bi-gem text-primary me-1"></i> HĐ giá trị lớn nhất (@Model.HighValueInvoices.Count)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold small" id="tab-suppliers-btn" data-bs-toggle="pill" data-bs-target="#tab-suppliers" type="button" role="tab">
+                        <i class="bi bi-buildings text-success me-1"></i> Top nhà cung cấp (@Model.TopSuppliers.Count)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold small" id="tab-warnings-btn" data-bs-toggle="pill" data-bs-target="#tab-warnings" type="button" role="tab">
+                        <i class="bi bi-shield-alert text-warning me-1"></i> Cảnh báo rủi ro / Điều chỉnh / Hủy (@Model.RiskyOrCancelledInvoices.Count)
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="tab-content" id="dashboardTabsContent">
+                <!-- Tab 1: Chưa vào sổ -->
+                <div class="tab-pane fade show active" id="tab-unreconciled" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ký hiệu - Số HĐ</th>
+                                    <th>Ngày lập</th>
+                                    <th>Nhà cung cấp / MST</th>
+                                    <th class="text-end">Tổng thanh toán</th>
+                                    <th class="text-center">Trạng thái HĐ</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.UnreconciledInvoices.Any())
+                                {
+                                    foreach (var inv in Model.UnreconciledInvoices)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-light text-dark border font-monospace">@inv.InvoiceSymbol</span>
+                                                <strong class="text-primary font-monospace ms-1">@inv.InvoiceNumber</strong>
+                                            </td>
+                                            <td>@inv.IssueDate.ToString("dd/MM/yyyy")</td>
+                                            <td>
+                                                <div class="fw-semibold text-truncate" style="max-width: 320px;">@inv.SellerName</div>
+                                                <span class="badge bg-light text-muted border font-monospace">@inv.SellerTaxCode</span>
+                                            </td>
+                                            <td class="text-end font-monospace fw-bold text-dark">
+                                                @inv.TotalAmount.ToString("N0") đ
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">@inv.Status</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2" onclick="openInvoiceModal(@inv.Id)">
+                                                    <i class="bi bi-eye me-1"></i> Xem HĐ
+                                                </button>
+                                                <button type="button" class="btn btn-primary btn-sm py-1 px-2 ms-1" onclick="quickReconcileDashboard(@inv.Id)">
+                                                    <i class="bi bi-check2-circle me-1"></i> Ghi sổ
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            <i class="bi bi-check-circle-fill text-success fs-3"></i>
+                                            <div>Tuyệt vời! Toàn bộ hóa đơn trong kỳ đều đã được ghi sổ kế toán.</div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Hóa đơn giá trị lớn -->
+                <div class="tab-pane fade" id="tab-highval" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ký hiệu - Số HĐ</th>
+                                    <th>Ngày lập</th>
+                                    <th>Nhà cung cấp / MST</th>
+                                    <th class="text-end">Tiền chưa thuế</th>
+                                    <th class="text-end">Tiền thuế GTGT</th>
+                                    <th class="text-end">Tổng thanh toán</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var inv in Model.HighValueInvoices)
+                                {
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-light text-dark border font-monospace">@inv.InvoiceSymbol</span>
+                                            <strong class="text-primary font-monospace ms-1">@inv.InvoiceNumber</strong>
+                                        </td>
+                                        <td>@inv.IssueDate.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            <div class="fw-semibold text-truncate" style="max-width: 320px;">@inv.SellerName</div>
+                                            <span class="badge bg-light text-muted border font-monospace">@inv.SellerTaxCode</span>
+                                        </td>
+                                        <td class="text-end font-monospace">@inv.AmountBeforeTax.ToString("N0") đ</td>
+                                        <td class="text-end font-monospace text-danger">@inv.TaxAmount.ToString("N0") đ</td>
+                                        <td class="text-end font-monospace fw-bold text-primary">@inv.TotalAmount.ToString("N0") đ</td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2" onclick="openInvoiceModal(@inv.Id)">
+                                                <i class="bi bi-eye me-1"></i> Xem chi tiết
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Top nhà cung cấp -->
+                <div class="tab-pane fade" id="tab-suppliers" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nhà cung cấp</th>
+                                    <th>Mã số thuế</th>
+                                    <th class="text-center">Số lượng HĐ</th>
+                                    <th class="text-end">Tiền thuế GTGT</th>
+                                    <th class="text-end">Tổng giá trị thanh toán</th>
+                                    <th>Hóa đơn gần nhất</th>
+                                    <th class="text-center">Lọc HĐ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sup in Model.TopSuppliers)
+                                {
+                                    <tr>
+                                        <td class="fw-bold text-dark">@sup.Name</td>
+                                        <td><span class="badge bg-light text-dark border font-monospace">@sup.TaxCode</span></td>
+                                        <td class="text-center font-monospace">@sup.InvoiceCount</td>
+                                        <td class="text-end font-monospace text-danger">@sup.TotalTaxAmount.ToString("N0") đ</td>
+                                        <td class="text-end font-monospace fw-bold text-primary">@sup.TotalAmount.ToString("N0") đ</td>
+                                        <td>@sup.LastInvoiceDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="text-center">
+                                            <a asp-controller="Invoice" asp-action="Index" asp-route-SellerTaxCode="@sup.TaxCode" class="btn btn-outline-secondary btn-sm py-1 px-2">
+                                                <i class="bi bi-funnel me-1"></i> Xem tất cả
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Cảnh báo & Hủy/Điều chỉnh -->
+                <div class="tab-pane fade" id="tab-warnings" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ký hiệu - Số HĐ</th>
+                                    <th>Ngày lập</th>
+                                    <th>Nhà cung cấp</th>
+                                    <th>Trạng thái & Cảnh báo</th>
+                                    <th class="text-end">Số tiền</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.RiskyOrCancelledInvoices.Any())
+                                {
+                                    foreach (var inv in Model.RiskyOrCancelledInvoices)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-light text-dark border font-monospace">@inv.InvoiceSymbol</span>
+                                                <strong class="text-primary font-monospace ms-1">@inv.InvoiceNumber</strong>
+                                            </td>
+                                            <td>@inv.IssueDate.ToString("dd/MM/yyyy")</td>
+                                            <td>
+                                                <div class="fw-semibold">@inv.SellerName</div>
+                                                <span class="badge bg-light text-muted border font-monospace">@inv.SellerTaxCode</span>
+                                            </td>
+                                            <td>
+                                                @if (inv.Status == "Đã bị hủy")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Đã bị hủy</span>
+                                                }
+                                                else if (inv.Status == "Đã điều chỉnh")
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Đã điều chỉnh</span>
+                                                }
+                                                else if (inv.Status == "Đã thay thế")
+                                                {
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Đã thay thế</span>
+                                                }
+                                                
+                                                @if (!string.IsNullOrEmpty(inv.RiskReason))
+                                                {
+                                                    <div class="text-danger small mt-1"><i class="bi bi-exclamation-circle me-1"></i>@inv.RiskReason</div>
+                                                }
+                                            </td>
+                                            <td class="text-end font-monospace fw-bold">@inv.TotalAmount.ToString("N0") đ</td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2" onclick="openInvoiceModal(@inv.Id)">
+                                                    <i class="bi bi-eye me-1"></i> Xem HĐ
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            <i class="bi bi-shield-check text-success fs-3"></i>
+                                            <div>Không có hóa đơn nào gặp rủi ro hoặc bị hủy trong kỳ này.</div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Xem Thể Hiện Hóa Đơn Tích Hợp Trên Dashboard -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="invoiceModalLabel">
+                    <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="invoiceModalBody" style="min-height: 450px;">
+                <div class="d-flex justify-content-center align-items-center h-100 py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <div id="invoiceModalFooterActions"></div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // 1. Chart 12 tháng Doanh thu vs Chi phí
+        var ctxCashflow = document.getElementById('chartCashflow').getContext('2d');
+        new Chart(ctxCashflow, {
+            type: 'bar',
+            data: {
+                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyLabels)),
+                datasets: [
+                    {
+                        label: 'Mua vào (Chi phí)',
+                        data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyPurchaseAmounts.Select(x => Math.Round(x / 1000000m, 1)))),
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Bán ra (Doanh thu)',
+                        data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlySaleAmounts.Select(x => Math.Round(x / 1000000m, 1)))),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Triệu VND' }
+                    }
+                }
+            }
+        });
+
+        // 2. Chart Cơ cấu HĐ & CQT
+        var ctxStatus = document.getElementById('chartStatus').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Có mã CQT', 'Không mã CQT', 'Máy tính tiền', 'HĐ hủy / sửa'],
+                datasets: [{
+                    data: [@Model.CountWithTaxCode, @Model.CountWithoutTaxCode, @Model.CountCashRegister, @(Model.CountAdjustedOrReplaced + Model.CountCancelled)],
+                    backgroundColor: ['#10b981', '#64748b', '#f59e0b', '#ef4444']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // 3. Live AJAX Instant Search
+        var searchTimeout = null;
+        $('#dashboardSearchInput').on('keyup', function(e) {
+            clearTimeout(searchTimeout);
+            if (e.key === 'Enter') {
+                performLiveSearch();
+                return;
+            }
+            searchTimeout = setTimeout(performLiveSearch, 300);
+        });
+
+        function performLiveSearch() {
+            var term = $('#dashboardSearchInput').val().trim();
+            if (term.length === 0) {
+                $('#liveSearchResultsContainer').addClass('d-none');
+                return;
+            }
+
+            $.get('/Dashboard/QuickSearch?term=' + encodeURIComponent(term), function(data) {
+                var tbody = $('#liveSearchResultsBody');
+                tbody.empty();
+
+                $('#searchResultCount').text(data.length);
+                $('#liveSearchResultsContainer').removeClass('d-none');
+
+                if (data.length === 0) {
+                    tbody.html('<tr><td colspan="8" class="text-center py-3 text-muted">Không tìm thấy hóa đơn nào khớp với từ khóa: <strong>' + term + '</strong></td></tr>');
+                    return;
+                }
+
+                data.forEach(function(item) {
+                    var statusBadge = item.status === 'Hóa đơn mới' 
+                        ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Hóa đơn mới</span>'
+                        : '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">' + item.status + '</span>';
+
+                    var typeBadge = item.invoiceType === 'Mua vào'
+                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Mua vào</span>'
+                        : '<span class="badge bg-success-subtle text-success border border-success-subtle">Bán ra</span>';
+
+                    var reconcileBadge = item.isReconciled
+                        ? '<span class="badge bg-primary text-white"><i class="bi bi-check2"></i> Đã vào sổ</span>'
+                        : '<span class="badge bg-light text-muted border">Chưa</span>';
+
+                    var row = '<tr>' +
+                        '<td><span class="badge bg-light text-dark border font-monospace">' + item.invoiceSymbol + '</span> <strong class="text-primary font-monospace ms-1">' + item.invoiceNumber + '</strong></td>' +
+                        '<td>' + item.issueDate + '</td>' +
+                        '<td>' + typeBadge + '</td>' +
+                        '<td><div class="fw-semibold text-truncate" style="max-width: 250px;">' + item.sellerName + '</div><span class="badge bg-light text-muted border font-monospace">' + item.sellerTaxCode + '</span></td>' +
+                        '<td class="text-end font-monospace fw-bold">' + item.totalAmount.toLocaleString('vi-VN') + ' đ</td>' +
+                        '<td class="text-center">' + statusBadge + '</td>' +
+                        '<td class="text-center">' + reconcileBadge + '</td>' +
+                        '<td class="text-center">' +
+                            '<button type="button" class="btn btn-outline-primary btn-sm py-1 px-2" onclick="openInvoiceModal(' + item.id + ')"><i class="bi bi-eye"></i></button>' +
+                        '</td>' +
+                    '</tr>';
+
+                    tbody.append(row);
+                });
+            });
+        }
+
+        // Open Invoice Modal
+        function openInvoiceModal(id) {
+            $('#invoiceModal').modal('show');
+            $('#invoiceModalBody').html('<div class="d-flex justify-content-center align-items-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
+
+            $.get('/Invoice/Detail/' + id, function(html) {
+                $('#invoiceModalBody').html(html);
+                $('#invoiceModalFooterActions').html(
+                    '<a href="/Invoice/ViewHtml/' + id + '" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i> In hóa đơn</a> ' +
+                    '<a href="/Invoice/ViewRawXml/' + id + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-xml me-1"></i> Xem XML</a>'
+                );
+            });
+        }
+
+        // Quick reconcile from dashboard
+        function quickReconcileDashboard(id) {
+            var refNo = prompt("Nhập số chứng từ kế toán nội bộ (Phiếu chi, UNC, v.v.):", "PC-" + new Date().toISOString().slice(0,10).replace(/-/g,''));
+            if (refNo === null) return;
+
+            $.post('/Invoice/ToggleReconciliation', {
+                id: id,
+                refNo: refNo,
+                __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val() || ''
+            }, function(res) {
+                if (res.success) {
+                    location.reload();
+                } else {
+                    alert(res.message || 'Lỗi khi cập nhật trạng thái.');
+                }
+            });
+        }
+    </script>
+}

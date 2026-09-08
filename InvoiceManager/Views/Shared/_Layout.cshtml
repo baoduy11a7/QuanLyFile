@@ -1,0 +1,460 @@
+@inject InvoiceManager.Services.ITaxAccountContext TaxContext
+@{
+    var currentTaxAccount = await TaxContext.GetCurrentTaxAccountAsync();
+    var accessibleAccounts = await TaxContext.GetAccessibleTaxAccountsAsync();
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - InvoiceManager | Hệ thống Hóa đơn Điện tử Doanh nghiệp</title>
+    
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5 & Bootstrap Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    <style>
+        :root {
+            --primary-navy: #1e3a8a;
+            --primary-blue: #2563eb;
+            --accent-emerald: #059669;
+            --accent-amber: #d97706;
+            --border-color: #e2e8f0;
+            --bg-light: #f8fafc;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f1f5f9;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Navbar */
+        .tax-navbar {
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem 1.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+
+        .brand-logo {
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: var(--primary-navy);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .brand-logo i {
+            font-size: 1.4rem;
+            color: var(--primary-blue);
+        }
+
+        .tax-selector-dropdown {
+            min-width: 320px;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 0;
+        }
+
+        .tax-company-badge {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tax-company-badge:hover {
+            background-color: #dbeafe;
+        }
+
+        /* Navigation links */
+        .nav-pills-custom .nav-link {
+            color: #475569;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 0.5rem 0.85rem;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.15s;
+        }
+
+        .nav-pills-custom .nav-link:hover {
+            background-color: #f1f5f9;
+            color: var(--primary-blue);
+        }
+
+        .nav-pills-custom .nav-link.active {
+            background-color: #eff6ff;
+            color: var(--primary-blue);
+            font-weight: 600;
+        }
+
+        /* Summary Stats Cards */
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .stat-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-label {
+            font-size: 0.775rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1.2;
+        }
+
+        .stat-value.primary { color: var(--primary-blue); }
+        .stat-value.success { color: var(--accent-emerald); }
+        .stat-value.warning { color: var(--accent-amber); }
+
+        /* Modern Table styling */
+        .table-invoice {
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            font-size: 0.875rem;
+        }
+
+        .table-invoice thead th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 0.85rem;
+            white-space: nowrap;
+        }
+
+        .table-invoice tbody td {
+            padding: 0.75rem 0.85rem;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .table-invoice tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .btn-action-icon {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            color: #475569;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+        .btn-action-icon:hover {
+            background: #eff6ff;
+            color: var(--primary-blue);
+            border-color: #bfdbfe;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: auto;
+            background: #ffffff;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 0.85rem 0;
+        }
+    </style>
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <!-- Top Header -->
+    <header class="tax-navbar">
+        <div class="d-flex align-items-center justify-content-between">
+            <!-- Left: Logo & Navigation -->
+            <div class="d-flex align-items-center gap-4">
+                <a class="brand-logo" asp-controller="Invoice" asp-action="Index">
+                    <i class="bi bi-file-earmark-ruled-fill"></i>
+                    <span>InvoiceManager</span>
+                </a>
+
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <ul class="nav nav-pills nav-pills-custom d-none d-md-flex">
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" asp-controller="Invoice" asp-action="Index">
+                                <i class="bi bi-receipt"></i> Hóa đơn điện tử
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index">
+                                <i class="bi bi-cloud-arrow-up"></i> Nhập XML/ZIP
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")" asp-controller="Dashboard" asp-action="Index">
+                                <i class="bi bi-pie-chart"></i> Dashboard & Đối soát
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" ? "active" : "")" asp-controller="TaxAccount" asp-action="Index">
+                                <i class="bi bi-buildings"></i> Tài khoản thuế
+                            </a>
+                        </li>
+                        @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" asp-controller="AuditLog" asp-action="Index">
+                                    <i class="bi bi-shield-check"></i> Nhật ký kiểm toán
+                                </a>
+                            </li>
+                        }
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" href="/hangfire" target="_blank">
+                                    <i class="bi bi-gear-wide-connected"></i> Hangfire Jobs
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+
+            <!-- Right: TaxAccount Switcher & User Profile -->
+            <div class="d-flex align-items-center gap-3">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <!-- Tài khoản thuế Dropdown (Chuyển đổi đa công ty) -->
+                    <div class="dropdown">
+                        <div class="tax-company-badge dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Nhấp để đổi Tài khoản thuế">
+                            <i class="bi bi-building-check text-primary"></i>
+                            <div class="text-start">
+                                <div style="font-size: 0.725rem; color: #64748b; line-height: 1;">MST CÔNG TY</div>
+                                <div class="text-truncate" style="max-width: 220px;">
+                                    @(currentTaxAccount != null ? $"{currentTaxAccount.TaxCode} - {currentTaxAccount.CompanyName}" : "Chọn tài khoản thuế...")
+                                </div>
+                            </div>
+                        </div>
+                        <ul class="dropdown-menu dropdown-menu-end tax-selector-dropdown shadow">
+                            <li class="dropdown-header text-uppercase" style="font-size: 0.7rem; font-weight: 700; color: #64748b;">
+                                <i class="bi bi-repeat"></i> Chuyển đổi Tài khoản thuế
+                            </li>
+                            @foreach (var acc in accessibleAccounts)
+                            {
+                                bool isSelected = currentTaxAccount?.Id == acc.Id;
+                                <li>
+                                    <form asp-controller="TaxAccount" asp-action="Switch" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@acc.Id" />
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+                                        <button type="submit" class="dropdown-item py-2 d-flex justify-content-between align-items-center @(isSelected ? "bg-light text-primary fw-bold" : "")">
+                                            <div>
+                                                <div class="fw-bold">@acc.TaxCode</div>
+                                                <div class="small text-muted text-truncate" style="max-width: 260px;">@acc.CompanyName</div>
+                                            </div>
+                                            @if (isSelected)
+                                            {
+                                                <i class="bi bi-check-circle-fill text-primary ms-2"></i>
+                                            }
+                                        </button>
+                                    </form>
+                                </li>
+                            }
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item py-2 small d-flex align-items-center gap-2" asp-controller="TaxAccount" asp-action="Index">
+                                    <i class="bi bi-list-ul"></i> Quản lý danh sách MST
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- User Menu -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light text-dark border d-flex align-items-center gap-2 py-1 px-2 rounded-3" data-bs-toggle="dropdown">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.85rem;">
+                                @(User.Identity?.Name?.Substring(0, 1).ToUpper() ?? "U")
+                            </div>
+                            <div class="text-start d-none d-lg-block" style="font-size: 0.825rem; line-height: 1.2;">
+                                <div class="fw-semibold">@User.Identity?.Name</div>
+                                <div class="badge @(User.IsInRole("Admin") ? "bg-danger" : User.IsInRole("Accountant") ? "bg-primary" : "bg-secondary")" style="font-size: 0.65rem;">
+                                    @(User.IsInRole("Admin") ? "Admin" : User.IsInRole("Accountant") ? "Kế toán" : "Người xem")
+                                </div>
+                            </div>
+                            <i class="bi bi-chevron-down small text-muted"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <li class="dropdown-header">Tài khoản: @User.Identity?.Name</li>
+                            <li><a class="dropdown-item" asp-controller="TaxAccount" asp-action="Index"><i class="bi bi-gear me-2"></i>Cài đặt tài khoản</a></li>
+                            <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#feedbackModal"><i class="bi bi-chat-left-dots me-2"></i>Báo lỗi / Yêu cầu tính năng</button></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-sm px-3 fw-medium">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Đăng nhập
+                    </a>
+                }
+            </div>
+        </div>
+    </header>
+
+    <!-- Global Toast / Alert Notifications -->
+    <div class="container-fluid px-4 mt-3">
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show shadow-sm d-flex align-items-center" role="alert">
+                <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+                <div>@TempData["SuccessMessage"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show shadow-sm d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+                <div>@TempData["ErrorMessage"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+    </div>
+
+    <!-- Main Body -->
+    <main class="container-fluid px-4 py-3 flex-grow-1">
+        @RenderBody()
+    </main>
+
+    <!-- Feedback Modal -->
+    <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="formFeedback" asp-controller="TaxAccount" asp-action="SubmitFeedback" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="feedbackModalLabel"><i class="bi bi-envelope-paper me-2 text-primary"></i>Gửi phản hồi / Yêu cầu hỗ trợ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Loại yêu cầu</label>
+                            <select name="requestType" class="form-select">
+                                <option value="Báo lỗi">Báo lỗi nghiệp vụ hóa đơn</option>
+                                <option value="Yêu cầu tính năng">Yêu cầu tính năng mới</option>
+                                <option value="Hỗ trợ nghiệp vụ">Hỗ trợ đối soát thuế</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Tiêu đề</label>
+                            <input type="text" name="title" class="form-control" placeholder="Tóm tắt yêu cầu..." required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nội dung chi tiết</label>
+                            <textarea name="description" class="form-control" rows="4" placeholder="Mô tả cụ thể hóa đơn, ký hiệu hoặc vấn đề cần xử lý..." required></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Người liên hệ</label>
+                                <input type="text" name="contactName" class="form-control" placeholder="Họ tên..." />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Số điện thoại</label>
+                                <input type="text" name="contactPhone" class="form-control" placeholder="SĐT liên hệ..." />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i> Gửi yêu cầu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
+            <div>
+                <strong>InvoiceManager</strong> &bull; Phần mềm quản lý hóa đơn điện tử chuẩn Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC
+            </div>
+            <div>
+                Môi trường: <span class="badge bg-success-subtle text-success border border-success-subtle">Hệ thống sẵn sàng</span> &bull; Bản quyền &copy; @DateTime.Now.Year
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <script>
+        // Submit feedback ajax
+        $('#formFeedback').on('submit', function(e) {
+            e.preventDefault();
+            var form = $(this);
+            $.post(form.attr('action'), form.serialize(), function(res) {
+                if (res.success) {
+                    alert(res.message);
+                    $('#feedbackModal').modal('hide');
+                    form[0].reset();
+                } else {
+                    alert(res.message || 'Có lỗi xảy ra.');
+                }
+            });
+        });
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

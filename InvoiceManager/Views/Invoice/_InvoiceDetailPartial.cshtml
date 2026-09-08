@@ -1,0 +1,189 @@
+@model InvoiceManager.Models.Entities.Invoice
+
+<div class="p-3">
+    <!-- Nav tabs -->
+    <ul class="nav nav-tabs mb-3" id="invoiceDetailTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold" id="preview-tab" data-bs-toggle="tab" data-bs-target="#preview-content" type="button" role="tab">
+                <i class="bi bi-file-earmark-text text-primary me-1"></i> Bản thể hiện Hóa đơn
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="xml-tab" data-bs-toggle="tab" data-bs-target="#xml-content" type="button" role="tab">
+                <i class="bi bi-file-earmark-code text-success me-1"></i> Dữ liệu XML gốc
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit-content" type="button" role="tab">
+                <i class="bi bi-shield-check text-info me-1"></i> Chứng từ & Đối soát
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab contents -->
+    <div class="tab-content" id="invoiceDetailTabContent">
+        <!-- Tab 1: Preview hóa đơn -->
+        <div class="tab-pane fade show active" id="preview-content" role="tabpanel">
+            <div class="border rounded p-4 bg-white shadow-sm" style="max-width: 900px; margin: auto;">
+                <div class="text-center mb-3">
+                    <h4 class="fw-bold text-primary mb-1">HÓA ĐƠN GIÁ TRỊ GIA TĂNG</h4>
+                    <p class="text-muted small mb-1">(Bản thể hiện của hóa đơn điện tử theo Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC)</p>
+                    <p class="small">Ngày lập: <strong>@Model.IssueDate.ToString("dd/MM/yyyy")</strong></p>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center p-2 mb-3 bg-light rounded border">
+                    <div>
+                        <div>Ký hiệu: <strong class="text-danger">@Model.InvoiceSymbol</strong></div>
+                        <div>Số hóa đơn: <strong class="text-danger fs-5">@Model.InvoiceNumber</strong></div>
+                    </div>
+                    <div class="text-end">
+                        <div>Phân loại: <strong>@(Model.HasTaxCode ? "Hóa đơn có mã của CQT" : "Hóa đơn không mã")</strong></div>
+                        <div>Mã CQT: <span class="font-monospace text-primary">@(string.IsNullOrEmpty(Model.TaxAuthorityCode) ? "Không áp dụng" : Model.TaxAuthorityCode)</span></div>
+                    </div>
+                </div>
+
+                <!-- Người bán -->
+                <div class="mb-3 p-2 border-bottom">
+                    <div class="fw-bold text-dark">Đơn vị bán hàng: <span class="text-primary">@Model.SellerName</span></div>
+                    <div>Mã số thuế: <strong class="font-monospace">@Model.SellerTaxCode</strong></div>
+                    <div class="text-muted small">Địa chỉ: @Model.SellerAddress</div>
+                </div>
+
+                <!-- Người mua -->
+                <div class="mb-3 p-2 border-bottom">
+                    <div class="fw-bold text-dark">Đơn vị mua hàng: <span>@Model.BuyerName</span></div>
+                    <div>Mã số thuế: <strong class="font-monospace">@Model.BuyerTaxCode</strong></div>
+                    <div class="text-muted small">Địa chỉ: @Model.BuyerAddress</div>
+                </div>
+
+                <!-- Bảng hàng hóa -->
+                <div class="table-responsive my-3">
+                    <table class="table table-bordered align-middle text-sm mb-0">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th style="width: 50px;">STT</th>
+                                <th>Tên hàng hóa, dịch vụ</th>
+                                <th style="width: 70px;">ĐVT</th>
+                                <th style="width: 80px;">Số lượng</th>
+                                <th style="width: 110px;">Đơn giá</th>
+                                <th style="width: 120px;">Thành tiền</th>
+                                <th style="width: 80px;">Thuế suất</th>
+                                <th style="width: 110px;">Tiền thuế</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Details.Any())
+                            {
+                                foreach (var d in Model.Details.OrderBy(x => x.LineNumber))
+                                {
+                                    <tr>
+                                        <td class="text-center">@d.LineNumber</td>
+                                        <td>
+                                            <div class="fw-medium">@d.ItemName</div>
+                                            @if (!string.IsNullOrEmpty(d.ItemCode))
+                                            {
+                                                <div class="text-muted" style="font-size: 0.7rem;">Mã: @d.ItemCode</div>
+                                            }
+                                        </td>
+                                        <td class="text-center">@d.Unit</td>
+                                        <td class="text-end font-monospace">@d.Quantity.ToString("N0")</td>
+                                        <td class="text-end font-monospace">@d.UnitPrice.ToString("N0") đ</td>
+                                        <td class="text-end font-monospace">@d.AmountBeforeTax.ToString("N0") đ</td>
+                                        <td class="text-center">@(d.TaxRate == -1 ? "KCT" : $"{d.TaxRate}%")</td>
+                                        <td class="text-end font-monospace text-danger">@d.TaxAmount.ToString("N0") đ</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td class="text-center">1</td>
+                                    <td>Chi tiết theo hóa đơn</td>
+                                    <td class="text-center">Gói</td>
+                                    <td class="text-end">1</td>
+                                    <td class="text-end">@Model.AmountBeforeTax.ToString("N0") đ</td>
+                                    <td class="text-end">@Model.AmountBeforeTax.ToString("N0") đ</td>
+                                    <td class="text-center">10%</td>
+                                    <td class="text-end text-danger">@Model.TaxAmount.ToString("N0") đ</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tổng hợp tiền -->
+                <div class="row justify-content-end mb-4">
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td class="text-end">Cộng tiền hàng (chưa thuế):</td>
+                                <td class="text-end font-monospace fw-bold">@Model.AmountBeforeTax.ToString("N0") VND</td>
+                            </tr>
+                            <tr>
+                                <td class="text-end">Tổng tiền thuế GTGT:</td>
+                                <td class="text-end font-monospace fw-bold text-danger">@Model.TaxAmount.ToString("N0") VND</td>
+                            </tr>
+                            <tr class="border-top">
+                                <td class="text-end fs-6 text-primary"><strong>Tổng cộng thanh toán:</strong></td>
+                                <td class="text-end fs-5 font-monospace text-primary"><strong>@Model.TotalAmount.ToString("N0") VND</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Chữ ký số -->
+                <div class="row text-center pt-3 border-top">
+                    <div class="col-6">
+                        <strong>NGƯỜI MUA HÀNG</strong><br>
+                        <span class="text-muted small">(Ký, ghi rõ họ tên)</span>
+                    </div>
+                    <div class="col-6">
+                        <strong>NGƯỜI BÁN HÀNG</strong><br>
+                        <span class="text-muted small">(Chữ ký điện tử / Chữ ký số)</span>
+                        <div class="mt-2 p-2 border border-success bg-success-subtle text-success rounded text-start" style="font-size: 0.75rem;">
+                            <div><i class="bi bi-check-circle-fill"></i> <strong>Ký bởi:</strong> @Model.SellerName</div>
+                            <div><strong>Ngày ký:</strong> @Model.IssueDate.ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            <div><strong>Chứng thư số:</strong> Hợp lệ theo chuẩn CQT</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: XML Gốc -->
+        <div class="tab-pane fade" id="xml-content" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Dữ liệu XML gốc dùng đối chiếu pháp lý với Cơ quan Thuế</span>
+                <a href="/Invoice/ViewRawXml/@Model.Id" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Mở XML toàn trang
+                </a>
+            </div>
+            <pre class="bg-dark text-light p-3 rounded" style="max-height: 420px; overflow: auto; font-size: 0.775rem;"><code><iframe src="/Invoice/ViewRawXml/@Model.Id" style="width: 100%; height: 380px; border: none; background: white;"></iframe></code></pre>
+        </div>
+
+        <!-- Tab 3: Đối soát kế toán -->
+        <div class="tab-pane fade" id="audit-content" role="tabpanel">
+            <div class="card p-3 border-0 bg-light">
+                <h6 class="fw-bold text-dark"><i class="bi bi-journal-check me-2"></i>Thông tin quản trị kế toán</h6>
+                <ul class="list-group list-group-flush bg-transparent">
+                    <li class="list-group-item bg-transparent d-flex justify-content-between">
+                        <span>Trạng thái vào sổ:</span>
+                        <strong>@(Model.IsReconciled ? $"Đã vào sổ ({Model.ReconciledRefNo})" : "Chưa vào sổ kế toán")</strong>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between">
+                        <span>Thời điểm nhập hệ thống:</span>
+                        <span>@Model.ImportedAt.ToString("dd/MM/yyyy HH:mm:ss")</span>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between">
+                        <span>Nhà cung cấp giải pháp HĐĐT:</span>
+                        <span class="badge bg-secondary">@Model.SourceProvider</span>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between">
+                        <span>Tệp lưu trữ XML gốc:</span>
+                        <span class="font-monospace small text-truncate" style="max-width: 400px;">@(Model.RawXmlPath ?? "Lưu trữ DB")</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

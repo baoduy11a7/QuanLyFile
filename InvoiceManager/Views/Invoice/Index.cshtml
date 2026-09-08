@@ -1,0 +1,563 @@
+@model InvoiceManager.Models.ViewModels.InvoiceIndexViewModel
+@{
+    ViewData["Title"] = "Hóa đơn điện tử";
+    var filter = Model.Filter;
+    var summary = Model.Summary;
+}
+
+<div class="d-flex flex-column gap-3">
+    <!-- 1. Thanh Tổng hợp Số liệu phía trên (Cards khớp chính xác ảnh tham khảo) -->
+    <div class="row g-2">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-collection text-primary me-1"></i> Tổng số hóa đơn</div>
+                <div class="stat-value primary">@summary.TotalCount.ToString("N0")</div>
+                <div class="small text-muted" style="font-size: 0.725rem;">hóa đơn trong kỳ lọc</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-patch-check-fill text-success me-1"></i> Có mã CQT</div>
+                <div class="stat-value text-success">@summary.WithTaxCodeCount.ToString("N0")</div>
+                <div class="small text-muted" style="font-size: 0.725rem;">HĐ có mã cơ quan thuế</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-shield-x text-secondary me-1"></i> Không mã CQT</div>
+                <div class="stat-value text-secondary">@summary.WithoutTaxCodeCount.ToString("N0")</div>
+                <div class="small text-muted" style="font-size: 0.725rem;">HĐ không mã CQT</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-calculator text-warning me-1"></i> Máy tính tiền</div>
+                <div class="stat-value text-warning">@summary.CashRegisterCount.ToString("N0")</div>
+                <div class="small text-muted" style="font-size: 0.725rem;">HĐ khởi tạo từ MTT</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-arrow-repeat text-info me-1"></i> Đồng bộ gần nhất</div>
+                <div class="stat-value text-dark" style="font-size: 1.05rem; padding-top: 2px;">
+                    @(summary.LastSyncedAt.HasValue ? summary.LastSyncedAt.Value.ToString("dd/MM HH:mm") : "Chưa đồng bộ")
+                </div>
+                <div class="small text-muted" style="font-size: 0.725rem;">Tự động qua Hangfire</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card bg-light">
+                <div class="stat-label">Chưa thuế</div>
+                <div class="stat-value text-dark" style="font-size: 1.1rem;">@summary.TotalAmountBeforeTax.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
+                <div class="small text-muted" style="font-size: 0.725rem;">Tổng tiền hàng</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="stat-card bg-light">
+                <div class="stat-label">Tiền thuế</div>
+                <div class="stat-value text-danger" style="font-size: 1.1rem;">@summary.TotalTaxAmount.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
+                <div class="small text-muted" style="font-size: 0.725rem;">Thuế GTGT khấu trừ</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+            <div class="stat-card" style="background-color: #eff6ff; border-color: #bfdbfe;">
+                <div class="stat-label text-primary">Tổng thanh toán</div>
+                <div class="stat-value text-primary" style="font-size: 1.15rem;">@summary.TotalAmount.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
+                <div class="small text-primary" style="font-size: 0.725rem; font-weight: 500;">Tổng tiền đã gồm thuế</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Thanh Công Cụ & Bộ Lọc Nghiệp Vụ -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-3">
+            <form id="filterForm" asp-controller="Invoice" asp-action="Index" method="get">
+                <input type="hidden" name="InvoiceType" id="inputInvoiceType" value="@filter.InvoiceType" />
+                <input type="hidden" name="QuickDateRange" id="inputQuickDateRange" value="@filter.QuickDateRange" />
+                <input type="hidden" name="SortBy" id="inputSortBy" value="@filter.SortBy" />
+                <input type="hidden" name="Page" id="inputPage" value="1" />
+
+                <!-- Row 1: Tab Loại HĐ & Quick Actions -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-3 mb-3 border-bottom">
+                    <!-- Tabs Mua vào / Bán ra -->
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm px-3 fw-bold @(filter.InvoiceType == "MuaVao" ? "btn-primary" : "btn-outline-secondary")" onclick="switchInvoiceType('MuaVao')">
+                            <i class="bi bi-box-arrow-in-down me-1"></i> Hóa đơn Mua vào
+                        </button>
+                        <button type="button" class="btn btn-sm px-3 fw-bold @(filter.InvoiceType == "BanRa" ? "btn-primary" : "btn-outline-secondary")" onclick="switchInvoiceType('BanRa')">
+                            <i class="bi bi-box-arrow-up me-1"></i> Hóa đơn Bán ra
+                        </button>
+                    </div>
+
+                    <!-- Right Quick Actions: Đồng bộ, Nhập XML, Xuất file -->
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Nút Đồng bộ (Sync Now) -->
+                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="$('#formSyncNow').submit()">
+                            <i class="bi bi-arrow-repeat me-1"></i> Đồng bộ
+                        </button>
+
+                        <!-- Nút Nhập XML / ZIP -->
+                        <a asp-controller="Import" asp-action="Index" class="btn btn-outline-success btn-sm fw-semibold">
+                            <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
+                        </a>
+
+                        <!-- Nút Xuất Báo Cáo Hàng Loạt -->
+                        <div class="dropdown">
+                            <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download me-1"></i> Xuất dữ liệu
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li>
+                                    <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelDetailed')">
+                                        <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i> Xuất Excel Chi tiết (dòng hàng)
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelSummary')">
+                                        <i class="bi bi-file-earmark-excel text-success me-2"></i> Xuất Excel Tổng hợp theo HĐ
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button type="button" class="dropdown-item py-2" onclick="triggerBatchZip()">
+                                        <i class="bi bi-file-earmark-zip text-primary me-2"></i> Tải file ZIP Bản thể hiện & XML
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Bộ lọc ngày & Tìm kiếm nhanh -->
+                <div class="row g-2 align-items-center">
+                    <!-- Quick Date Range Buttons -->
+                    <div class="col-auto">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn @(filter.QuickDateRange == "today" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('today')">Hôm nay</button>
+                            <button type="button" class="btn @(filter.QuickDateRange == "thisMonth" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisMonth')">Tháng này</button>
+                            <button type="button" class="btn @(filter.QuickDateRange == "lastMonth" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('lastMonth')">Tháng trước</button>
+                            <button type="button" class="btn @(filter.QuickDateRange == "thisQuarter" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisQuarter')">Quý này</button>
+                            <button type="button" class="btn @(filter.QuickDateRange == "thisYear" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisYear')">Năm nay</button>
+                        </div>
+                    </div>
+
+                    <!-- Custom Date Range -->
+                    <div class="col-auto d-flex align-items-center gap-1">
+                        <input type="date" name="FromDate" class="form-control form-control-sm" style="width: 135px;" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày lập" />
+                        <span class="text-muted">-</span>
+                        <input type="date" name="ToDate" class="form-control form-control-sm" style="width: 135px;" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày lập" />
+                    </div>
+
+                    <!-- Keyword Search Input -->
+                    <div class="col">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" name="Keyword" class="form-control" placeholder="Tìm theo Ký hiệu, Số HĐ, Tên hoặc MST người bán..." value="@filter.Keyword" />
+                        </div>
+                    </div>
+
+                    <!-- Submit & Advanced Filter Toggle Buttons -->
+                    <div class="col-auto d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">
+                            <i class="bi bi-funnel"></i> Lọc
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#collapseAdvancedFilter" aria-expanded="false" title="Mở rộng bộ lọc nâng cao">
+                            <i class="bi bi-sliders"></i> Nâng cao
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-danger btn-sm" title="Xóa toàn bộ bộ lọc">
+                            <i class="bi bi-x-circle"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Row 3: Collapsible Advanced Filter -->
+                <div class="collapse mt-3 pt-3 border-top @(!string.IsNullOrEmpty(filter.SellerTaxCode) || filter.HasTaxCode.HasValue || !string.IsNullOrEmpty(filter.Status) || filter.MinAmount.HasValue || filter.IsReconciled.HasValue ? "show" : "")" id="collapseAdvancedFilter">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">MST Người bán</label>
+                            <input type="text" name="SellerTaxCode" class="form-control form-control-sm" placeholder="Nhập MST..." value="@filter.SellerTaxCode" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Phân loại CQT</label>
+                            <select name="HasTaxCode" class="form-select form-select-sm">
+                                <option value="">-- Tất cả --</option>
+                                <option value="true" selected="@(filter.HasTaxCode == true)">Có mã CQT</option>
+                                <option value="false" selected="@(filter.HasTaxCode == false)">Không mã CQT</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Trạng thái HĐ</label>
+                            <select name="Status" class="form-select form-select-sm">
+                                <option value="">-- Tất cả --</option>
+                                <option value="Hóa đơn mới" selected="@(filter.Status == "Hóa đơn mới")">Hóa đơn mới</option>
+                                <option value="Đã điều chỉnh" selected="@(filter.Status == "Đã điều chỉnh")">Đã điều chỉnh</option>
+                                <option value="Đã thay thế" selected="@(filter.Status == "Đã thay thế")">Đã thay thế</option>
+                                <option value="Đã bị hủy" selected="@(filter.Status == "Đã bị hủy")">Đã bị hủy</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Khoảng tiền thanh toán (VND)</label>
+                            <div class="d-flex gap-1">
+                                <input type="number" name="MinAmount" class="form-control form-control-sm" placeholder="Từ..." value="@filter.MinAmount" />
+                                <input type="number" name="MaxAmount" class="form-control form-control-sm" placeholder="Đến..." value="@filter.MaxAmount" />
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Ghi sổ kế toán</label>
+                            <select name="IsReconciled" class="form-select form-select-sm">
+                                <option value="">-- Tất cả --</option>
+                                <option value="true" selected="@(filter.IsReconciled == true)">Đã vào sổ</option>
+                                <option value="false" selected="@(filter.IsReconciled == false)">Chưa vào sổ</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden Form for Sync Now -->
+    <form id="formSyncNow" asp-controller="Invoice" asp-action="SyncNow" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <!-- Hidden Form for Batch ZIP export -->
+    <form id="formBatchZip" asp-controller="Export" asp-action="BatchZip" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="Keyword" value="@filter.Keyword" />
+        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+        <input type="hidden" name="Status" value="@filter.Status" />
+        <div id="selectedIdsContainer"></div>
+    </form>
+
+    <!-- 3. Bảng Danh Sách Hóa Đơn Điện Tử (Bám sát layout tham khảo) -->
+    <div class="table-responsive table-invoice">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 40px;" class="text-center">
+                        <input type="checkbox" id="selectAll" class="form-check-input" />
+                    </th>
+                    <th style="width: 50px;" class="text-center">STT</th>
+                    <th style="width: 110px;">Ký hiệu</th>
+                    <th style="width: 100px;">Số HĐ</th>
+                    <th style="width: 110px;">Ngày lập</th>
+                    <th>Thông tin người bán</th>
+                    <th class="text-end" style="width: 130px;">Chưa thuế</th>
+                    <th class="text-end" style="width: 120px;">Tiền thuế</th>
+                    <th class="text-end" style="width: 140px;">Thanh toán</th>
+                    <th class="text-center" style="width: 120px;">Trạng thái</th>
+                    <th class="text-center" style="width: 110px;">Ghi sổ</th>
+                    <th class="text-center" style="width: 120px;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Invoices.Any())
+                {
+                    int stt = (Model.CurrentPage - 1) * Model.Filter.PageSize + 1;
+                    foreach (var inv in Model.Invoices)
+                    {
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input row-select" value="@inv.Id" />
+                            </td>
+                            <td class="text-center text-muted">@stt</td>
+                            <td>
+                                <span class="badge bg-light text-dark border font-monospace">@inv.InvoiceSymbol</span>
+                                @if (inv.IsCashRegister)
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Khởi tạo từ máy tính tiền" style="font-size: 0.65rem;">MTT</span>
+                                }
+                            </td>
+                            <td>
+                                <strong class="text-primary font-monospace">@inv.InvoiceNumber</strong>
+                            </td>
+                            <td>
+                                <div class="small fw-medium">@inv.IssueDate.ToString("dd/MM/yyyy")</div>
+                                <div class="text-muted" style="font-size: 0.7rem;">@inv.IssueDate.ToString("HH:mm")</div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge bg-secondary-subtle text-secondary font-monospace" style="font-size: 0.725rem;">MST: @inv.SellerTaxCode</span>
+                                    @if (inv.HasTaxCode)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;" title="Hóa đơn có mã CQT: @inv.TaxAuthorityCode">Có mã</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border" style="font-size: 0.65rem;">Không mã</span>
+                                    }
+                                </div>
+                                <div class="fw-semibold text-truncate" style="max-width: 320px;" title="@inv.SellerName">
+                                    @inv.SellerName
+                                </div>
+                                @if (!string.IsNullOrEmpty(inv.RiskReason))
+                                {
+                                    <div class="text-danger small" style="font-size: 0.7rem;"><i class="bi bi-exclamation-circle"></i> @inv.RiskReason</div>
+                                }
+                            </td>
+                            <td class="text-end font-monospace">
+                                @inv.AmountBeforeTax.ToString("N0") <span class="text-muted" style="font-size: 0.7rem;">đ</span>
+                            </td>
+                            <td class="text-end font-monospace text-danger">
+                                @inv.TaxAmount.ToString("N0") <span class="text-muted" style="font-size: 0.7rem;">đ</span>
+                            </td>
+                            <td class="text-end font-monospace">
+                                <strong class="text-primary">@inv.TotalAmount.ToString("N0")</strong> <span class="text-muted" style="font-size: 0.7rem;">đ</span>
+                            </td>
+                            <td class="text-center">
+                                @if (inv.Status == "Hóa đơn mới")
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Hóa đơn mới</span>
+                                }
+                                else if (inv.Status == "Đã điều chỉnh")
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Đã điều chỉnh</span>
+                                }
+                                else if (inv.Status == "Đã thay thế")
+                                {
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Đã thay thế</span>
+                                }
+                                else if (inv.Status == "Đã bị hủy")
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Đã bị hủy</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark border">@inv.Status</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm p-1 border-0" onclick="toggleReconciliation(@inv.Id)" title="Nhấp để đổi trạng thái vào sổ kế toán">
+                                    @if (inv.IsReconciled)
+                                    {
+                                        <span class="badge bg-primary text-white" id="reconcile-badge-@inv.Id">
+                                            <i class="bi bi-check2-circle"></i> Đã vào sổ
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border" id="reconcile-badge-@inv.Id">
+                                            Chưa ghi sổ
+                                        </span>
+                                    }
+                                </button>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-inline-flex gap-1">
+                                    <!-- Xem bản thể hiện PDF / HTML -->
+                                    <button type="button" class="btn-action-icon" title="Xem bản thể hiện hóa đơn" onclick="openInvoiceModal(@inv.Id)">
+                                        <i class="bi bi-file-earmark-text text-primary"></i>
+                                    </button>
+                                    <!-- Xem XML gốc -->
+                                    <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem file XML gốc">
+                                        <i class="bi bi-file-earmark-code text-secondary"></i>
+                                    </a>
+                                    <!-- Tải HTML mẫu trực tiếp -->
+                                    <a asp-action="ViewHtml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Mở bản thể hiện ra tab mới">
+                                        <i class="bi bi-box-arrow-up-right text-info"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        stt++;
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="12" class="text-center py-5">
+                            <i class="bi bi-inbox text-muted" style="font-size: 2.5rem;"></i>
+                            <div class="mt-2 text-muted fw-semibold">Không tìm thấy hóa đơn nào phù hợp với bộ lọc hiện tại.</div>
+                            <div class="small text-muted">Vui lòng thử mở rộng khoảng ngày hoặc bấm <a asp-action="Index" class="text-primary">Xóa bộ lọc</a>.</div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 4. Phân Trang & Thống Kê Số Lượng Dòng -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
+        <div class="small text-muted">
+            Hiển thị <strong>@Model.Invoices.Count</strong> trên tổng số <strong>@Model.TotalItems.ToString("N0")</strong> hóa đơn
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav aria-label="Phân trang hóa đơn">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
+                        <button type="button" class="page-link" onclick="goToPage(1)"><i class="bi bi-chevron-double-left"></i></button>
+                    </li>
+                    <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
+                        <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage - 1))"><i class="bi bi-chevron-left"></i></button>
+                    </li>
+
+                    @for (int p = Math.Max(1, Model.CurrentPage - 2); p <= Math.Min(Model.TotalPages, Model.CurrentPage + 2); p++)
+                    {
+                        <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                            <button type="button" class="page-link" onclick="goToPage(@p)">@p</button>
+                        </li>
+                    }
+
+                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
+                        <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage + 1))"><i class="bi bi-chevron-right"></i></button>
+                    </li>
+                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
+                        <button type="button" class="page-link" onclick="goToPage(@Model.TotalPages)"><i class="bi bi-chevron-double-right"></i></button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+<!-- Modal Xem Thể Hiện Hóa Đơn Điện Tử Chuẩn Việt Nam -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="invoiceModalLabel">
+                    <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="invoiceModalBody" style="min-height: 480px;">
+                <div class="d-flex justify-content-center align-items-center h-100 py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <div id="invoiceModalFooterActions"></div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Check all rows
+        $('#selectAll').on('change', function() {
+            $('.row-select').prop('checked', $(this).is(':checked'));
+        });
+
+        // Quick date selection
+        function setQuickDate(type) {
+            $('#inputQuickDateRange').val(type);
+            var now = new Date();
+            var from = '';
+            var to = '';
+
+            if (type === 'today') {
+                from = to = formatDate(now);
+            } else if (type === 'thisMonth') {
+                from = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                to = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+            } else if (type === 'lastMonth') {
+                from = formatDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+                to = formatDate(new Date(now.getFullYear(), now.getMonth(), 0));
+            } else if (type === 'thisQuarter') {
+                var q = Math.floor(now.getMonth() / 3);
+                from = formatDate(new Date(now.getFullYear(), q * 3, 1));
+                to = formatDate(new Date(now.getFullYear(), (q + 1) * 3, 0));
+            } else if (type === 'thisYear') {
+                from = formatDate(new Date(now.getFullYear(), 0, 1));
+                to = formatDate(new Date(now.getFullYear(), 11, 31));
+            }
+
+            $('input[name="FromDate"]').val(from);
+            $('input[name="ToDate"]').val(to);
+            $('#filterForm').submit();
+        }
+
+        function formatDate(d) {
+            var month = '' + (d.getMonth() + 1),
+                day = '' + d.getDate(),
+                year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+
+        function switchInvoiceType(type) {
+            $('#inputInvoiceType').val(type);
+            $('#filterForm').submit();
+        }
+
+        function goToPage(page) {
+            $('#inputPage').val(page);
+            $('#filterForm').submit();
+        }
+
+        // Export trigger
+        function triggerExport(actionName) {
+            var params = $('#filterForm').serialize();
+            window.location.href = '/Export/' + actionName + '?' + params;
+        }
+
+        function triggerBatchZip() {
+            var selected = [];
+            $('.row-select:checked').each(function() {
+                selected.push($(this).val());
+            });
+
+            var container = $('#selectedIdsContainer');
+            container.empty();
+
+            if (selected.length > 0) {
+                selected.forEach(function(id) {
+                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
+                });
+            }
+
+            $('#formBatchZip').submit();
+        }
+
+        // Open Invoice Detail Modal
+        function openInvoiceModal(id) {
+            $('#invoiceModal').modal('show');
+            $('#invoiceModalBody').html('<div class="d-flex justify-content-center align-items-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
+
+            $.get('/Invoice/Detail/' + id, function(html) {
+                $('#invoiceModalBody').html(html);
+                $('#invoiceModalFooterActions').html(
+                    '<a href="/Invoice/ViewHtml/' + id + '" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i> In / Bản in gốc</a> ' +
+                    '<a href="/Invoice/ViewRawXml/' + id + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-xml me-1"></i> Tải XML gốc</a>'
+                );
+            }).fail(function() {
+                $('#invoiceModalBody').html('<div class="alert alert-danger m-3">Không thể tải thông tin hóa đơn.</div>');
+            });
+        }
+
+        // Toggle reconciliation
+        function toggleReconciliation(id) {
+            var refNo = prompt("Nhập số chứng từ kế toán nội bộ (Phiếu chi, UNC, v.v.):", "PC-" + new Date().toISOString().slice(0,10).replace(/-/g,''));
+            if (refNo === null) return;
+
+            $.post('/Invoice/ToggleReconciliation', {
+                id: id,
+                refNo: refNo,
+                __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val()
+            }, function(res) {
+                if (res.success) {
+                    var badge = $('#reconcile-badge-' + id);
+                    if (res.isReconciled) {
+                        badge.removeClass('bg-light text-muted border').addClass('bg-primary text-white').html('<i class="bi bi-check2-circle"></i> Đã vào sổ');
+                    } else {
+                        badge.removeClass('bg-primary text-white').addClass('bg-light text-muted border').html('Chưa ghi sổ');
+                    }
+                } else {
+                    alert(res.message || 'Lỗi khi cập nhật trạng thái.');
+                }
+            });
+        }
+    </script>
+}

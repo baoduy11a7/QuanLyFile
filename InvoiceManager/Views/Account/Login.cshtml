@@ -1,0 +1,143 @@
+@model InvoiceManager.Models.ViewModels.LoginViewModel
+@{
+    ViewData["Title"] = "Đăng nhập hệ thống";
+    Layout = null; // Trang đăng nhập độc lập cực đẹp
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng nhập - InvoiceManager</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a8a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            max-width: 440px;
+            width: 100%;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .brand-badge {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+            margin: 0 auto 16px;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+        }
+
+        .demo-btn {
+            font-size: 0.775rem;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            color: #334155;
+            transition: all 0.15s;
+        }
+        .demo-btn:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="brand-badge">
+            <i class="bi bi-file-earmark-ruled-fill"></i>
+        </div>
+        <div class="text-center mb-4">
+            <h4 class="fw-bold text-dark mb-1">InvoiceManager</h4>
+            <p class="text-muted small">Hệ thống Quản lý Hóa đơn Điện tử Doanh nghiệp</p>
+        </div>
+
+        <form asp-action="Login" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="ReturnUrl" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small" role="alert"></div>
+
+            <div class="mb-3">
+                <label asp-for="UserNameOrEmail" class="form-label small fw-semibold">Email hoặc Tên đăng nhập</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-person text-muted"></i></span>
+                    <input asp-for="UserNameOrEmail" id="inputUsername" class="form-control" placeholder="admin@invoicemanager.vn" required />
+                </div>
+                <span asp-validation-for="UserNameOrEmail" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label small fw-semibold">Mật khẩu</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-key text-muted"></i></span>
+                    <input asp-for="Password" id="inputPassword" class="form-control" type="password" placeholder="••••••••" required />
+                </div>
+                <span asp-validation-for="Password" class="text-danger small"></span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" asp-for="RememberMe" id="rememberMe">
+                    <label class="form-check-label small text-muted" for="rememberMe">
+                        Ghi nhớ 30 ngày
+                    </label>
+                </div>
+                <span class="small text-muted">Bảo mật chuẩn CQT</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold mb-3 shadow-sm">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Đăng nhập hệ thống
+            </button>
+
+            <!-- Quick Demo Credentials Box -->
+            <div class="border-top pt-3 mt-3">
+                <div class="small fw-semibold text-muted mb-2 text-center">Đăng nhập nhanh tài khoản mẫu:</div>
+                <div class="d-flex justify-content-between gap-1">
+                    <button type="button" class="btn demo-btn flex-fill" onclick="fillCreds('admin@invoicemanager.vn', 'Admin@123456')">
+                        <i class="bi bi-shield-lock text-danger"></i> Admin
+                    </button>
+                    <button type="button" class="btn demo-btn flex-fill" onclick="fillCreds('ketoan@invoicemanager.vn', 'Ketoan@123456')">
+                        <i class="bi bi-calculator text-primary"></i> Kế toán
+                    </button>
+                    <button type="button" class="btn demo-btn flex-fill" onclick="fillCreds('viewer@invoicemanager.vn', 'Viewer@123456')">
+                        <i class="bi bi-eye text-secondary"></i> Người xem
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script>
+        function fillCreds(user, pass) {
+            $('#inputUsername').val(user);
+            $('#inputPassword').val(pass);
+        }
+    </script>
+</body>
+</html>

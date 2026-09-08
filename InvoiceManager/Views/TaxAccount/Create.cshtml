@@ -1,0 +1,67 @@
+@model InvoiceManager.Models.ViewModels.CreateTaxAccountViewModel
+@{
+    ViewData["Title"] = "Thêm Tài khoản thuế mới";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold text-primary">
+                    <i class="bi bi-building-add me-2"></i> Thêm Tài khoản thuế (Doanh nghiệp)
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="TaxCode" class="form-label fw-bold"></label>
+                        <input asp-for="TaxCode" class="form-control font-monospace" placeholder="Ví dụ: 0101234567" required />
+                        <span asp-validation-for="TaxCode" class="text-danger small"></span>
+                        <div class="form-text small">Mã số thuế doanh nghiệp 10 số hoặc 14 số (đơn vị trực thuộc).</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CompanyName" class="form-label fw-bold"></label>
+                        <input asp-for="CompanyName" class="form-control" placeholder="Tên công ty theo ĐKKD..." required />
+                        <span asp-validation-for="CompanyName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Address" class="form-label fw-bold"></label>
+                        <input asp-for="Address" class="form-control" placeholder="Địa chỉ trụ sở chính..." required />
+                        <span asp-validation-for="Address" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Email" class="form-label fw-semibold"></label>
+                            <input asp-for="Email" class="form-control" placeholder="ketoan@company.vn" />
+                            <span asp-validation-for="Email" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="PhoneNumber" class="form-label fw-semibold"></label>
+                            <input asp-for="PhoneNumber" class="form-control" placeholder="0243.xxx.xxxx" />
+                            <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Representative" class="form-label fw-semibold"></label>
+                        <input asp-for="Representative" class="form-control" placeholder="Họ tên người đại diện pháp luật..." />
+                        <span asp-validation-for="Representative" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Hủy bỏ</a>
+                        <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                            <i class="bi bi-check2-circle me-1"></i> Lưu thông tin
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

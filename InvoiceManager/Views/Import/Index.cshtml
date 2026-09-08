@@ -1,0 +1,197 @@
+@{
+    ViewData["Title"] = "Nhập Hóa đơn Điện tử (XML / ZIP)";
+    var taxAccount = ViewBag.TaxAccount as InvoiceManager.Models.Entities.TaxAccount;
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold text-primary">
+                    <i class="bi bi-cloud-arrow-up me-2"></i> Nhập Hóa đơn Điện tử (XML / ZIP)
+                </h5>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                    MST: @taxAccount?.TaxCode
+                </span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-info border-info-subtle small mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Quy định nhập file:</strong> Hệ thống hỗ trợ tải lên file đơn lẻ <code>.xml</code> hoặc file nén <code>.zip</code> chứa nhiều hóa đơn. Hệ thống tự động kiểm tra trùng lặp (Idempotent) dựa trên <strong>(MST Người bán + Ký hiệu + Số HĐ)</strong> và lưu trữ file XML gốc an toàn phục vụ đối soát.
+                </div>
+
+                <form id="uploadForm" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">1. Chọn loại hóa đơn</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="invoiceType" id="typeMuaVao" value="MuaVao" checked>
+                                <label class="form-check-label fw-semibold" for="typeMuaVao">
+                                    <i class="bi bi-box-arrow-in-down text-primary me-1"></i> Hóa đơn Mua vào (Chi phí)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="invoiceType" id="typeBanRa" value="BanRa">
+                                <label class="form-check-label fw-semibold" for="typeBanRa">
+                                    <i class="bi bi-box-arrow-up text-success me-1"></i> Hóa đơn Bán ra (Doanh thu)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drag & Drop Zone -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">2. Tải lên tệp hóa đơn</label>
+                        <div id="dropZone" class="border border-2 border-dashed rounded-3 p-5 text-center bg-light cursor-pointer" style="transition: all 0.2s;">
+                            <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 3rem;"></i>
+                            <h5 class="fw-bold mt-2">Kéo thả file .XML hoặc .ZIP vào đây</h5>
+                            <p class="text-muted small mb-3">hoặc nhấp chuột để duyệt file từ máy tính của bạn</p>
+                            <input type="file" id="fileInput" name="file" accept=".xml,.zip" class="d-none" />
+                            <button type="button" class="btn btn-outline-primary btn-sm px-4 fw-medium" onclick="$('#fileInput').click()">
+                                <i class="bi bi-folder2-open me-1"></i> Chọn tệp từ máy
+                            </button>
+                            <div id="selectedFileInfo" class="mt-3 text-primary fw-bold small d-none"></div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" id="btnSubmit" class="btn btn-primary btn-lg fw-bold py-2" disabled>
+                            <i class="bi bi-upload me-2"></i> Bắt đầu Nhập & Phân tích Dữ liệu
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Progress Bar -->
+                <div id="uploadProgress" class="progress mt-4 d-none" style="height: 12px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 100%"></div>
+                </div>
+
+                <!-- Result Box -->
+                <div id="resultBox" class="mt-4 d-none">
+                    <div class="card border">
+                        <div class="card-header bg-light fw-bold" id="resultHeader">Kết quả xử lý</div>
+                        <div class="card-body">
+                            <div class="row text-center g-2 mb-3">
+                                <div class="col-4">
+                                    <div class="p-2 bg-light rounded border">
+                                        <div class="small text-muted">Nhập thành công</div>
+                                        <div class="fs-4 fw-bold text-success" id="resSuccess">0</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2 bg-light rounded border">
+                                        <div class="small text-muted">Trùng (Bỏ qua)</div>
+                                        <div class="fs-4 fw-bold text-warning" id="resSkipped">0</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2 bg-light rounded border">
+                                        <div class="small text-muted">Lỗi / Thất bại</div>
+                                        <div class="fs-4 fw-bold text-danger" id="resFailed">0</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="small fw-semibold mb-2">Chi tiết thông báo:</div>
+                            <div id="resMessages" class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.825rem;"></div>
+                            
+                            <div class="mt-3 d-flex justify-content-end gap-2">
+                                <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-arrow-right me-1"></i> Đến danh sách hóa đơn
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var dropZone = $('#dropZone');
+        var fileInput = $('#fileInput');
+        var selectedFileInfo = $('#selectedFileInfo');
+        var btnSubmit = $('#btnSubmit');
+
+        // Drag & Drop effects
+        dropZone.on('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.addClass('border-primary bg-white');
+        });
+
+        dropZone.on('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.removeClass('border-primary bg-white');
+        });
+
+        dropZone.on('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.removeClass('border-primary bg-white');
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput[0].files = files;
+                updateFileInfo(files[0]);
+            }
+        });
+
+        fileInput.on('change', function() {
+            if (this.files.length > 0) {
+                updateFileInfo(this.files[0]);
+            }
+        });
+
+        function updateFileInfo(file) {
+            selectedFileInfo.removeClass('d-none').html('<i class="bi bi-file-earmark-check text-success me-1"></i> Đã chọn: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)');
+            btnSubmit.prop('disabled', false);
+        }
+
+        // Upload Form submit via AJAX
+        $('#uploadForm').on('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+
+            $('#uploadProgress').removeClass('d-none');
+            $('#resultBox').addClass('d-none');
+            btnSubmit.prop('disabled', true);
+
+            $.ajax({
+                url: '/Import/Upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    $('#uploadProgress').addClass('d-none');
+                    btnSubmit.prop('disabled', false);
+                    $('#resultBox').removeClass('d-none');
+
+                    $('#resSuccess').text(res.successCount || 0);
+                    $('#resSkipped').text(res.skippedCount || 0);
+                    $('#resFailed').text(res.failedCount || 0);
+
+                    var msgContainer = $('#resMessages');
+                    msgContainer.empty();
+                    if (res.messages && res.messages.length > 0) {
+                        res.messages.forEach(function(msg) {
+                            var color = msg.indexOf('Thành công') >= 0 ? 'text-success' : (msg.indexOf('tồn tại') >= 0 ? 'text-warning' : 'text-danger');
+                            msgContainer.append('<div class="' + color + ' mb-1">&bull; ' + msg + '</div>');
+                        });
+                    } else {
+                        msgContainer.html('<div class="text-muted">Không có thông báo bổ sung.</div>');
+                    }
+                },
+                error: function() {
+                    $('#uploadProgress').addClass('d-none');
+                    btnSubmit.prop('disabled', false);
+                    alert('Lỗi hệ thống khi tải lên file.');
+                }
+            });
+        });
+    </script>
+}
