@@ -1,107 +1,257 @@
 @{
-    ViewData["Title"] = "Nhập Hóa đơn Điện tử (XML / ZIP)";
+    ViewData["Title"] = "Nhập Hóa đơn (XML / ZIP / Excel)";
     var taxAccount = ViewBag.TaxAccount as InvoiceManager.Models.Entities.TaxAccount;
 }
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-cloud-arrow-up me-2"></i> Nhập Hóa đơn Điện tử (XML / ZIP)
-                </h5>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
-                    MST: @taxAccount?.TaxCode
-                </span>
-            </div>
-            <div class="card-body p-4">
-                <div class="alert alert-info border-info-subtle small mb-4">
-                    <i class="bi bi-info-circle-fill me-2"></i>
-                    <strong>Quy định nhập file:</strong> Hệ thống hỗ trợ tải lên file đơn lẻ <code>.xml</code> hoặc file nén <code>.zip</code> chứa nhiều hóa đơn. Hệ thống tự động kiểm tra trùng lặp (Idempotent) dựa trên <strong>(MST Người bán + Ký hiệu + Số HĐ)</strong> và lưu trữ file XML gốc an toàn phục vụ đối soát.
-                </div>
+    <div class="col-lg-10">
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-3 p-1 bg-light rounded border" id="importTabs" role="tablist">
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link active fw-bold py-2 w-100" id="xml-tab" data-bs-toggle="pill" data-bs-target="#tabXml" type="button" role="tab">
+                    <i class="bi bi-filetype-xml me-1"></i> 1. Nhập từ XML / ZIP (HĐĐT Gốc)
+                </button>
+            </li>
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link fw-bold py-2 w-100" id="excel-tab" data-bs-toggle="pill" data-bs-target="#tabExcel" type="button" role="tab">
+                    <i class="bi bi-file-earmark-excel text-success me-1"></i> 2. Nhập từ file Excel (Mẫu chuẩn)
+                </button>
+            </li>
+        </ul>
 
-                <form id="uploadForm" enctype="multipart/form-data">
-                    @Html.AntiForgeryToken()
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">1. Chọn loại hóa đơn</label>
-                        <div class="d-flex gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="invoiceType" id="typeMuaVao" value="MuaVao" checked>
-                                <label class="form-check-label fw-semibold" for="typeMuaVao">
-                                    <i class="bi bi-box-arrow-in-down text-primary me-1"></i> Hóa đơn Mua vào (Chi phí)
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="invoiceType" id="typeBanRa" value="BanRa">
-                                <label class="form-check-label fw-semibold" for="typeBanRa">
-                                    <i class="bi bi-box-arrow-up text-success me-1"></i> Hóa đơn Bán ra (Doanh thu)
-                                </label>
-                            </div>
+        <div class="tab-content" id="importTabContent">
+            <!-- TAB 1: XML / ZIP -->
+            <div class="tab-pane fade show active" id="tabXml" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0 fw-bold text-primary">
+                            <i class="bi bi-cloud-arrow-up me-2"></i> Nhập Hóa đơn Điện tử (XML / ZIP)
+                        </h5>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                            MST: @taxAccount?.TaxCode
+                        </span>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="alert alert-info border-info-subtle small mb-4">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            <strong>Quy định nhập file:</strong> Hệ thống hỗ trợ tải lên file đơn lẻ <code>.xml</code> hoặc file nén <code>.zip</code> chứa nhiều hóa đơn. Hệ thống tự động kiểm tra trùng lặp (Idempotent) dựa trên <strong>(MST Người bán + Ký hiệu + Số HĐ)</strong> và lưu trữ file XML gốc an toàn phục vụ đối soát.
                         </div>
-                    </div>
 
-                    <!-- Drag & Drop Zone -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">2. Tải lên tệp hóa đơn</label>
-                        <div id="dropZone" class="border border-2 border-dashed rounded-3 p-5 text-center bg-light cursor-pointer" style="transition: all 0.2s;">
-                            <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 3rem;"></i>
-                            <h5 class="fw-bold mt-2">Kéo thả file .XML hoặc .ZIP vào đây</h5>
-                            <p class="text-muted small mb-3">hoặc nhấp chuột để duyệt file từ máy tính của bạn</p>
-                            <input type="file" id="fileInput" name="file" accept=".xml,.zip" class="d-none" />
-                            <button type="button" class="btn btn-outline-primary btn-sm px-4 fw-medium" onclick="$('#fileInput').click()">
-                                <i class="bi bi-folder2-open me-1"></i> Chọn tệp từ máy
-                            </button>
-                            <div id="selectedFileInfo" class="mt-3 text-primary fw-bold small d-none"></div>
-                        </div>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" id="btnSubmit" class="btn btn-primary btn-lg fw-bold py-2" disabled>
-                            <i class="bi bi-upload me-2"></i> Bắt đầu Nhập & Phân tích Dữ liệu
-                        </button>
-                    </div>
-                </form>
-
-                <!-- Progress Bar -->
-                <div id="uploadProgress" class="progress mt-4 d-none" style="height: 12px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 100%"></div>
-                </div>
-
-                <!-- Result Box -->
-                <div id="resultBox" class="mt-4 d-none">
-                    <div class="card border">
-                        <div class="card-header bg-light fw-bold" id="resultHeader">Kết quả xử lý</div>
-                        <div class="card-body">
-                            <div class="row text-center g-2 mb-3">
-                                <div class="col-4">
-                                    <div class="p-2 bg-light rounded border">
-                                        <div class="small text-muted">Nhập thành công</div>
-                                        <div class="fs-4 fw-bold text-success" id="resSuccess">0</div>
-                                    </div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="p-2 bg-light rounded border">
-                                        <div class="small text-muted">Trùng (Bỏ qua)</div>
-                                        <div class="fs-4 fw-bold text-warning" id="resSkipped">0</div>
-                                    </div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="p-2 bg-light rounded border">
-                                        <div class="small text-muted">Lỗi / Thất bại</div>
-                                        <div class="fs-4 fw-bold text-danger" id="resFailed">0</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="small fw-semibold mb-2">Chi tiết thông báo:</div>
-                            <div id="resMessages" class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.825rem;"></div>
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
                             
-                            <div class="mt-3 d-flex justify-content-end gap-2">
-                                <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-arrow-right me-1"></i> Đến danh sách hóa đơn
-                                </a>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">1. Chọn loại hóa đơn</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="invoiceType" id="typeMuaVao" value="MuaVao" checked>
+                                        <label class="form-check-label fw-semibold" for="typeMuaVao">
+                                            <i class="bi bi-box-arrow-in-down text-primary me-1"></i> Hóa đơn Mua vào (Chi phí)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="invoiceType" id="typeBanRa" value="BanRa">
+                                        <label class="form-check-label fw-semibold" for="typeBanRa">
+                                            <i class="bi bi-box-arrow-up text-success me-1"></i> Hóa đơn Bán ra (Doanh thu)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Drag & Drop Zone -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">2. Tải lên tệp hóa đơn</label>
+                                <div id="dropZone" class="border border-2 border-dashed rounded-3 p-5 text-center bg-light cursor-pointer" style="transition: all 0.2s;">
+                                    <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 3rem;"></i>
+                                    <h5 class="fw-bold mt-2">Kéo thả file .XML hoặc .ZIP vào đây</h5>
+                                    <p class="text-muted small mb-3">hoặc nhấp chuột để duyệt file từ máy tính của bạn</p>
+                                    <input type="file" id="fileInput" name="file" accept=".xml,.zip" class="d-none" />
+                                    <button type="button" class="btn btn-outline-primary btn-sm px-4 fw-medium" onclick="$('#fileInput').click()">
+                                        <i class="bi bi-folder2-open me-1"></i> Chọn tệp từ máy
+                                    </button>
+                                    <div id="selectedFileInfo" class="mt-3 text-primary fw-bold small d-none"></div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" id="btnSubmit" class="btn btn-primary btn-lg fw-bold py-2" disabled>
+                                    <i class="bi bi-upload me-2"></i> Bắt đầu Nhập & Phân tích Dữ liệu
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Progress Bar -->
+                        <div id="uploadProgress" class="progress mt-4 d-none" style="height: 12px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 100%"></div>
+                        </div>
+
+                        <!-- Result Box -->
+                        <div id="resultBox" class="mt-4 d-none">
+                            <div class="card border">
+                                <div class="card-header bg-light fw-bold" id="resultHeader">Kết quả xử lý</div>
+                                <div class="card-body">
+                                    <div class="row text-center g-2 mb-3">
+                                        <div class="col-4">
+                                            <div class="p-2 bg-light rounded border">
+                                                <div class="small text-muted">Nhập thành công</div>
+                                                <div class="fs-4 fw-bold text-success" id="resSuccess">0</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="p-2 bg-light rounded border">
+                                                <div class="small text-muted">Trùng (Bỏ qua)</div>
+                                                <div class="fs-4 fw-bold text-warning" id="resSkipped">0</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="p-2 bg-light rounded border">
+                                                <div class="small text-muted">Lỗi / Thất bại</div>
+                                                <div class="fs-4 fw-bold text-danger" id="resFailed">0</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="small fw-semibold mb-2">Chi tiết thông báo:</div>
+                                    <div id="resMessages" class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.825rem;"></div>
+                                    
+                                    <div class="mt-3 d-flex justify-content-end gap-2">
+                                        <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-arrow-right me-1"></i> Đến danh sách hóa đơn
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: EXCEL IMPORT -->
+            <div class="tab-pane fade" id="tabExcel" role="tabpanel">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold text-success">
+                                <i class="bi bi-file-earmark-spreadsheet me-2"></i> Nhập Hóa đơn từ file Excel (Mẫu chuẩn)
+                            </h5>
+                            <span class="small text-muted">Dành cho hóa đơn giấy chuyển đổi, dữ liệu từ hệ thống cũ hoặc nhập liệu thủ công</span>
+                        </div>
+                        <a asp-action="DownloadTemplate" class="btn btn-outline-success btn-sm fw-semibold">
+                            <i class="bi bi-download me-1"></i> Tải file Excel mẫu chuẩn
+                        </a>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="alert alert-warning border-warning-subtle small mb-4">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Lưu ý pháp lý & nghiệp vụ:</strong> Hóa đơn nhập thủ công từ Excel sẽ được ghi chú nguồn <code>ManualExcel</code> để phân biệt với hóa đơn điện tử gốc XML. Vui lòng tải file mẫu để có cấu trúc cột chuẩn và đọc hướng dẫn định dạng dữ liệu ở Sheet 2.
+                        </div>
+
+                        <!-- Step 1: Upload & Preview -->
+                        <form id="excelPreviewForm" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+
+                            <div class="row g-3 align-items-center mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">1. Loại hóa đơn mặc định</label>
+                                    <select name="defaultInvoiceType" id="excelDefaultInvoiceType" class="form-select">
+                                        <option value="MuaVao" selected>Hóa đơn Mua vào (Chi phí)</option>
+                                        <option value="BanRa">Hóa đơn Bán ra (Doanh thu)</option>
+                                    </select>
+                                    <span class="text-muted" style="font-size: 0.75rem;">(Có thể chỉ định riêng từng dòng trong cột "Loại hóa đơn" của file Excel)</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">2. Chọn file Excel cần nhập</label>
+                                <div id="dropZoneExcel" class="border border-2 border-dashed rounded-3 p-4 text-center bg-light cursor-pointer" style="transition: all 0.2s;">
+                                    <i class="bi bi-file-earmark-excel text-success" style="font-size: 2.8rem;"></i>
+                                    <h6 class="fw-bold mt-2">Kéo thả file .XLSX hoặc .XLS vào đây</h6>
+                                    <p class="text-muted small mb-3">hoặc nhấp chuột để chọn tệp từ máy tính</p>
+                                    <input type="file" id="fileInputExcel" name="file" accept=".xlsx,.xls" class="d-none" />
+                                    <button type="button" class="btn btn-outline-success btn-sm px-4 fw-medium" onclick="$('#fileInputExcel').click()">
+                                        <i class="bi bi-folder2-open me-1"></i> Chọn file Excel
+                                    </button>
+                                    <div id="selectedExcelFileInfo" class="mt-2 text-success fw-bold small d-none"></div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" id="btnPreviewExcel" class="btn btn-success btn-lg fw-bold py-2" disabled>
+                                    <i class="bi bi-search me-2"></i> Đọc & Kiểm tra Dữ liệu (Xem trước)
+                                </button>
+                            </div>
+                        </form>
+
+                        <div id="excelLoading" class="text-center py-4 d-none">
+                            <div class="spinner-border text-success" role="status"></div>
+                            <div class="mt-2 text-muted fw-semibold">Đang đọc file và xác thực các quy tắc nghiệp vụ...</div>
+                        </div>
+
+                        <!-- Step 2: Preview Results & Confirmation -->
+                        <div id="excelPreviewContainer" class="mt-4 d-none">
+                            <hr />
+                            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-1"><i class="bi bi-table text-primary me-2"></i> Kết quả xem trước dữ liệu</h6>
+                                    <span class="small text-muted">Kiểm tra tính hợp lệ trước khi chính thức lưu vào cơ sở dữ liệu</span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <span class="badge bg-primary fs-6 p-2">Tổng: <span id="prevTotal">0</span></span>
+                                    <span class="badge bg-success fs-6 p-2">Hợp lệ: <span id="prevValid">0</span></span>
+                                    <span class="badge bg-danger fs-6 p-2">Lỗi: <span id="prevError">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- Preview Table -->
+                            <div class="table-responsive border rounded mb-3" style="max-height: 420px; overflow-y: auto;">
+                                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th class="text-center" style="width: 45px;">Dòng</th>
+                                            <th class="text-center" style="width: 85px;">Trạng thái</th>
+                                            <th style="width: 90px;">Ký hiệu</th>
+                                            <th style="width: 90px;">Số HĐ</th>
+                                            <th style="width: 95px;">Ngày lập</th>
+                                            <th style="width: 120px;">MST Người bán</th>
+                                            <th>Tên Người bán</th>
+                                            <th class="text-end" style="width: 110px;">Thanh toán</th>
+                                            <th style="width: 250px;">Chi tiết lỗi / Cảnh báo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="excelPreviewTableBody">
+                                        <!-- Rendered via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="small text-muted">
+                                    <i class="bi bi-info-circle me-1"></i> Các dòng có lỗi màu đỏ sẽ tự động bị loại trừ khi lưu.
+                                </div>
+                                <button type="button" id="btnConfirmSaveExcel" class="btn btn-primary fw-bold px-4">
+                                    <i class="bi bi-check2-circle me-1"></i> Xác nhận Lưu các dòng hợp lệ vào Hệ thống
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Save Result Box -->
+                        <div id="excelSaveResultBox" class="mt-4 d-none">
+                            <div class="card border border-success">
+                                <div class="card-header bg-success text-white fw-bold">
+                                    <i class="bi bi-check-circle-fill me-2"></i> Hoàn tất Nhập hóa đơn từ Excel
+                                </div>
+                                <div class="card-body">
+                                    <div id="excelSaveSummaryMessage" class="fw-bold mb-2"></div>
+                                    <div id="excelSaveDetails" class="p-2 bg-light rounded small" style="max-height: 150px; overflow-y: auto;"></div>
+                                    <div class="mt-3 d-flex justify-content-end gap-2">
+                                        <a asp-controller="Invoice" asp-action="Index" class="btn btn-success btn-sm">
+                                            <i class="bi bi-arrow-right me-1"></i> Xem danh sách hóa đơn
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -111,12 +261,12 @@
 
 @section Scripts {
     <script>
+        // --- 1. SCRIPT FOR XML / ZIP ---
         var dropZone = $('#dropZone');
         var fileInput = $('#fileInput');
         var selectedFileInfo = $('#selectedFileInfo');
         var btnSubmit = $('#btnSubmit');
 
-        // Drag & Drop effects
         dropZone.on('dragover', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -151,7 +301,6 @@
             btnSubmit.prop('disabled', false);
         }
 
-        // Upload Form submit via AJAX
         $('#uploadForm').on('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(this);
@@ -190,6 +339,173 @@
                     $('#uploadProgress').addClass('d-none');
                     btnSubmit.prop('disabled', false);
                     alert('Lỗi hệ thống khi tải lên file.');
+                }
+            });
+        });
+
+        // --- 2. SCRIPT FOR EXCEL IMPORT ---
+        var dropZoneExcel = $('#dropZoneExcel');
+        var fileInputExcel = $('#fileInputExcel');
+        var selectedExcelFileInfo = $('#selectedExcelFileInfo');
+        var btnPreviewExcel = $('#btnPreviewExcel');
+        var parsedExcelRows = [];
+
+        dropZoneExcel.on('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZoneExcel.addClass('border-success bg-white');
+        });
+
+        dropZoneExcel.on('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZoneExcel.removeClass('border-success bg-white');
+        });
+
+        dropZoneExcel.on('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZoneExcel.removeClass('border-success bg-white');
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                fileInputExcel[0].files = files;
+                updateExcelFileInfo(files[0]);
+            }
+        });
+
+        fileInputExcel.on('change', function() {
+            if (this.files.length > 0) {
+                updateExcelFileInfo(this.files[0]);
+            }
+        });
+
+        function updateExcelFileInfo(file) {
+            selectedExcelFileInfo.removeClass('d-none').html('<i class="bi bi-file-earmark-excel text-success me-1"></i> Đã chọn: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)');
+            btnPreviewExcel.prop('disabled', false);
+        }
+
+        // Preview Form Submit
+        $('#excelPreviewForm').on('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+
+            $('#excelLoading').removeClass('d-none');
+            $('#excelPreviewContainer').addClass('d-none');
+            $('#excelSaveResultBox').addClass('d-none');
+            btnPreviewExcel.prop('disabled', true);
+
+            $.ajax({
+                url: '/Import/PreviewExcel',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    $('#excelLoading').addClass('d-none');
+                    btnPreviewExcel.prop('disabled', false);
+
+                    if (!res.success && (!res.rows || res.rows.length === 0)) {
+                        alert(res.errorMessage || 'Không thể đọc file Excel.');
+                        return;
+                    }
+
+                    parsedExcelRows = res.rows || [];
+                    $('#prevTotal').text(res.totalRows || 0);
+                    $('#prevValid').text(res.validCount || 0);
+                    $('#prevError').text(res.errorCount || 0);
+
+                    var tbody = $('#excelPreviewTableBody');
+                    tbody.empty();
+
+                    parsedExcelRows.forEach(function(r) {
+                        var trClass = r.isValid ? '' : 'table-danger';
+                        var badgeStatus = r.isValid 
+                            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Hợp lệ</span>'
+                            : '<span class="badge bg-danger">Lỗi</span>';
+                        
+                        var errorHtml = '';
+                        if (r.errorMessages && r.errorMessages.length > 0) {
+                            errorHtml = '<div class="text-danger fw-semibold">&bull; ' + r.errorMessages.join('<br>&bull; ') + '</div>';
+                        }
+                        if (r.warningMessages && r.warningMessages.length > 0) {
+                            errorHtml += '<div class="text-warning small">&bull; ' + r.warningMessages.join('<br>&bull; ') + '</div>';
+                        }
+
+                        var tr = $('<tr class="' + trClass + '"></tr>');
+                        tr.append('<td class="text-center text-muted fw-bold">' + r.rowIndex + '</td>');
+                        tr.append('<td class="text-center">' + badgeStatus + '</td>');
+                        tr.append('<td class="font-monospace fw-semibold">' + (r.invoiceSymbol || '-') + '</td>');
+                        tr.append('<td class="font-monospace text-primary fw-bold">' + (r.invoiceNumber || '-') + '</td>');
+                        tr.append('<td>' + (r.issueDateStr || '-') + '</td>');
+                        tr.append('<td class="font-monospace">' + (r.sellerTaxCode || '-') + '</td>');
+                        tr.append('<td class="text-truncate" style="max-width: 200px;" title="' + (r.sellerName || '') + '">' + (r.sellerName || '-') + '</td>');
+                        tr.append('<td class="text-end font-monospace fw-bold">' + (r.totalAmount ? Number(r.totalAmount).toLocaleString('vi-VN') : '0') + ' đ</td>');
+                        tr.append('<td>' + (errorHtml || '<span class="text-success small"><i class="bi bi-check2"></i> Đầy đủ thông tin</span>') + '</td>');
+
+                        tbody.append(tr);
+                    });
+
+                    $('#excelPreviewContainer').removeClass('d-none');
+                    if (res.validCount === 0) {
+                        $('#btnConfirmSaveExcel').prop('disabled', true).text('Không có dòng hợp lệ nào để lưu');
+                    } else {
+                        $('#btnConfirmSaveExcel').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Lưu ' + res.validCount + ' dòng hợp lệ vào Hệ thống');
+                    }
+                },
+                error: function() {
+                    $('#excelLoading').addClass('d-none');
+                    btnPreviewExcel.prop('disabled', false);
+                    alert('Lỗi hệ thống khi phân tích file Excel.');
+                }
+            });
+        });
+
+        // Confirm Save valid rows
+        $('#btnConfirmSaveExcel').on('click', function() {
+            var validRows = parsedExcelRows.filter(function(r) { return r.isValid; });
+            if (validRows.length === 0) {
+                alert('Không có dòng hợp lệ nào để lưu.');
+                return;
+            }
+
+            if (!confirm('Bạn có chắc chắn muốn lưu ' + validRows.length + ' hóa đơn hợp lệ này vào hệ thống?')) {
+                return;
+            }
+
+            var btn = $(this);
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang lưu vào CSDL...');
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+
+            $.ajax({
+                url: '/Import/ConfirmImport',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    "RequestVerificationToken": token
+                },
+                data: JSON.stringify({
+                    rows: validRows,
+                    defaultInvoiceType: $('#excelDefaultInvoiceType').val()
+                }),
+                success: function(res) {
+                    btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Hoàn tất');
+                    $('#excelPreviewContainer').addClass('d-none');
+                    $('#excelSaveResultBox').removeClass('d-none');
+
+                    $('#excelSaveSummaryMessage').text(res.messages[0] || 'Hoàn tất xử lý.');
+
+                    var detailsDiv = $('#excelSaveDetails');
+                    detailsDiv.empty();
+                    if (res.messages && res.messages.length > 1) {
+                        for (var i = 1; i < res.messages.length; i++) {
+                            detailsDiv.append('<div>&bull; ' + res.messages[i] + '</div>');
+                        }
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Lưu lại');
+                    alert('Lỗi khi gửi yêu cầu lưu hóa đơn vào cơ sở dữ liệu.');
                 }
             });
         });

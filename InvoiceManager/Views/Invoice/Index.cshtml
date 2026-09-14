@@ -101,6 +101,11 @@
                             <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
                         </a>
 
+                        <!-- Nút Xóa Hàng Loạt (chỉ hiện khi có chọn checkbox) -->
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold d-none" id="btnDeleteSelected" onclick="deleteSelectedInvoices()">
+                            <i class="bi bi-trash me-1"></i> Xóa đã chọn (<span id="selectedCount">0</span>)
+                        </button>
+
                         <!-- Nút Xuất Báo Cáo Hàng Loạt -->
                         <div class="dropdown">
                             <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -271,6 +276,10 @@
                                 {
                                     <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Khởi tạo từ máy tính tiền" style="font-size: 0.65rem;">MTT</span>
                                 }
+                                @if (inv.SourceProvider == "ManualExcel")
+                                {
+                                    <span class="badge bg-warning text-dark border border-warning-subtle" title="Hóa đơn nhập tay từ file Excel (Không có file XML gốc)" style="font-size: 0.65rem;"><i class="bi bi-file-earmark-excel text-success me-1"></i>Excel</span>
+                                }
                             </td>
                             <td>
                                 <strong class="text-primary font-monospace">@inv.InvoiceNumber</strong>
@@ -360,6 +369,10 @@
                                     <a asp-action="ViewHtml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Mở bản thể hiện ra tab mới">
                                         <i class="bi bi-box-arrow-up-right text-info"></i>
                                     </a>
+                                    <!-- Xóa hóa đơn -->
+                                    <button type="button" class="btn-action-icon text-danger" title="Xóa hóa đơn này" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -446,7 +459,89 @@
         // Check all rows
         $('#selectAll').on('change', function() {
             $('.row-select').prop('checked', $(this).is(':checked'));
+            updateSelectedCount();
         });
+
+        $(document).on('change', '.row-select', function() {
+            updateSelectedCount();
+        });
+
+        function updateSelectedCount() {
+            var count = $('.row-select:checked').length;
+            $('#selectedCount').text(count);
+            if (count > 0) {
+                $('#btnDeleteSelected').removeClass('d-none');
+            } else {
+                $('#btnDeleteSelected').addClass('d-none');
+            }
+        }
+
+        // Xóa 1 hóa đơn
+        function deleteSingleInvoice(id, symbol, number) {
+            if (!confirm('Bạn có chắc chắn muốn xóa hóa đơn ' + symbol + '-' + number + ' khỏi hệ thống? Hành động này không thể hoàn tác!')) {
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/Delete',
+                type: 'POST',
+                data: {
+                    id: id,
+                    __RequestVerificationToken: token
+                },
+                success: function(res) {
+                    if (res.success) {
+                        alert(res.message);
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi hệ thống khi gửi yêu cầu xóa.');
+                }
+            });
+        }
+
+        // Xóa hàng loạt hóa đơn đã chọn
+        function deleteSelectedInvoices() {
+            var selectedIds = [];
+            $('.row-select:checked').each(function() {
+                selectedIds.push(parseInt($(this).val()));
+            });
+
+            if (selectedIds.length === 0) {
+                alert('Vui lòng tích chọn ít nhất 1 hóa đơn để xóa.');
+                return;
+            }
+
+            if (!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn ' + selectedIds.length + ' hóa đơn đã chọn khỏi hệ thống?')) {
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/DeleteBatch',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    "RequestVerificationToken": token
+                },
+                data: JSON.stringify(selectedIds),
+                success: function(res) {
+                    if (res.success) {
+                        alert(res.message);
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn hàng loạt.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi hệ thống khi xóa hàng loạt.');
+                }
+            });
+        }
 
         // Quick date selection
         function setQuickDate(type) {

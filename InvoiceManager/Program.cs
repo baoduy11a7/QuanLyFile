@@ -79,6 +79,7 @@ builder.Services.AddScoped<IInvoiceParser, VnptInvoiceParser>();
 builder.Services.AddScoped<IInvoiceParserFactory, InvoiceParserFactory>();
 
 builder.Services.AddScoped<IInvoiceImportService, InvoiceImportService>();
+builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<InvoiceAutoSyncJob>();
