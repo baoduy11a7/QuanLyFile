@@ -15,7 +15,14 @@ namespace InvoiceManager.Data
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager)
         {
-            await context.Database.MigrateAsync();
+            if (context.Database.IsSqlite())
+            {
+                await context.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                await context.Database.MigrateAsync();
+            }
 
             // 1. Seed Roles
             string[] roles = { "Admin", "Accountant", "Viewer" };

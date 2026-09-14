@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.Dashboard;
+using Hangfire.MemoryStorage;
 using Hangfire.SqlServer;
 using InvoiceManager.Data;
 using InvoiceManager.Jobs;
@@ -27,12 +28,33 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// 2. Database & Entity Framework Core
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Server=localhost;Database=InvoiceManagerDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True";
+// 2. Database & Entity Framework Core (Hỗ trợ cả SQL Server và SQLite tự động khi deploy Render)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var isRender = string.Equals(Environment.GetEnvironmentVariable("RENDER"), "true", StringComparison.OrdinalIgnoreCase);
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+var useSqlite = builder.Configuration.GetValue<bool>("UseSqlite")
+    || (isRender && (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("localhost", StringComparison.OrdinalIgnoreCase)))
+    || string.IsNullOrWhiteSpace(connectionString)
+    || connectionString.Contains(".db", StringComparison.OrdinalIgnoreCase)
+    || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase);
+
+if (useSqlite)
+{
+    var appDataDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+    Directory.CreateDirectory(appDataDir);
+    var sqliteDbPath = Path.Combine(appDataDir, "InvoiceManager.db");
+    var sqliteConn = (string.IsNullOrWhiteSpace(connectionString) || !connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+        ? $"Data Source={sqliteDbPath}"
+        : connectionString;
+
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlite(sqliteConn));
+}
+else
+{
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 
 // 3. ASP.NET Core Identity & Phân quyền
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -85,18 +107,29 @@ builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<InvoiceAutoSyncJob>();
 
 // 6. Hangfire Background Jobs
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-    {
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-        QueuePollInterval = TimeSpan.FromSeconds(15),
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true
-    }));
+if (useSqlite)
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseMemoryStorage());
+}
+else
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(connectionString!, new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.FromSeconds(15),
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true
+        }));
+}
 
 builder.Services.AddHangfireServer();
 
