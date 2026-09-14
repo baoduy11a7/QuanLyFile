@@ -26,6 +26,14 @@ public class HomeController : Controller
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {
+        var exceptionFeature = HttpContext.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        if (exceptionFeature != null)
+        {
+            _logger.LogError(exceptionFeature.Error, "Lỗi chưa được xử lý tại đường dẫn {Path}", exceptionFeature.Path);
+            ViewBag.ErrorMessage = exceptionFeature.Error.Message;
+            ViewBag.ErrorPath = exceptionFeature.Path;
+        }
+
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
 }

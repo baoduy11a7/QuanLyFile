@@ -156,7 +156,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 // 8. Pipeline cấu hình HTTP
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
