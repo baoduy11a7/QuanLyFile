@@ -124,16 +124,27 @@ namespace InvoiceManager.Controllers
                 query = query.Where(i => i.IsReconciled == filter.IsReconciled.Value);
             }
 
-            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu đã lọc (Khớp chính xác thanh Card phía trên ảnh tham khảo)
+            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu đã lọc (Tương thích 100% cả SQL Server và SQLite)
+            var stats = await query
+                .Select(i => new
+                {
+                    i.AmountBeforeTax,
+                    i.TaxAmount,
+                    i.TotalAmount,
+                    i.HasTaxCode,
+                    i.IsCashRegister
+                })
+                .ToListAsync();
+
             var summary = new InvoiceSummaryViewModel
             {
-                TotalCount = await query.CountAsync(),
-                WithTaxCodeCount = await query.CountAsync(i => i.HasTaxCode && !i.IsCashRegister),
-                WithoutTaxCodeCount = await query.CountAsync(i => !i.HasTaxCode && !i.IsCashRegister),
-                CashRegisterCount = await query.CountAsync(i => i.IsCashRegister),
-                TotalAmountBeforeTax = await query.SumAsync(i => (decimal?)i.AmountBeforeTax) ?? 0,
-                TotalTaxAmount = await query.SumAsync(i => (decimal?)i.TaxAmount) ?? 0,
-                TotalAmount = await query.SumAsync(i => (decimal?)i.TotalAmount) ?? 0
+                TotalCount = stats.Count,
+                WithTaxCodeCount = stats.Count(i => i.HasTaxCode && !i.IsCashRegister),
+                WithoutTaxCodeCount = stats.Count(i => !i.HasTaxCode && !i.IsCashRegister),
+                CashRegisterCount = stats.Count(i => i.IsCashRegister),
+                TotalAmountBeforeTax = stats.Sum(i => i.AmountBeforeTax),
+                TotalTaxAmount = stats.Sum(i => i.TaxAmount),
+                TotalAmount = stats.Sum(i => i.TotalAmount)
             };
 
             // Lấy thời điểm đồng bộ gần nhất
