@@ -100,6 +100,12 @@ builder.Services.AddHttpClient(GdtPortalProvider.ClientName)
     .AddTransientHttpErrorPolicy(policy => policy.WaitAndRetryAsync(3, retryAttempt =>
         TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
 
+// Tra cứu thông tin doanh nghiệp từ Mã số thuế
+builder.Services.AddHttpClient(TaxCodeLookupService.ClientName)
+    .AddTransientHttpErrorPolicy(policy => policy.WaitAndRetryAsync(2, retryAttempt =>
+        TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
+builder.Services.AddScoped<ITaxCodeLookupService, TaxCodeLookupService>();
+
 // Đăng ký các Cổng cung cấp hóa đơn (Strategy Pattern + Factory)
 builder.Services.AddScoped<IInvoiceSourceProvider, GdtPortalProvider>();
 builder.Services.AddScoped<IInvoiceSourceProvider, MockInvoiceSourceProvider>();

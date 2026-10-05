@@ -4,34 +4,48 @@
 }
 
 <div class="row justify-content-center">
-    <div class="col-md-7">
+    <div class="col-md-8 col-lg-7">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white py-3 border-bottom">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-building-add me-2"></i> Thêm Tài khoản thuế (Doanh nghiệp)
+                    <i class="bi bi-building-add me-2"></i> Thêm Doanh nghiệp / Tài khoản thuế
                 </h5>
+                <a asp-action="Lookup" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-search me-1"></i> Trang Tra cứu MST
+                </a>
             </div>
             <div class="card-body p-4">
-                <form asp-action="Create" method="post">
+                <form asp-action="Create" method="post" id="createTaxAccountForm">
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small"></div>
 
+                    <!-- MST & Tra cứu Cổng Thuế -->
                     <div class="mb-3">
                         <label asp-for="TaxCode" class="form-label fw-bold"></label>
-                        <input asp-for="TaxCode" class="form-control font-monospace" placeholder="Ví dụ: 0101234567" required />
+                        <div class="input-group">
+                            <input asp-for="TaxCode" id="taxCodeInput" class="form-control font-monospace fs-5 fw-bold text-primary" placeholder="Ví dụ: 0105880697" autofocus required />
+                            <button type="button" id="btnLookup" class="btn btn-primary px-3 fw-semibold d-flex align-items-center gap-2">
+                                <span id="btnLookupSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                <i id="btnLookupIcon" class="bi bi-cloud-arrow-down-fill"></i>
+                                <span>Cào thông tin Cổng Thuế</span>
+                            </button>
+                        </div>
                         <span asp-validation-for="TaxCode" class="text-danger small"></span>
-                        <div class="form-text small">Mã số thuế doanh nghiệp 10 số hoặc 14 số (đơn vị trực thuộc).</div>
+                        <div class="form-text small">Nhập 10 số (hoặc 14 số đối với chi nhánh), hệ thống sẽ tự động cào tên công ty và địa chỉ chính thức từ Tổng cục Thuế.</div>
+                        
+                        <!-- Khu vực thông báo cào dữ liệu -->
+                        <div id="lookupAlert" class="mt-2" style="display:none;"></div>
                     </div>
 
                     <div class="mb-3">
                         <label asp-for="CompanyName" class="form-label fw-bold"></label>
-                        <input asp-for="CompanyName" class="form-control" placeholder="Tên công ty theo ĐKKD..." required />
+                        <input asp-for="CompanyName" id="companyNameInput" class="form-control" placeholder="Tên công ty theo ĐKKD..." required />
                         <span asp-validation-for="CompanyName" class="text-danger small"></span>
                     </div>
 
                     <div class="mb-3">
                         <label asp-for="Address" class="form-label fw-bold"></label>
-                        <input asp-for="Address" class="form-control" placeholder="Địa chỉ trụ sở chính..." required />
+                        <input asp-for="Address" id="addressInput" class="form-control" placeholder="Địa chỉ trụ sở chính..." required />
                         <span asp-validation-for="Address" class="text-danger small"></span>
                     </div>
 
@@ -54,10 +68,10 @@
                         <span asp-validation-for="Representative" class="text-danger small"></span>
                     </div>
 
-                    <div class="d-flex justify-content-end gap-2">
+                    <div class="d-flex justify-content-end gap-2 pt-2 border-top">
                         <a asp-action="Index" class="btn btn-outline-secondary">Hủy bỏ</a>
-                        <button type="submit" class="btn btn-primary px-4 fw-semibold">
-                            <i class="bi bi-check2-circle me-1"></i> Lưu thông tin
+                        <button type="submit" class="btn btn-success px-4 fw-semibold">
+                            <i class="bi bi-check2-circle me-1"></i> Lưu thông tin Doanh nghiệp
                         </button>
                     </div>
                 </form>
@@ -65,3 +79,89 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            var $taxInput = $('#taxCodeInput');
+            var $btnLookup = $('#btnLookup');
+            var $spinner = $('#btnLookupSpinner');
+            var $icon = $('#btnLookupIcon');
+            var $alert = $('#lookupAlert');
+            var $companyName = $('#companyNameInput');
+            var $address = $('#addressInput');
+
+            function performLookup() {
+                var taxCode = $taxInput.val().trim();
+                if (!taxCode || taxCode.length < 10) {
+                    $alert.show().html('<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i> Vui lòng nhập mã số thuế hợp lệ (10 - 14 ký tự).</div>');
+                    return;
+                }
+
+                $btnLookup.prop('disabled', true);
+                $spinner.removeClass('d-none');
+                $icon.addClass('d-none');
+                $alert.show().html('<div class="alert alert-info py-2 small mb-0 d-flex align-items-center"><span class="spinner-border spinner-border-sm me-2"></span> Đang cào dữ liệu từ Cổng Tổng cục Thuế...</div>');
+
+                $.ajax({
+                    url: '@Url.Action("LookupApi", "TaxAccount")',
+                    type: 'GET',
+                    data: { taxCode: taxCode },
+                    success: function (res) {
+                        if (res.success) {
+                            $companyName.val(res.companyName || '');
+                            $address.val(res.address || '');
+
+                            // Highlight feedback
+                            $companyName.addClass('border-success bg-success-subtle');
+                            $address.addClass('border-success bg-success-subtle');
+                            setTimeout(function() {
+                                $companyName.removeClass('bg-success-subtle');
+                                $address.removeClass('bg-success-subtle');
+                            }, 1200);
+
+                            var statusBadge = res.status ? '<span class="badge bg-success ms-2"><i class="bi bi-check-circle me-1"></i>' + res.status + '</span>' : '';
+                            var existWarning = res.existsInSystem ? '<div class="text-danger fw-bold mt-1"><i class="bi bi-exclamation-octagon-fill me-1"></i> Mã số thuế này đã tồn tại trong hệ thống!</div>' : '';
+
+                            $alert.show().html(
+                                '<div class="alert alert-success py-2 small mb-0">' +
+                                    '<div class="fw-bold d-flex align-items-center"><i class="bi bi-patch-check-fill text-success me-1"></i> Đã lấy dữ liệu thành công từ Tổng cục Thuế ' + statusBadge + '</div>' +
+                                    (res.internationalName ? '<div class="text-muted">' + res.internationalName + '</div>' : '') +
+                                    existWarning +
+                                '</div>'
+                            );
+                        } else {
+                            $alert.show().html('<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-x-circle-fill me-1"></i> ' + (res.message || 'Không tìm thấy dữ liệu.') + '</div>');
+                        }
+                    },
+                    error: function () {
+                        $alert.show().html('<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi kết nối khi cào dữ liệu từ Cổng Thuế. Vui lòng thử lại.</div>');
+                    },
+                    complete: function () {
+                        $btnLookup.prop('disabled', false);
+                        $spinner.addClass('d-none');
+                        $icon.removeClass('d-none');
+                    }
+                });
+            }
+
+            $btnLookup.on('click', function () {
+                performLookup();
+            });
+
+            // Tự động cào khi nhấn Enter ở ô MST
+            $taxInput.on('keypress', function (e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    performLookup();
+                }
+            });
+
+            // Nếu ô MST đã có sẵn giá trị khi load trang và chưa có tên công ty thì tự động tra cứu
+            if ($taxInput.val().trim().length >= 10 && !$companyName.val().trim()) {
+                performLookup();
+            }
+        });
+    </script>
+}

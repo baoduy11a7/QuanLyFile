@@ -16,15 +16,18 @@ namespace InvoiceManager.Controllers
         private readonly ApplicationDbContext _db;
         private readonly ITaxAccountContext _taxAccountContext;
         private readonly IAuditLogService _auditLog;
+        private readonly ITaxCodeLookupService _taxCodeLookupService;
 
         public TaxAccountController(
             ApplicationDbContext db,
             ITaxAccountContext taxAccountContext,
-            IAuditLogService auditLog)
+            IAuditLogService auditLog,
+            ITaxCodeLookupService taxCodeLookupService)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
             _auditLog = auditLog;
+            _taxCodeLookupService = taxCodeLookupService;
         }
 
         public async Task<IActionResult> Index()
@@ -61,9 +64,14 @@ namespace InvoiceManager.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Admin")]
-        public IActionResult Create()
+        public IActionResult Create(string? taxCode = null, string? companyName = null, string? address = null)
         {
-            return View(new CreateTaxAccountViewModel());
+            return View(new CreateTaxAccountViewModel
+            {
+                TaxCode = taxCode ?? "",
+                CompanyName = companyName ?? "",
+                Address = address ?? ""
+            });
         }
 
         [HttpPost]
@@ -125,6 +133,62 @@ namespace InvoiceManager.Controllers
             await _auditLog.LogActionAsync("Gửi yêu cầu/báo lỗi", feedback.Title, feedback.Description, taxAccountId.Value);
 
             return Json(new { success = true, message = "Yêu cầu của bạn đã được gửi tới đội ngũ kỹ thuật. Chúng tôi sẽ xử lý sớm nhất!" });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> LookupApi(string taxCode)
+        {
+            var result = await _taxCodeLookupService.LookupAsync(taxCode);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Lookup(string? taxCode)
+        {
+            TaxCodeLookupResult? result = null;
+            if (!string.IsNullOrWhiteSpace(taxCode))
+            {
+                result = await _taxCodeLookupService.LookupAsync(taxCode);
+            }
+            ViewBag.InitialTaxCode = taxCode ?? "";
+            return View(result);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> QuickAddFromTaxCode(string taxCode)
+        {
+            var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
+            if (!lookup.Success)
+            {
+                TempData["ErrorMessage"] = lookup.Message ?? "Không thể lấy thông tin từ mã số thuế này.";
+                return RedirectToAction(nameof(Lookup), new { taxCode });
+            }
+
+            var cleanTaxCode = lookup.TaxCode!.Trim();
+            var existing = await _db.TaxAccounts.AnyAsync(t => t.TaxCode == cleanTaxCode);
+            if (existing)
+            {
+                TempData["ErrorMessage"] = $"Mã số thuế {cleanTaxCode} đã tồn tại trong hệ thống.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var account = new TaxAccount
+            {
+                TaxCode = cleanTaxCode,
+                CompanyName = lookup.CompanyName?.Trim() ?? "Công ty mới",
+                Address = lookup.Address?.Trim() ?? "",
+                IsActive = true,
+                CreatedAt = DateTime.Now
+            };
+
+            _db.TaxAccounts.Add(account);
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync("Thêm nhanh từ Cổng Thuế", $"MST: {account.TaxCode}", account.CompanyName, account.Id);
+            TempData["SuccessMessage"] = $"Đã thêm thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode}) từ Cổng Thuế!";
+            return RedirectToAction(nameof(Index));
         }
     }
 }
