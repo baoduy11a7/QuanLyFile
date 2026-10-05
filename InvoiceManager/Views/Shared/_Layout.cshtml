@@ -117,25 +117,30 @@
             font-weight: 600;
         }
 
-        /* Summary Stats Cards */
+        /* ==========================================================================
+           Modern Polished Dashboard Summary Cards
+           ========================================================================== */
         .stat-card {
             background: #ffffff;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 0.85rem 1rem;
-            transition: transform 0.15s, box-shadow 0.15s;
+            border-radius: 12px;
+            padding: 0.9rem 1.1rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .stat-card:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px -2px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
         }
 
         .stat-label {
-            font-size: 0.775rem;
+            font-size: 0.725rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 0.25rem;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .stat-value {
@@ -143,11 +148,240 @@
             font-weight: 700;
             color: var(--text-dark);
             line-height: 1.2;
+            font-variant-numeric: tabular-nums;
         }
 
         .stat-value.primary { color: var(--primary-blue); }
         .stat-value.success { color: var(--accent-emerald); }
         .stat-value.warning { color: var(--accent-amber); }
+
+        /* Summary Hub Card (Volume & Breakdown) */
+        .summary-hub-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .summary-hub-card:hover {
+            box-shadow: 0 6px 18px -4px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .hub-icon-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+            border: 1px solid #bfdbfe;
+        }
+
+        .hub-title {
+            font-size: 0.725rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .hub-hero-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+            color: var(--primary-navy);
+            transition: color 0.15s;
+        }
+
+        .hub-hero-value:hover {
+            color: var(--primary-blue);
+        }
+
+        .hub-subtext {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .sync-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.75rem;
+            color: #475569;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .sync-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: syncPulse 2s infinite;
+        }
+
+        @@keyframes syncPulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* 3 Mini breakdown items */
+        .hub-breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .mini-stat-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.5rem 0.65rem;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .mini-stat-item:hover {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .mini-stat-item.active {
+            background: #eff6ff !important;
+            border-color: #93c5fd !important;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .mini-stat-header {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.725rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+        }
+
+        .mini-stat-value {
+            font-size: 1.15rem;
+            font-weight: 800;
+            line-height: 1.2;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mini-stat-desc {
+            font-size: 0.675rem;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Financial cards */
+        .financial-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.15rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .financial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px -3px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .financial-label {
+            font-size: 0.725rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .financial-icon-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .financial-value {
+            font-size: 1.25rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin: 0.4rem 0;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+        }
+
+        .financial-value .currency {
+            font-size: 0.8rem;
+            font-weight: 600;
+            opacity: 0.8;
+            margin-left: 2px;
+        }
+
+        .financial-subtext {
+            font-size: 0.725rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-weight: 500;
+        }
+
+        /* Hero card: Tổng thanh toán */
+        .financial-card.hero-card {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1.5px solid #93c5fd;
+            box-shadow: 0 3px 12px rgba(37, 99, 235, 0.1);
+        }
+
+        .financial-card.hero-card:hover {
+            box-shadow: 0 10px 22px -3px rgba(37, 99, 235, 0.2);
+            border-color: #60a5fa;
+        }
+
+        .financial-card.hero-card .financial-value {
+            color: #1d4ed8;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
 
         /* Modern Table styling */
         .table-invoice {
