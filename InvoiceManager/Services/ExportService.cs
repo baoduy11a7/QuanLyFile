@@ -152,8 +152,8 @@ namespace InvoiceManager.Services
 
             ws.Columns().AdjustToContents();
             ws.Column(1).Width = 8;  // Thu gọn cột STT vừa vặn số thứ tự
-            ws.Column(6).Width = 35; // Tên người bán
-            ws.Column(8).Width = 40; // Tên hàng hóa
+            ws.Column(6).Width = Math.Max(35, ws.Column(6).Width + 3); // Cột Tên người bán tự động mở rộng theo tên dài nhất, không bị ngắt chữ
+            ws.Column(8).Width = Math.Max(35, ws.Column(8).Width + 3); // Cột Tên hàng hóa tự động mở rộng theo tên dài nhất
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
@@ -267,7 +267,7 @@ namespace InvoiceManager.Services
 
             ws.Columns().AdjustToContents();
             ws.Column(1).Width = 8; // Thu gọn cột STT vừa vặn số thứ tự
-            ws.Column(6).Width = 38;
+            ws.Column(6).Width = Math.Max(35, ws.Column(6).Width + 3); // Cột Tên người bán tự động mở rộng theo tên dài nhất, không bị ngắt chữ
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
