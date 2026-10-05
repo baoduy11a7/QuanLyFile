@@ -185,6 +185,11 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 RecurringJob.AddOrUpdate<InvoiceAutoSyncJob>("invoice-auto-sync-job", job => job.ExecuteAsync(), Cron.Hourly);
 
 app.MapControllerRoute(
+    name: "accounting",
+    pattern: "phan-mem-ke-toan",
+    defaults: new { controller = "Invoice", action = "Index" });
+
+app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Invoice}/{action=Index}/{id?}");
 
