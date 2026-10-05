@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon>
+  <DLHDon>
+    <TTChung>
+      <PBan>2.1</PBan>
+      <THDon>Hóa đơn giá trị gia tăng</THDon>
+      <KHMSHDon>GTGT</KHMSHDon>
+      <KHHDon>1C26TAA</KHHDon>
+      <SHDon>00000004</SHDon>
+      <NLap>2026-09-07</NLap>
+      <HTTToan>TM/CK</HTTToan>
+      <DVTTe>VND</DVTTe>
+      <TGia>1</TGia>
+      <LoaiHDon>GTGT</LoaiHDon>
+      <GChu>Hóa đơn dịch vụ ăn uống</GChu>
+    </TTChung>
+    <NDHDon>
+      <NBan>
+        <Ten>CONG TY DICH VU AM THUC SAI GON</Ten>
+        <MST>0315555555</MST>
+        <DChi>88 Nguyen Thi Minh Khai, Quan 1, TP Ho Chi Minh</DChi>
+        <SDThoai>028-3822-0000</SDThoai>
+      </NBan>
+      <NMua>
+        <Ten>NGUYEN THI B</Ten>
+        <MST></MST>
+        <DChi>10 Pasteur, Quan 1, TP Ho Chi Minh</DChi>
+        <SDThoai>0900000000</SDThoai>
+      </NMua>
+      <DSHHDVu>
+        <HHDVu>
+          <STT>1</STT>
+          <THHDVu>Set lunch</THHDVu>
+          <DVTinh>phan</DVTinh>
+          <SLuong>2</SLuong>
+          <DGia>150000.00</DGia>
+          <ThTien>300000.00</ThTien>
+          <TSuat>8%</TSuat>
+          <TThue>24000.00</TThue>
+        </HHDVu>
+        <HHDVu>
+          <STT>2</STT>
+          <THHDVu>Nuoc uong</THHDVu>
+          <DVTinh>chai</DVTinh>
+          <SLuong>2</SLuong>
+          <DGia>30000.00</DGia>
+          <ThTien>60000.00</ThTien>
+          <TSuat>8%</TSuat>
+          <TThue>4800.00</TThue>
+        </HHDVu>
+      </DSHHDVu>
+      <TToan>
+        <THTTLTSuat>360000.00</THTTLTSuat>
+        <TGTGT>28800.00</TGTGT>
+        <TgTToan>388800.00</TgTToan>
+        <SoTienBangChu>Tổng tiền theo hóa đơn</SoTienBangChu>
+      </TToan>
+    </NDHDon>
+  </DLHDon>
+</HDon>

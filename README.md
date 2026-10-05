@@ -21,6 +21,7 @@
 - Cô lập dữ liệu triệt để, không lộ chéo thông tin tài chính giữa các doanh nghiệp.
 
 ### 2. Danh Sách & Bộ Lọc Hóa Đơn Chuẩn Nghiệp Vụ
+
 - **Thanh tổng hợp số liệu thời gian thực (Summary Cards)**:
   - Tổng số hóa đơn, Có mã CQT, Không mã CQT, HĐ từ máy tính tiền.
   - Tổng Chưa thuế, Tiền thuế GTGT, Tổng thanh toán tự động cập nhật theo kết quả lọc.
