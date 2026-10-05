@@ -45,5 +45,6 @@ namespace InvoiceManager.Models.Entities
         public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
         public ICollection<UserTaxAccount> UserTaxAccounts { get; set; } = new List<UserTaxAccount>();
         public ICollection<SyncLog> SyncLogs { get; set; } = new List<SyncLog>();
+        public ICollection<RemoteConnection> RemoteConnections { get; set; } = new List<RemoteConnection>();
     }
 }

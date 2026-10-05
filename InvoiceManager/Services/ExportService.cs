@@ -84,6 +84,7 @@ namespace InvoiceManager.Services
                 foreach (var d in details)
                 {
                     ws.Cell(currentRow, 1).Value = invoiceIndex;
+                    ws.Cell(currentRow, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(currentRow, 2).Value = inv.InvoiceSymbol;
                     ws.Cell(currentRow, 3).Value = inv.InvoiceNumber;
                     ws.Cell(currentRow, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
@@ -150,6 +151,7 @@ namespace InvoiceManager.Services
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
 
             ws.Columns().AdjustToContents();
+            ws.Column(1).Width = 8;  // Thu gọn cột STT vừa vặn số thứ tự
             ws.Column(6).Width = 35; // Tên người bán
             ws.Column(8).Width = 40; // Tên hàng hóa
 
@@ -209,6 +211,7 @@ namespace InvoiceManager.Services
             foreach (var inv in invoices)
             {
                 ws.Cell(currentRow, 1).Value = idx;
+                ws.Cell(currentRow, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(currentRow, 2).Value = inv.InvoiceSymbol;
                 ws.Cell(currentRow, 3).Value = inv.InvoiceNumber;
                 ws.Cell(currentRow, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
@@ -263,6 +266,7 @@ namespace InvoiceManager.Services
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
 
             ws.Columns().AdjustToContents();
+            ws.Column(1).Width = 8; // Thu gọn cột STT vừa vặn số thứ tự
             ws.Column(6).Width = 38;
 
             using var stream = new MemoryStream();

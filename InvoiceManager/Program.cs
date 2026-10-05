@@ -3,11 +3,18 @@ using Hangfire.Dashboard;
 using Hangfire.SqlServer;
 using InvoiceManager.Data;
 using InvoiceManager.Jobs;
+using InvoiceManager.Jobs.JobTracker;
 using InvoiceManager.Models.Entities;
 using InvoiceManager.Services;
 using InvoiceManager.Services.Parsers;
+using InvoiceManager.Services.Providers;
+using InvoiceManager.Services.Providers.Gdt;
+using InvoiceManager.Services.Providers.Mock;
+using InvoiceManager.Services.Security;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Polly;
 using Serilog;
 using System;
 using System.IO;
@@ -82,6 +89,25 @@ builder.Services.AddScoped<IInvoiceImportService, InvoiceImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<InvoiceAutoSyncJob>();
+
+// Data Protection & Mã hóa bảo vệ mật khẩu Cổng thuế
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<ICredentialProtector, CredentialProtector>();
+
+// Cấu hình Cổng Tổng cục Thuế & IHttpClientFactory kèm Polly Retry Policy
+builder.Services.Configure<GdtPortalOptions>(builder.Configuration.GetSection(GdtPortalOptions.SectionName));
+builder.Services.AddHttpClient(GdtPortalProvider.ClientName)
+    .AddTransientHttpErrorPolicy(policy => policy.WaitAndRetryAsync(3, retryAttempt =>
+        TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
+
+// Đăng ký các Cổng cung cấp hóa đơn (Strategy Pattern + Factory)
+builder.Services.AddScoped<IInvoiceSourceProvider, GdtPortalProvider>();
+builder.Services.AddScoped<IInvoiceSourceProvider, MockInvoiceSourceProvider>();
+builder.Services.AddScoped<IInvoiceSourceProviderFactory, InvoiceSourceProviderFactory>();
+
+// Theo dõi tiến độ chạy nền theo thời gian thực & Job Hangfire
+builder.Services.AddSingleton<IRemoteJobTracker, RemoteJobTracker>();
+builder.Services.AddScoped<RemoteFetchJob>();
 
 // 6. Hangfire Background Jobs
 builder.Services.AddHangfire(configuration => configuration

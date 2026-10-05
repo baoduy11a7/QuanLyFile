@@ -91,15 +91,15 @@
 
                     <!-- Right Quick Actions: Đồng bộ, Nhập XML, Xuất file -->
                     <div class="d-flex align-items-center gap-2">
-                        <!-- Nút Đồng bộ (Sync Now) -->
-                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="$('#formSyncNow').submit()">
+                        <!-- Nút Đồng bộ (Mở thẳng Tab B - Cổng Thuế) -->
+                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="openImportModal('tab-remote-btn')">
                             <i class="bi bi-arrow-repeat me-1"></i> Đồng bộ
                         </button>
 
-                        <!-- Nút Nhập XML / ZIP -->
-                        <a asp-controller="Import" asp-action="Index" class="btn btn-outline-success btn-sm fw-semibold">
+                        <!-- Nút Nhập XML / ZIP (Mở Tab A - Tải file) -->
+                        <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openImportModal('tab-upload-btn')">
                             <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
-                        </a>
+                        </button>
 
                         <!-- Nút Xuất Báo Cáo Hàng Loạt -->
                         <div class="dropdown">
@@ -559,5 +559,23 @@
                 }
             });
         }
+
+        // Mở Modal Nhập HĐ và tự động kích hoạt Tab mong muốn
+        function openImportModal(tabButtonId) {
+            var modalEl = document.getElementById('modalImportInvoice');
+            if (!modalEl) return;
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+
+            if (tabButtonId) {
+                var btn = document.getElementById(tabButtonId);
+                if (btn) {
+                    var tab = new bootstrap.Tab(btn);
+                    tab.show();
+                }
+            }
+        }
     </script>
 }
+
+<partial name="_ImportModalPartial" />

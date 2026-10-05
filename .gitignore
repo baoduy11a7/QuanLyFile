@@ -32,10 +32,10 @@ bld/
 *.sln.docstates
 
 ## Temporary data & App_Data uploads
-App_Data/RawFiles/*
-!App_Data/RawFiles/.gitkeep
-App_Data/WatchFolder/*
-!App_Data/WatchFolder/.gitkeep
+**/App_Data/RawFiles/**
+!**/App_Data/RawFiles/.gitkeep
+**/App_Data/WatchFolder/**
+!**/App_Data/WatchFolder/.gitkeep
 
 ## Rider
 .idea/

@@ -18,6 +18,7 @@ namespace InvoiceManager.Data
         public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<FeatureRequest> FeatureRequests => Set<FeatureRequest>();
+        public DbSet<RemoteConnection> RemoteConnections => Set<RemoteConnection>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -74,6 +75,17 @@ namespace InvoiceManager.Data
                 .HasOne(s => s.TaxAccount)
                 .WithMany(t => t.SyncLogs)
                 .HasForeignKey(s => s.TaxAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Cấu hình RemoteConnection: 1 tài khoản thuế có 1 cấu hình duy nhất cho mỗi Provider
+            builder.Entity<RemoteConnection>()
+                .HasIndex(r => new { r.TaxAccountId, r.ProviderName })
+                .IsUnique();
+
+            builder.Entity<RemoteConnection>()
+                .HasOne(r => r.TaxAccount)
+                .WithMany(t => t.RemoteConnections)
+                .HasForeignKey(r => r.TaxAccountId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -1,0 +1,491 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
+@inject InvoiceManager.Services.ITaxAccountContext TaxAccountCtx
+@{
+    var currentAccount = await TaxAccountCtx.GetCurrentTaxAccountAsync();
+    var activeTaxCode = currentAccount?.TaxCode ?? "";
+}
+@functions {
+    public string GetAntiXsrfRequestToken() => Xsrf.GetAndStoreTokens(Context).RequestToken ?? "";
+}
+
+<!-- Modal Nhập Hóa Đơn & Kết Nối Cổng Thuế -->
+<div class="modal fade" id="modalImportInvoice" tabindex="-1" aria-labelledby="modalImportInvoiceLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content shadow-lg border-0 rounded-3">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold" id="modalImportInvoiceLabel">
+                    <i class="bi bi-cloud-arrow-down me-2"></i>Nhập Hóa Đơn Điện Tử
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng" id="btnCloseImportModal"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- Nav Tabs -->
+                <ul class="nav nav-pills nav-fill mb-4 border rounded-3 p-1 bg-light" id="importTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-semibold py-2" id="tab-upload-btn" data-bs-toggle="pill" data-bs-target="#tab-upload" type="button" role="tab">
+                            <i class="bi bi-file-earmark-arrow-up me-2"></i>(A) Tải File XML / ZIP
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold py-2" id="tab-remote-btn" data-bs-toggle="pill" data-bs-target="#tab-remote" type="button" role="tab">
+                            <i class="bi bi-cloud-check me-2"></i>(B) Kết Nối Cổng Thuế Điện Tử
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="importTabsContent">
+                    <!-- ========================================== -->
+                    <!-- TAB 1: TẢI FILE XML / ZIP                  -->
+                    <!-- ========================================== -->
+                    <div class="tab-pane fade show active" id="tab-upload" role="tabpanel">
+                        <form id="formUploadLocalFile" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Phân loại hóa đơn:</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="uploadInvoiceType" id="typeMuaVao" value="MuaVao" checked>
+                                        <label class="form-check-label fw-medium" for="typeMuaVao">Hóa đơn Mua vào</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="uploadInvoiceType" id="typeBanRa" value="BanRa">
+                                        <label class="form-check-label fw-medium" for="typeBanRa">Hóa đơn Bán ra</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Chọn file hóa đơn (.xml hoặc .zip):</label>
+                                <div class="border border-2 border-dashed rounded-3 p-4 text-center bg-light" id="dropZoneContainer">
+                                    <i class="bi bi-file-earmark-code text-primary display-4 mb-2 d-block"></i>
+                                    <p class="mb-2 fw-medium text-secondary">Kéo & thả file XML/ZIP vào đây hoặc bấm để chọn</p>
+                                    <input type="file" id="localFileInput" class="form-control w-75 mx-auto" accept=".xml,.zip" required>
+                                </div>
+                            </div>
+
+                            <div id="uploadFileAlert" class="alert d-none mb-3"></div>
+
+                            <div class="d-flex justify-content-end gap-2 mt-4">
+                                <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Đóng</button>
+                                <button type="submit" class="btn btn-success px-4 fw-semibold" id="btnSubmitUpload">
+                                    <i class="bi bi-upload me-1"></i> Bắt đầu nạp file
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- TAB 2: KẾT NỐI CỔNG THUẾ ĐIỆN TỬ (GDT/MOCK)-->
+                    <!-- ========================================== -->
+                    <div class="tab-pane fade" id="tab-remote" role="tabpanel">
+                        <!-- VIEW 1: Form thiết lập -->
+                        <div id="remoteSetupSection">
+                            <div class="alert alert-info py-2 px-3 small d-flex align-items-center mb-3">
+                                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                                <div>Dữ liệu lấy từ Cổng Thuế sẽ tự động đi qua bộ chống trùng, lưu trữ XML gốc và cập nhật chỉ số báo cáo ngay tức thì.</div>
+                            </div>
+
+                            <form id="formRemoteFetch">
+                                <div class="row g-3">
+                                    <!-- Cổng kết nối -->
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Cổng hóa đơn:</label>
+                                        <select id="remoteProvider" class="form-select">
+                                            <option value="Gdt" selected>Tổng cục Thuế (hoadondientu.gdt.gov.vn)</option>
+                                            <option value="Mock">Cổng Thuế Giả Lập (Test Mode - Mẫu chuẩn)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Mã số thuế (Readonly từ TaxAccount hiện tại) -->
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Mã số thuế doanh nghiệp:</label>
+                                        <input type="text" id="remoteTaxCode" class="form-control bg-light fw-bold text-primary" readonly value="@activeTaxCode" placeholder="MST công ty đang chọn">
+                                    </div>
+
+                                    <!-- Tên đăng nhập -->
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Tên đăng nhập cổng thuế:</label>
+                                        <input type="text" id="remoteUsername" class="form-control" placeholder="Thường là MST hoặc tên tài khoản" required>
+                                    </div>
+
+                                    <!-- Mật khẩu -->
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Mật khẩu:</label>
+                                        <div class="input-group">
+                                            <input type="password" id="remotePassword" class="form-control" placeholder="Nhập mật khẩu..." required>
+                                            <button class="btn btn-outline-secondary" type="button" id="btnTogglePassword" title="Hiện/ẩn mật khẩu">
+                                                <i class="bi bi-eye" id="iconTogglePassword"></i>
+                                            </button>
+                                        </div>
+                                        <div id="savedPasswordNotice" class="form-text text-success d-none">
+                                            <i class="bi bi-check-circle me-1"></i> Đã có mật khẩu ghi nhớ an toàn (để trống nếu không đổi).
+                                        </div>
+                                    </div>
+
+                                    <!-- Mã Captcha -->
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold">Mã xác thực (Captcha):</label>
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center" style="min-width: 170px; height: 50px;">
+                                                <span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                                            </div>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshCaptcha" title="Làm mới Captcha">
+                                                <i class="bi bi-arrow-clockwise fs-5"></i>
+                                            </button>
+                                            <input type="text" id="remoteCaptchaCode" class="form-control text-uppercase fw-bold" style="max-width: 160px; letter-spacing: 3px;" placeholder="Nhập mã..." maxlength="10">
+                                            <input type="hidden" id="remoteCaptchaKey">
+                                        </div>
+                                    </div>
+
+                                    <!-- Loại hóa đơn -->
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Loại hóa đơn:</label>
+                                        <select id="remoteInvoiceType" class="form-select">
+                                            <option value="MuaVao" selected>Hóa đơn Mua vào</option>
+                                            <option value="BanRa">Hóa đơn Bán ra</option>
+                                            <option value="All">Cả hai (Mua vào & Bán ra)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Từ ngày -->
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Từ ngày:</label>
+                                        <input type="date" id="remoteFromDate" class="form-control" value="@DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd")" required>
+                                    </div>
+
+                                    <!-- Đến ngày -->
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Đến ngày:</label>
+                                        <input type="date" id="remoteToDate" class="form-control" value="@DateTime.Now.ToString("yyyy-MM-dd")" required>
+                                    </div>
+
+                                    <!-- Ghi nhớ mật khẩu -->
+                                    <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="remoteRememberPassword">
+                                            <label class="form-check-label" for="remoteRememberPassword">
+                                                Ghi nhớ thông tin kết nối (mật khẩu được mã hóa an toàn qua Data Protection)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="remoteSetupAlert" class="alert d-none mt-3"></div>
+
+                                <div class="d-flex justify-content-end gap-2 mt-4">
+                                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Đóng</button>
+                                    <button type="submit" class="btn btn-primary px-4 fw-semibold" id="btnStartRemoteFetch">
+                                        <i class="bi bi-cloud-download me-1"></i> Bắt đầu lấy hóa đơn
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- VIEW 2: Giao diện Tiến trình & Log Trực Tiếp -->
+                        <div id="remoteProgressSection" class="d-none">
+                            <div class="text-center mb-3">
+                                <h6 class="fw-bold text-primary mb-1" id="progressStageText">Đang khởi tạo tiến trình...</h6>
+                                <p class="text-muted small mb-2" id="progressSubText">Vui lòng chờ trong giây lát, hệ thống đang đồng bộ với Cổng thuế</p>
+                                
+                                <div class="progress" style="height: 22px;">
+                                    <div id="remoteProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success fw-bold" role="progressbar" style="width: 5%;">5%</div>
+                                </div>
+                            </div>
+
+                            <!-- Thống kê mini đếm số lượng -->
+                            <div class="row g-2 text-center mb-3">
+                                <div class="col-3">
+                                    <div class="border rounded p-2 bg-light">
+                                        <small class="text-muted d-block">Tìm thấy</small>
+                                        <span class="fs-5 fw-bold text-dark" id="statFoundCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="border rounded p-2 bg-success bg-opacity-10 border-success">
+                                        <small class="text-success d-block fw-semibold">HĐ Mới</small>
+                                        <span class="fs-5 fw-bold text-success" id="statNewCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="border rounded p-2 bg-warning bg-opacity-10 border-warning">
+                                        <small class="text-warning text-dark d-block fw-semibold">Trùng lặp</small>
+                                        <span class="fs-5 fw-bold text-warning text-dark" id="statDupCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="border rounded p-2 bg-danger bg-opacity-10 border-danger">
+                                        <small class="text-danger d-block fw-semibold">Lỗi</small>
+                                        <span class="fs-5 fw-bold text-danger" id="statFailCount">0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Terminal Logs Console -->
+                            <label class="form-label fw-semibold small text-secondary mb-1">
+                                <i class="bi bi-terminal me-1"></i>Nhật ký chi tiết:
+                            </label>
+                            <div id="remoteTerminalLog" class="bg-dark text-light p-3 rounded font-monospace small" style="height: 180px; overflow-y: auto; line-height: 1.5;">
+                                <div class="text-muted">[Sẵn sàng nhận sự kiện...]</div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelRemoteJob">
+                                    <i class="bi bi-x-circle me-1"></i> Hủy tiến trình
+                                </button>
+                                <button type="button" class="btn btn-success fw-semibold d-none px-4" id="btnCompleteAndReload" onclick="location.reload()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i> Hoàn tất & Cập nhật danh sách
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const antiXsrfToken = '@GetAntiXsrfRequestToken()';
+        let currentJobId = null;
+        let pollTimer = null;
+
+        // Toggle mật khẩu
+        document.getElementById('btnTogglePassword')?.addEventListener('click', function () {
+            const pwdInput = document.getElementById('remotePassword');
+            const icon = document.getElementById('iconTogglePassword');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                pwdInput.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        });
+
+        // Load Captcha
+        async function loadCaptcha() {
+            const provider = document.getElementById('remoteProvider').value;
+            const container = document.getElementById('captchaImgContainer');
+            container.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>';
+
+            try {
+                const res = await fetch(`/Import/GetCaptcha?provider=${encodeURIComponent(provider)}`);
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('remoteCaptchaKey').value = data.key;
+                    if (data.isSvg && data.svgContent) {
+                        container.innerHTML = data.svgContent;
+                        const svgEl = container.querySelector('svg');
+                        if (svgEl) {
+                            svgEl.style.maxHeight = '44px';
+                            svgEl.style.width = 'auto';
+                            svgEl.style.display = 'block';
+                        }
+                    } else {
+                        container.innerHTML = `<img src="${data.imageBase64}" alt="Captcha" style="max-height: 44px; max-width: 100%; border-radius: 4px;" />`;
+                    }
+                    document.getElementById('remoteCaptchaCode').value = '';
+                } else {
+                    container.innerHTML = `<span class="text-danger small">${data.message || 'Lỗi tải Captcha'}</span>`;
+                }
+            } catch (err) {
+                container.innerHTML = '<span class="text-danger small">Lỗi mạng</span>';
+            }
+        }
+
+        // Load Saved Connection
+        async function loadSavedConnection() {
+            const provider = document.getElementById('remoteProvider').value;
+            try {
+                const res = await fetch(`/Import/GetSavedConnection?provider=${encodeURIComponent(provider)}`);
+                const data = await res.json();
+                if (data.success && data.exists) {
+                    if (data.username) document.getElementById('remoteUsername').value = data.username;
+                    if (data.hasSavedPassword) {
+                        document.getElementById('savedPasswordNotice').classList.remove('d-none');
+                        document.getElementById('remotePassword').removeAttribute('required');
+                        document.getElementById('remoteRememberPassword').checked = true;
+                    } else {
+                        document.getElementById('savedPasswordNotice').classList.add('d-none');
+                        document.getElementById('remotePassword').setAttribute('required', 'required');
+                    }
+                }
+            } catch (e) { }
+        }
+
+        document.getElementById('btnRefreshCaptcha')?.addEventListener('click', loadCaptcha);
+        document.getElementById('remoteProvider')?.addEventListener('change', () => {
+            loadCaptcha();
+            loadSavedConnection();
+        });
+
+        // Kích hoạt khi mở Tab Cổng Thuế
+        document.getElementById('tab-remote-btn')?.addEventListener('shown.bs.tab', function () {
+            loadCaptcha();
+            loadSavedConnection();
+        });
+
+        // Submit Form Kết Nối Cổng Thuế
+        document.getElementById('formRemoteFetch')?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const alertBox = document.getElementById('remoteSetupAlert');
+            alertBox.className = 'alert d-none';
+
+            const payload = {
+                providerName: document.getElementById('remoteProvider').value,
+                taxCode: document.getElementById('remoteTaxCode').value,
+                username: document.getElementById('remoteUsername').value,
+                password: document.getElementById('remotePassword').value,
+                captchaKey: document.getElementById('remoteCaptchaKey').value,
+                captchaCode: document.getElementById('remoteCaptchaCode').value,
+                invoiceType: document.getElementById('remoteInvoiceType').value,
+                fromDate: document.getElementById('remoteFromDate').value,
+                toDate: document.getElementById('remoteToDate').value,
+                rememberPassword: document.getElementById('remoteRememberPassword').checked
+            };
+
+            const btnSubmit = document.getElementById('btnStartRemoteFetch');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang gửi lệnh...';
+
+            try {
+                const res = await fetch('/Import/StartRemoteFetch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiXsrfToken
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    currentJobId = data.jobId;
+                    // Chuyển sang màn hình Progress
+                    document.getElementById('remoteSetupSection').classList.add('d-none');
+                    document.getElementById('remoteProgressSection').classList.remove('d-none');
+                    document.getElementById('btnCloseImportModal').classList.add('d-none'); // Khóa nút đóng modal khi đang chạy
+                    startPolling(currentJobId);
+                } else {
+                    alertBox.className = 'alert alert-danger';
+                    alertBox.textContent = data.message || 'Không thể bắt đầu tiến trình.';
+                    loadCaptcha(); // Tải lại captcha mới
+                }
+            } catch (err) {
+                alertBox.className = 'alert alert-danger';
+                alertBox.textContent = 'Lỗi kết nối máy chủ: ' + err.message;
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-cloud-download me-1"></i> Bắt đầu lấy hóa đơn';
+            }
+        });
+
+        // Polling Trạng thái
+        function startPolling(jobId) {
+            if (pollTimer) clearInterval(pollTimer);
+
+            pollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch(`/Import/RemoteStatus?jobId=${encodeURIComponent(jobId)}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        renderProgress(data);
+                        if (data.isFinished) {
+                            clearInterval(pollTimer);
+                            document.getElementById('btnCloseImportModal').classList.remove('d-none');
+                            document.getElementById('btnCancelRemoteJob').classList.add('d-none');
+                            document.getElementById('btnCompleteAndReload').classList.remove('d-none');
+                        }
+                    }
+                } catch (e) { }
+            }, 1200);
+        }
+
+        function renderProgress(info) {
+            const bar = document.getElementById('remoteProgressBar');
+            bar.style.width = info.percent + '%';
+            bar.textContent = info.percent + '%';
+
+            document.getElementById('progressStageText').textContent = info.stage || '';
+            document.getElementById('statFoundCount').textContent = info.totalFound || 0;
+            document.getElementById('statNewCount').textContent = info.successCount || 0;
+            document.getElementById('statDupCount').textContent = info.duplicateCount || 0;
+            document.getElementById('statFailCount').textContent = info.failedCount || 0;
+
+            if (info.status === 'Completed') {
+                bar.className = 'progress-bar bg-success fw-bold';
+            } else if (info.status === 'Failed' || info.status === 'Cancelled') {
+                bar.className = 'progress-bar bg-danger fw-bold';
+            }
+
+            // Logs
+            if (info.logs && info.logs.length > 0) {
+                const term = document.getElementById('remoteTerminalLog');
+                term.innerHTML = info.logs.map(l => `<div>${l}</div>`).join('');
+                term.scrollTop = term.scrollHeight;
+            }
+        }
+
+        // Hủy Job
+        document.getElementById('btnCancelRemoteJob')?.addEventListener('click', async function () {
+            if (!currentJobId) return;
+            if (!confirm('Bạn có chắc chắn muốn dừng tiến trình lấy hóa đơn này?')) return;
+
+            try {
+                await fetch('/Import/CancelRemoteJob', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiXsrfToken
+                    },
+                    body: JSON.stringify({ jobId: currentJobId })
+                });
+            } catch (e) { }
+        });
+
+        // Submit Upload Local File
+        document.getElementById('formUploadLocalFile')?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('localFileInput');
+            if (!fileInput.files || fileInput.files.length === 0) return;
+
+            const invoiceType = document.querySelector('input[name="uploadInvoiceType"]:checked').value;
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('invoiceType', invoiceType);
+
+            const btn = document.getElementById('btnSubmitUpload');
+            const alertBox = document.getElementById('uploadFileAlert');
+            alertBox.className = 'alert d-none';
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang nạp...';
+
+            try {
+                const res = await fetch('/Import/Upload', {
+                    method: 'POST',
+                    headers: {
+                        'RequestVerificationToken': antiXsrfToken
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alertBox.className = 'alert alert-success';
+                    alertBox.innerHTML = `<strong>Thành công!</strong> Đã nhập ${data.successCount} HĐ mới, bỏ qua ${data.skippedCount} HĐ trùng. <a href="javascript:location.reload()" class="fw-bold alert-link">Tải lại trang</a> để xem.`;
+                } else {
+                    alertBox.className = 'alert alert-danger';
+                    alertBox.textContent = data.message || (data.messages && data.messages.join('; ')) || 'Nhập file không thành công.';
+                }
+            } catch (err) {
+                alertBox.className = 'alert alert-danger';
+                alertBox.textContent = 'Lỗi kết nối máy chủ: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-upload me-1"></i> Bắt đầu nạp file';
+            }
+        });
+    })();
+</script>
