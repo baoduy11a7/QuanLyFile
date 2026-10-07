@@ -116,164 +116,172 @@
     <div class="tab-content" id="invoiceDetailTabContent">
         <!-- Tab 1: Biểu mẫu hóa đơn điện tử chuẩn A4 theo Cổng Thuế -->
         <div class="tab-pane fade show active" id="preview-content" role="tabpanel">
-            <div id="invoiceViewerContainer" style="background: #e2e8f0; padding: 20px 10px; overflow-y: auto; max-height: calc(85vh - 130px); border-radius: 8px; display: flex; justify-content: center;">
-                <div id="invoicePaperSheet" style="width: 100%; max-width: 860px; background: #ffffff; padding: 36px 42px; border: 2px solid #1e3a8a; outline: 1px solid #1e3a8a; outline-offset: -5px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.5; transform-origin: top center; transition: transform 0.15s ease;">
-                    
-                    <!-- 1. Header Hóa đơn chuẩn Tổng cục Thuế -->
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-                        <div style="width: 25%;">
-                            <!-- Logo / Phân loại CQT -->
-                            <div class="badge bg-primary-subtle text-primary border border-primary-subtle p-2 text-start" style="font-size: 0.75rem; line-height: 1.3;">
-                                <div class="fw-bold"><i class="bi bi-shield-check"></i> @(Model.HasTaxCode ? "HĐ ĐIỆN TỬ CÓ MÃ" : "HĐ ĐIỆN TỬ KHÔNG MÃ")</div>
-                                <div class="text-muted" style="font-size: 0.7rem;">Cơ quan Thuế xác thực</div>
-                            </div>
-                        </div>
-                        <div style="width: 50%; text-align: center;">
-                            <h3 style="margin: 0; color: #1e3a8a; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; font-size: 22px;">
-                                @(Model.InvoiceSymbol.StartsWith("2") ? "HÓA ĐƠN BÁN HÀNG" : "HÓA ĐƠN GIÁ TRỊ GIA TĂNG")
-                            </h3>
-                            <div style="font-size: 13px; color: #475569; margin-top: 4px; font-style: italic;">
-                                (Bản thể hiện của hóa đơn điện tử theo Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC)
-                            </div>
-                            <div style="font-size: 14px; margin-top: 6px; font-weight: 600;">
-                                Ngày <strong>@Model.IssueDate.Day.ToString("00")</strong> tháng <strong>@Model.IssueDate.Month.ToString("00")</strong> năm <strong>@Model.IssueDate.Year</strong>
-                            </div>
-                        </div>
-                        <div style="width: 25%; text-align: right; font-size: 13.5px;">
-                            <div>Ký hiệu (Serial): <strong class="text-danger font-monospace">@Model.InvoiceSymbol</strong></div>
-                            <div>Số (No.): <strong class="text-danger font-monospace" style="font-size: 18px;">@Model.InvoiceNumber</strong></div>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
-                                Mã CQT: <span class="font-monospace text-primary fw-bold">@(string.IsNullOrEmpty(Model.TaxAuthorityCode) ? "Không áp dụng" : Model.TaxAuthorityCode)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 2. Thông tin Người Bán (Đơn vị bán hàng) -->
-                    <div style="border-top: 2px solid #1e3a8a; padding-top: 12px; margin-bottom: 12px; font-size: 14px;">
-                        <div style="font-size: 15px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: 4px;">
-                            @Model.SellerName
-                        </div>
-                        <div style="display: flex; gap: 20px; margin-bottom: 3px;">
-                            <div>Mã số thuế (Tax code): <strong class="font-monospace" style="letter-spacing: 1.5px; font-size: 15px; color: #b91c1c;">@Model.SellerTaxCode</strong></div>
-                        </div>
-                        <div style="color: #334155;">
-                            Địa chỉ (Address): @Model.SellerAddress
-                        </div>
-                    </div>
-
-                    <!-- 3. Thông tin Người Mua (Đơn vị mua hàng) -->
-                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px; margin-bottom: 14px; font-size: 14px;">
-                        <div style="margin-bottom: 3px;">
-                            Tên đơn vị mua hàng (Buyer): <strong>@(string.IsNullOrWhiteSpace(Model.BuyerName) ? "Khách hàng không lấy hóa đơn" : Model.BuyerName)</strong>
-                        </div>
-                        <div style="display: flex; gap: 20px; margin-bottom: 3px;">
-                            <div>Mã số thuế (Tax code): <strong class="font-monospace" style="letter-spacing: 1px; color: #b91c1c;">@(string.IsNullOrWhiteSpace(Model.BuyerTaxCode) ? "Không có" : Model.BuyerTaxCode)</strong></div>
-                            <div>Hình thức thanh toán: <strong>TM/CK</strong></div>
-                            <div>Đồng tiền thanh toán: <strong>VND</strong></div>
-                        </div>
-                        <div style="color: #334155;">
-                            Địa chỉ (Address): @(string.IsNullOrWhiteSpace(Model.BuyerAddress) ? "-" : Model.BuyerAddress)
-                        </div>
-                    </div>
-
-                    <!-- 4. Bảng chi tiết hàng hóa, dịch vụ chuẩn mẫu Cổng Thuế -->
-                    <table class="table table-bordered mb-2" style="width: 100%; border-collapse: collapse; font-size: 13.5px; border-color: #94a3b8;">
-                        <thead>
-                            <tr style="background: #f1f5f9; text-align: center; font-weight: 700; color: #1e293b;">
-                                <th style="width: 45px; padding: 8px 4px;">STT</th>
-                                <th style="padding: 8px 10px;">Tên hàng hóa, dịch vụ</th>
-                                <th style="width: 65px; padding: 8px 4px;">ĐVT</th>
-                                <th style="width: 75px; padding: 8px 4px;">Số lượng</th>
-                                <th style="width: 110px; padding: 8px 6px;">Đơn giá</th>
-                                <th style="width: 125px; padding: 8px 6px;">Thành tiền</th>
-                                <th style="width: 75px; padding: 8px 4px;">Thuế suất</th>
-                                <th style="width: 115px; padding: 8px 6px;">Tiền thuế</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (Model.Details.Any())
-                            {
-                                foreach (var d in Model.Details.OrderBy(x => x.LineNumber))
-                                {
-                                    <tr>
-                                        <td style="text-align: center; padding: 7px 4px;">@d.LineNumber</td>
-                                        <td style="padding: 7px 10px;">
-                                            <div style="font-weight: 600;">@d.ItemName</div>
-                                            @if (!string.IsNullOrEmpty(d.ItemCode))
-                                            {
-                                                <div style="font-size: 11.5px; color: #64748b; font-family: monospace;">Mã: @d.ItemCode</div>
-                                            }
-                                        </td>
-                                        <td style="text-align: center; padding: 7px 4px;">@d.Unit</td>
-                                        <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@d.Quantity.ToString("N0")</td>
-                                        <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@d.UnitPrice.ToString("N0") đ</td>
-                                        <td style="text-align: right; font-family: monospace; font-weight: 600; padding: 7px 6px;">@d.AmountBeforeTax.ToString("N0") đ</td>
-                                        <td style="text-align: center; padding: 7px 4px;">@(d.TaxRate == -1 ? "KCT" : $"{d.TaxRate}%")</td>
-                                        <td style="text-align: right; font-family: monospace; color: #dc2626; padding: 7px 6px;">@d.TaxAmount.ToString("N0") đ</td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td style="text-align: center; padding: 7px 4px;">1</td>
-                                    <td style="padding: 7px 10px;">Chi tiết theo hóa đơn gốc</td>
-                                    <td style="text-align: center; padding: 7px 4px;">Gói</td>
-                                    <td style="text-align: right; font-family: monospace; padding: 7px 6px;">1</td>
-                                    <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@Model.AmountBeforeTax.ToString("N0") đ</td>
-                                    <td style="text-align: right; font-family: monospace; font-weight: 600; padding: 7px 6px;">@Model.AmountBeforeTax.ToString("N0") đ</td>
-                                    <td style="text-align: center; padding: 7px 4px;">10%</td>
-                                    <td style="text-align: right; font-family: monospace; color: #dc2626; padding: 7px 6px;">@Model.TaxAmount.ToString("N0") đ</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-
-                    <!-- 5. Bảng tổng hợp tiền thanh toán & Số tiền bằng chữ -->
-                    <div style="margin-top: 10px; margin-bottom: 25px;">
-                        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-                            <tr>
-                                <td style="text-align: right; padding: 4px 10px; width: 70%; color: #475569;">Cộng tiền hàng (chưa thuế):</td>
-                                <td style="text-align: right; padding: 4px 10px; font-family: monospace; font-weight: 700;">@Model.AmountBeforeTax.ToString("N0") VND</td>
-                            </tr>
-                            <tr>
-                                <td style="text-align: right; padding: 4px 10px; color: #475569;">Tổng tiền thuế GTGT:</td>
-                                <td style="text-align: right; padding: 4px 10px; font-family: monospace; font-weight: 700; color: #dc2626;">@Model.TaxAmount.ToString("N0") VND</td>
-                            </tr>
-                            <tr style="border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; background: #f8fafc;">
-                                <td style="text-align: right; padding: 8px 10px; font-weight: 800; font-size: 15px; color: #1e3a8a;">Tổng cộng tiền thanh toán:</td>
-                                <td style="text-align: right; padding: 8px 10px; font-family: monospace; font-weight: 800; font-size: 17px; color: #1e3a8a;">@Model.TotalAmount.ToString("N0") VND</td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" style="padding: 8px 10px; font-size: 13.5px; color: #1e293b;">
-                                    Số tiền viết bằng chữ: <span style="font-style: italic; font-weight: 600;">@NumberToVietnameseWords(Model.TotalAmount)</span>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <!-- 6. Chữ ký số người bán & Người mua hàng -->
-                    <div style="display: flex; justify-content: space-between; text-align: center; margin-top: 20px; padding: 0 30px;">
-                        <div style="width: 45%;">
-                            <strong style="font-size: 14px;">NGƯỜI MUA HÀNG (Buyer)</strong>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">(Ký, ghi rõ họ tên)</div>
-                        </div>
-                        <div style="width: 45%;">
-                            <strong style="font-size: 14px;">NGƯỜI BÁN HÀNG (Seller)</strong>
-                            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">(Chữ ký điện tử / Chữ ký số)</div>
+            <div id="invoiceViewerContainer" style="background: #e2e8f0; padding: 24px 12px; overflow-y: auto; max-height: calc(88vh - 120px); border-radius: 8px;">
+                <div id="invoicePaperWrapper" style="display: block; width: 100%; text-align: center;">
+                    <!-- Khung viền ngoài chuẩn Hóa đơn điện tử Cổng Thuế -->
+                    <div id="invoicePaperSheet" style="display: inline-block; text-align: left; width: 100%; max-width: 860px; background: #ffffff; border: 2px solid #1e3a8a; padding: 5px; box-shadow: 0 4px 25px rgba(0,0,0,0.15); box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.5; transform-origin: top center; transition: transform 0.15s ease; height: auto !important;">
+                        <!-- Khung viền trong (Inner Border) bao bọc toàn bộ nội dung từ tiêu đề đến chữ ký số -->
+                        <div style="border: 1px solid #1e3a8a; padding: 32px 36px; box-sizing: border-box; background: #ffffff; height: auto !important;">
                             
-                            <!-- Khung con dấu điện tử CQT chuẩn -->
-                            <div style="margin-top: 15px; border: 2px solid #16a34a; background: #f0fdf4; color: #15803d; padding: 10px 14px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.4; display: inline-block; width: 100%; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.1);">
-                                <div style="font-weight: 800; font-size: 13px; margin-bottom: 2px;">
-                                    <i class="bi bi-patch-check-fill me-1"></i> ĐÃ KÝ ĐIỆN TỬ HỢP LỆ
+                            <!-- 1. Header Hóa đơn chuẩn Tổng cục Thuế -->
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                                <div style="width: 25%;">
+                                    <!-- Logo / Phân loại CQT -->
+                                    <div class="badge bg-primary-subtle text-primary border border-primary-subtle p-2 text-start" style="font-size: 0.75rem; line-height: 1.3;">
+                                        <div class="fw-bold"><i class="bi bi-shield-check"></i> @(Model.HasTaxCode ? "HĐ ĐIỆN TỬ CÓ MÃ" : "HĐ ĐIỆN TỬ KHÔNG MÃ")</div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">Cơ quan Thuế xác thực</div>
+                                    </div>
                                 </div>
-                                <div><strong>Ký bởi:</strong> @Model.SellerName</div>
-                                <div><strong>Ngày ký:</strong> @Model.IssueDate.ToString("dd/MM/yyyy HH:mm:ss")</div>
-                                <div style="font-size: 11px; color: #166534; margin-top: 2px;">Chứng thư số hợp lệ theo chuẩn Tổng cục Thuế</div>
+                                <div style="width: 50%; text-align: center;">
+                                    <h3 style="margin: 0; color: #1e3a8a; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; font-size: 22px;">
+                                        @(Model.InvoiceSymbol.StartsWith("2") ? "HÓA ĐƠN BÁN HÀNG" : "HÓA ĐƠN GIÁ TRỊ GIA TĂNG")
+                                    </h3>
+                                    <div style="font-size: 13px; color: #475569; margin-top: 4px; font-style: italic;">
+                                        (Bản thể hiện của hóa đơn điện tử theo Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC)
+                                    </div>
+                                    <div style="font-size: 14px; margin-top: 6px; font-weight: 600;">
+                                        Ngày <strong>@Model.IssueDate.Day.ToString("00")</strong> tháng <strong>@Model.IssueDate.Month.ToString("00")</strong> năm <strong>@Model.IssueDate.Year</strong>
+                                    </div>
+                                </div>
+                                <div style="width: 25%; text-align: right; font-size: 13.5px;">
+                                    <div>Ký hiệu (Serial): <strong class="text-danger font-monospace">@Model.InvoiceSymbol</strong></div>
+                                    <div>Số (No.): <strong class="text-danger font-monospace" style="font-size: 18px;">@Model.InvoiceNumber</strong></div>
+                                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                                        Mã CQT: <span class="font-monospace text-primary fw-bold">@(string.IsNullOrEmpty(Model.TaxAuthorityCode) ? "Không áp dụng" : Model.TaxAuthorityCode)</span>
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- 2. Thông tin Người Bán (Đơn vị bán hàng) -->
+                            <div style="border-top: 2px solid #1e3a8a; padding-top: 12px; margin-bottom: 12px; font-size: 14px;">
+                                <div style="font-size: 15px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: 4px;">
+                                    @Model.SellerName
+                                </div>
+                                <div style="display: flex; gap: 20px; margin-bottom: 3px;">
+                                    <div>Mã số thuế (Tax code): <strong class="font-monospace" style="letter-spacing: 1.5px; font-size: 15px; color: #b91c1c;">@Model.SellerTaxCode</strong></div>
+                                </div>
+                                <div style="color: #334155;">
+                                    Địa chỉ (Address): @Model.SellerAddress
+                                </div>
+                            </div>
+
+                            <!-- 3. Thông tin Người Mua (Đơn vị mua hàng) -->
+                            <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px; margin-bottom: 14px; font-size: 14px;">
+                                <div style="margin-bottom: 3px;">
+                                    Tên đơn vị mua hàng (Buyer): <strong>@(string.IsNullOrWhiteSpace(Model.BuyerName) ? "Khách hàng không lấy hóa đơn" : Model.BuyerName)</strong>
+                                </div>
+                                <div style="display: flex; gap: 20px; margin-bottom: 3px;">
+                                    <div>Mã số thuế (Tax code): <strong class="font-monospace" style="letter-spacing: 1px; color: #b91c1c;">@(string.IsNullOrWhiteSpace(Model.BuyerTaxCode) ? "Không có" : Model.BuyerTaxCode)</strong></div>
+                                    <div>Hình thức thanh toán: <strong>TM/CK</strong></div>
+                                    <div>Đồng tiền thanh toán: <strong>VND</strong></div>
+                                </div>
+                                <div style="color: #334155;">
+                                    Địa chỉ (Address): @(string.IsNullOrWhiteSpace(Model.BuyerAddress) ? "-" : Model.BuyerAddress)
+                                </div>
+                            </div>
+
+                            <!-- 4. Bảng chi tiết hàng hóa, dịch vụ chuẩn mẫu Cổng Thuế -->
+                            <div style="overflow-x: auto; width: 100%; margin-bottom: 10px;">
+                                <table class="table table-bordered mb-0" style="min-width: 720px; width: 100%; border-collapse: collapse; font-size: 13.5px; border-color: #94a3b8;">
+                                    <thead>
+                                        <tr style="background: #f1f5f9; text-align: center; font-weight: 700; color: #1e293b;">
+                                            <th style="width: 45px; padding: 8px 4px;">STT</th>
+                                            <th style="padding: 8px 10px;">Tên hàng hóa, dịch vụ</th>
+                                            <th style="width: 65px; padding: 8px 4px;">ĐVT</th>
+                                            <th style="width: 75px; padding: 8px 4px;">Số lượng</th>
+                                            <th style="width: 110px; padding: 8px 6px;">Đơn giá</th>
+                                            <th style="width: 125px; padding: 8px 6px;">Thành tiền</th>
+                                            <th style="width: 75px; padding: 8px 4px;">Thuế suất</th>
+                                            <th style="width: 115px; padding: 8px 6px;">Tiền thuế</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (Model.Details.Any())
+                                        {
+                                            foreach (var d in Model.Details.OrderBy(x => x.LineNumber))
+                                            {
+                                                <tr>
+                                                    <td style="text-align: center; padding: 7px 4px;">@d.LineNumber</td>
+                                                    <td style="padding: 7px 10px;">
+                                                        <div style="font-weight: 600;">@d.ItemName</div>
+                                                        @if (!string.IsNullOrEmpty(d.ItemCode))
+                                                        {
+                                                            <div style="font-size: 11.5px; color: #64748b; font-family: monospace;">Mã: @d.ItemCode</div>
+                                                        }
+                                                    </td>
+                                                    <td style="text-align: center; padding: 7px 4px;">@d.Unit</td>
+                                                    <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@d.Quantity.ToString("N0")</td>
+                                                    <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@d.UnitPrice.ToString("N0") đ</td>
+                                                    <td style="text-align: right; font-family: monospace; font-weight: 600; padding: 7px 6px;">@d.AmountBeforeTax.ToString("N0") đ</td>
+                                                    <td style="text-align: center; padding: 7px 4px;">@(d.TaxRate == -1 ? "KCT" : $"{d.TaxRate}%")</td>
+                                                    <td style="text-align: right; font-family: monospace; color: #dc2626; padding: 7px 6px;">@d.TaxAmount.ToString("N0") đ</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td style="text-align: center; padding: 7px 4px;">1</td>
+                                                <td style="padding: 7px 10px;">Chi tiết theo hóa đơn gốc</td>
+                                                <td style="text-align: center; padding: 7px 4px;">Gói</td>
+                                                <td style="text-align: right; font-family: monospace; padding: 7px 6px;">1</td>
+                                                <td style="text-align: right; font-family: monospace; padding: 7px 6px;">@Model.AmountBeforeTax.ToString("N0") đ</td>
+                                                <td style="text-align: right; font-family: monospace; font-weight: 600; padding: 7px 6px;">@Model.AmountBeforeTax.ToString("N0") đ</td>
+                                                <td style="text-align: center; padding: 7px 4px;">10%</td>
+                                                <td style="text-align: right; font-family: monospace; color: #dc2626; padding: 7px 6px;">@Model.TaxAmount.ToString("N0") đ</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- 5. Bảng tổng hợp tiền thanh toán & Số tiền bằng chữ -->
+                            <div style="margin-top: 10px; margin-bottom: 25px;">
+                                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="text-align: right; padding: 4px 10px; width: 70%; color: #475569;">Cộng tiền hàng (chưa thuế):</td>
+                                        <td style="text-align: right; padding: 4px 10px; font-family: monospace; font-weight: 700;">@Model.AmountBeforeTax.ToString("N0") VND</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="text-align: right; padding: 4px 10px; color: #475569;">Tổng tiền thuế GTGT:</td>
+                                        <td style="text-align: right; padding: 4px 10px; font-family: monospace; font-weight: 700; color: #dc2626;">@Model.TaxAmount.ToString("N0") VND</td>
+                                    </tr>
+                                    <tr style="border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; background: #f8fafc;">
+                                        <td style="text-align: right; padding: 8px 10px; font-weight: 800; font-size: 15px; color: #1e3a8a;">Tổng cộng tiền thanh toán:</td>
+                                        <td style="text-align: right; padding: 8px 10px; font-family: monospace; font-weight: 800; font-size: 17px; color: #1e3a8a;">@Model.TotalAmount.ToString("N0") VND</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" style="padding: 8px 10px; font-size: 13.5px; color: #1e293b;">
+                                            Số tiền viết bằng chữ: <span style="font-style: italic; font-weight: 600;">@NumberToVietnameseWords(Model.TotalAmount)</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- 6. Chữ ký số người bán & Người mua hàng -->
+                            <div style="display: flex; justify-content: space-between; text-align: center; margin-top: 20px; padding: 0 30px;">
+                                <div style="width: 45%;">
+                                    <strong style="font-size: 14px;">NGƯỜI MUA HÀNG (Buyer)</strong>
+                                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">(Ký, ghi rõ họ tên)</div>
+                                </div>
+                                <div style="width: 45%;">
+                                    <strong style="font-size: 14px;">NGƯỜI BÁN HÀNG (Seller)</strong>
+                                    <div style="font-size: 12px; color: #64748b; margin-top: 2px;">(Chữ ký điện tử / Chữ ký số)</div>
+                                    
+                                    <!-- Khung con dấu điện tử CQT chuẩn -->
+                                    <div style="margin-top: 15px; border: 2px solid #16a34a; background: #f0fdf4; color: #15803d; padding: 10px 14px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.4; display: inline-block; width: 100%; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.1);">
+                                        <div style="font-weight: 800; font-size: 13px; margin-bottom: 2px;">
+                                            <i class="bi bi-patch-check-fill me-1"></i> ĐÃ KÝ ĐIỆN TỬ HỢP LỆ
+                                        </div>
+                                        <div><strong>Ký bởi:</strong> @Model.SellerName</div>
+                                        <div><strong>Ngày ký:</strong> @Model.IssueDate.ToString("dd/MM/yyyy HH:mm:ss")</div>
+                                        <div style="font-size: 11px; color: #166534; margin-top: 2px;">Chứng thư số hợp lệ theo chuẩn Tổng cục Thuế</div>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -321,8 +329,16 @@
 
     function applyScale() {
         var sheet = document.getElementById('invoicePaperSheet');
+        var wrapper = document.getElementById('invoicePaperWrapper');
         if (!sheet) return;
         sheet.style.transform = 'scale(' + currentInvoiceScale + ')';
+        if (wrapper) {
+            if (currentInvoiceScale !== 1.0) {
+                wrapper.style.height = (sheet.offsetHeight * currentInvoiceScale + 30) + 'px';
+            } else {
+                wrapper.style.height = 'auto';
+            }
+        }
         var lbl = document.getElementById('lblInvoiceZoom');
         if (lbl) {
             lbl.innerText = Math.round(currentInvoiceScale * 100) + '%';
