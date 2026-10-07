@@ -697,10 +697,15 @@
 <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title fw-bold" id="invoiceModalLabel">
-                    <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
-                </h5>
+            <div class="modal-header bg-light d-flex justify-content-between align-items-center py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <h5 class="modal-title fw-bold mb-0" id="invoiceModalLabel">
+                        <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
+                    </h5>
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" id="btnToggleInvoiceModalFullscreen" onclick="toggleInvoiceModalFullscreen()" title="Bật/Tắt chế độ toàn màn hình">
+                        <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0" id="invoiceModalBody" style="min-height: 480px;">
@@ -956,6 +961,20 @@
             }).fail(function() {
                 $('#invoiceModalBody').html('<div class="alert alert-danger m-3">Không thể tải thông tin hóa đơn.</div>');
             });
+        }
+
+        function toggleInvoiceModalFullscreen() {
+            var dialog = $('#invoiceModal .modal-dialog');
+            var icon = $('#btnToggleInvoiceModalFullscreen i');
+            if (dialog.hasClass('modal-fullscreen')) {
+                dialog.removeClass('modal-fullscreen').addClass('modal-xl');
+                icon.removeClass('bi-fullscreen-exit').addClass('bi-arrows-fullscreen');
+                $('#btnToggleInvoiceModalFullscreen').attr('title', 'Phóng to toàn màn hình');
+            } else {
+                dialog.removeClass('modal-xl').addClass('modal-fullscreen');
+                icon.removeClass('bi-arrows-fullscreen').addClass('bi-fullscreen-exit');
+                $('#btnToggleInvoiceModalFullscreen').attr('title', 'Thu nhỏ cửa sổ');
+            }
         }
 
         // Toggle reconciliation
