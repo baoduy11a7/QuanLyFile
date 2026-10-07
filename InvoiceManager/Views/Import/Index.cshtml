@@ -1,23 +1,42 @@
 @{
-    ViewData["Title"] = "Nhập Hóa đơn Điện tử (XML / ZIP)";
+    ViewData["Title"] = "Nhập Hóa đơn Điện tử (XML / ZIP / Excel)";
     var taxAccount = ViewBag.TaxAccount as InvoiceManager.Models.Entities.TaxAccount;
 }
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
         <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-cloud-arrow-up me-2"></i> Nhập Hóa đơn Điện tử (XML / ZIP)
+                    <i class="bi bi-cloud-arrow-up me-2"></i> Nhập Hóa đơn Điện tử (XML / ZIP / Excel)
                 </h5>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
-                    MST: @taxAccount?.TaxCode
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-success btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Tải file mẫu Excel
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <a class="dropdown-item py-2" asp-controller="Import" asp-action="DownloadTemplate" asp-route-invoiceType="MuaVao">
+                                    <i class="bi bi-box-arrow-in-down text-primary me-2"></i> Mẫu HĐ Mua vào (.xlsx)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" asp-controller="Import" asp-action="DownloadTemplate" asp-route-invoiceType="BanRa">
+                                    <i class="bi bi-box-arrow-up text-success me-2"></i> Mẫu HĐ Bán ra (.xlsx)
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">
+                        MST: @taxAccount?.TaxCode
+                    </span>
+                </div>
             </div>
             <div class="card-body p-4">
                 <div class="alert alert-info border-info-subtle small mb-4">
                     <i class="bi bi-info-circle-fill me-2"></i>
-                    <strong>Quy định nhập file:</strong> Hệ thống hỗ trợ tải lên file đơn lẻ <code>.xml</code> hoặc file nén <code>.zip</code> chứa nhiều hóa đơn. Hệ thống tự động kiểm tra trùng lặp (Idempotent) dựa trên <strong>(MST Người bán + Ký hiệu + Số HĐ)</strong> và lưu trữ file XML gốc an toàn phục vụ đối soát.
+                    <strong>Quy định nhập file:</strong> Hệ thống hỗ trợ tải lên file đơn lẻ <code>.xml</code>, file nén <code>.zip</code> hoặc file Excel <code>.xlsx / .xls</code> (Bảng kê Tổng cục Thuế, MISA, file mẫu chuẩn). Hệ thống tự động kiểm tra trùng lặp (Idempotent) dựa trên <strong>(MST Người bán + Ký hiệu + Số HĐ)</strong> và lưu trữ file gốc an toàn phục vụ đối soát.
                 </div>
 
                 <form id="uploadForm" enctype="multipart/form-data">
@@ -45,10 +64,23 @@
                     <div class="mb-4">
                         <label class="form-label fw-bold">2. Tải lên tệp hóa đơn</label>
                         <div id="dropZone" class="border border-2 border-dashed rounded-3 p-5 text-center bg-light cursor-pointer" style="transition: all 0.2s;">
-                            <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 3rem;"></i>
-                            <h5 class="fw-bold mt-2">Kéo thả file .XML hoặc .ZIP vào đây</h5>
-                            <p class="text-muted small mb-3">hoặc nhấp chuột để duyệt file từ máy tính của bạn</p>
-                            <input type="file" id="fileInput" name="file" accept=".xml,.zip" class="d-none" />
+                            <i class="bi bi-cloud-arrow-up text-primary" style="font-size: 3rem;"></i>
+                            <h5 class="fw-bold mt-2">Kéo thả file .XML, .ZIP hoặc .XLSX vào đây</h5>
+                            <p class="text-muted small mb-2">hoặc nhấp chuột để duyệt file từ máy tính của bạn</p>
+                            
+                            <div class="mb-3 d-flex justify-content-center gap-2">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                    <i class="bi bi-filetype-xml me-1"></i> XML đơn lẻ
+                                </span>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
+                                    <i class="bi bi-file-earmark-zip me-1"></i> ZIP nén hàng loạt
+                                </span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                    <i class="bi bi-file-earmark-excel me-1"></i> Excel (.xlsx / .xls)
+                                </span>
+                            </div>
+
+                            <input type="file" id="fileInput" name="file" accept=".xml,.zip,.xlsx,.xls" class="d-none" />
                             <button type="button" class="btn btn-outline-primary btn-sm px-4 fw-medium" onclick="$('#fileInput').click()">
                                 <i class="bi bi-folder2-open me-1"></i> Chọn tệp từ máy
                             </button>
@@ -147,7 +179,13 @@
         });
 
         function updateFileInfo(file) {
-            selectedFileInfo.removeClass('d-none').html('<i class="bi bi-file-earmark-check text-success me-1"></i> Đã chọn: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)');
+            var ext = file.name.split('.').pop().toLowerCase();
+            var icon = 'bi-file-earmark-check text-success';
+            if (ext === 'xlsx' || ext === 'xls') icon = 'bi-file-earmark-excel text-success';
+            else if (ext === 'xml') icon = 'bi-filetype-xml text-primary';
+            else if (ext === 'zip') icon = 'bi-file-earmark-zip text-warning';
+
+            selectedFileInfo.removeClass('d-none').html('<i class="bi ' + icon + ' me-1"></i> Đã chọn: <strong>' + file.name + '</strong> (' + (file.size / 1024).toFixed(1) + ' KB)');
             btnSubmit.prop('disabled', false);
         }
 

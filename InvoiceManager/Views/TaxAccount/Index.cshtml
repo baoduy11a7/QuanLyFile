@@ -76,9 +76,70 @@
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal" title="Yêu cầu sửa lỗi / Tính năng">
                             <i class="bi bi-chat-dots"></i>
                         </button>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <button type="button" class="btn btn-outline-danger btn-sm" title="Xóa tài khoản thuế" 
+                                    onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        }
                     </div>
                 </div>
             </div>
         </div>
     }
 </div>
+
+@if (User.IsInRole("Admin"))
+{
+    <!-- Modal Xác nhận xóa Tài khoản thuế -->
+    <div class="modal fade" id="deleteTaxAccountModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow border-0">
+                <div class="modal-header bg-danger text-white py-3">
+                    <h6 class="modal-title fw-bold" id="deleteModalLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> Xác nhận xóa Tài khoản thuế
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form asp-action="Delete" method="post" id="deleteForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" id="deleteTaxAccountId" value="" />
+                    <div class="modal-body p-4">
+                        <p class="mb-2">Bạn có chắc chắn muốn xóa tài khoản thuế doanh nghiệp sau:</p>
+                        <div class="p-3 bg-light rounded border mb-3">
+                            <div class="fw-bold text-dark fs-6" id="deleteCompanyName"></div>
+                            <div class="font-monospace text-primary small mt-1">
+                                <i class="bi bi-card-heading me-1"></i> MST: <span id="deleteTaxCode"></span>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger border-danger-subtle small mb-0">
+                            <i class="bi bi-shield-exclamation me-1"></i>
+                            <strong>Cảnh báo:</strong> Thao tác này <u>không thể hoàn tác</u>. Toàn bộ hóa đơn, dòng hàng chi tiết và dữ liệu đồng bộ của doanh nghiệp này sẽ bị xóa khỏi hệ thống.
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2 px-4">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg me-1"></i> Hủy bỏ
+                        </button>
+                        <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                            <i class="bi bi-trash me-1"></i> Xác nhận xóa vĩnh viễn
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        function openDeleteModal(id, taxCode, companyName) {
+            $('#deleteTaxAccountId').val(id);
+            $('#deleteTaxCode').text(taxCode);
+            $('#deleteCompanyName').text(companyName);
+            var modal = new bootstrap.Modal(document.getElementById('deleteTaxAccountModal'));
+            modal.show();
+        }
+    </script>
+}

@@ -1,0 +1,385 @@
+@model InvoiceManager.Models.ViewModels.UserSettingsViewModel
+@{
+    ViewData["Title"] = "Cài đặt tài khoản";
+}
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h4 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-gear-fill text-primary me-2"></i>Cài đặt tài khoản
+            </h4>
+            <div class="text-muted small">Quản lý hồ sơ cá nhân, bảo mật mật khẩu và phân quyền người dùng hệ thống</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge @(Model.IsAdmin ? "bg-danger" : Model.Roles.Contains("Accountant") ? "bg-primary" : "bg-secondary") px-3 py-2 fs-6">
+                <i class="bi bi-shield-lock me-1"></i>
+                @(Model.IsAdmin ? "Quản trị viên (Admin)" : Model.Roles.Contains("Accountant") ? "Kế toán viên" : "Người xem (Viewer)")
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <ul class="nav nav-tabs nav-fill mb-4 border-bottom bg-white rounded-3 shadow-sm p-1" id="settingsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold py-2 d-flex align-items-center justify-content-center gap-2" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-tab-pane" type="button" role="tab">
+                <i class="bi bi-person-badge text-primary"></i> Thông tin cá nhân
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold py-2 d-flex align-items-center justify-content-center gap-2" id="security-tab" data-bs-toggle="tab" data-bs-target="#security-tab-pane" type="button" role="tab">
+                <i class="bi bi-key text-warning"></i> Đổi mật khẩu
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold py-2 d-flex align-items-center justify-content-center gap-2" id="companies-tab" data-bs-toggle="tab" data-bs-target="#companies-tab-pane" type="button" role="tab">
+                <i class="bi bi-building-check text-success"></i> Công ty được phân quyền
+                <span class="badge bg-success-subtle text-success rounded-pill ms-1">@Model.AccessibleTaxAccounts.Count</span>
+            </button>
+        </li>
+        @if (Model.IsAdmin)
+        {
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold py-2 d-flex align-items-center justify-content-center gap-2 text-danger" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-tab-pane" type="button" role="tab">
+                    <i class="bi bi-people-fill"></i> Quản trị người dùng
+                    <span class="badge bg-danger rounded-pill ms-1">@Model.AllUsers.Count</span>
+                </button>
+            </li>
+        }
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="settingsTabContent">
+        <!-- 1. THÔNG TIN CÁ NHÂN -->
+        <div class="tab-pane fade show active" id="profile-tab-pane" role="tabpanel" tabindex="0">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm h-100 text-center p-4">
+                        <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow mb-3" style="width: 88px; height: 88px; font-size: 2.25rem; font-weight: 800;">
+                                @(Model.User.FullName?.Length > 0 ? Model.User.FullName.Substring(0, 1).ToUpper() : Model.User.Email?.Substring(0, 1).ToUpper() ?? "U")
+                            </div>
+                            <h5 class="fw-bold mb-1 text-dark">@Model.User.FullName</h5>
+                            <div class="text-muted small mb-3 font-monospace">@Model.User.Email</div>
+                            <div class="d-flex flex-wrap gap-1 justify-content-center mb-3">
+                                @foreach (var r in Model.Roles)
+                                {
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">@r</span>
+                                }
+                            </div>
+                            <div class="text-muted small border-top pt-3 w-100">
+                                <div><i class="bi bi-calendar3 me-1"></i> Ngày tham gia: <strong>@Model.User.CreatedAt.ToString("dd/MM/yyyy")</strong></div>
+                                <div><i class="bi bi-shield-check me-1"></i> Trạng thái: <span class="badge bg-success-subtle text-success">Đang hoạt động</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-pencil-square text-primary me-2"></i>Cập nhật thông tin tài khoản</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <form asp-controller="Account" asp-action="UpdateProfile" method="post">
+                                @Html.AntiForgeryToken()
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Email / Tên đăng nhập</label>
+                                    <input type="text" class="form-control bg-light" value="@Model.User.Email" readonly disabled />
+                                    <div class="form-text text-muted">Tên đăng nhập dùng để xác thực hệ thống và không thể thay đổi.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" asp-for="Profile.FullName">Họ và tên <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" asp-for="Profile.FullName" placeholder="Nhập họ và tên đầy đủ..." required />
+                                    <span asp-validation-for="Profile.FullName" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-semibold" asp-for="Profile.PhoneNumber">Số điện thoại liên hệ</label>
+                                    <input type="text" class="form-control" asp-for="Profile.PhoneNumber" placeholder="Số điện thoại di động..." />
+                                    <span asp-validation-for="Profile.PhoneNumber" class="text-danger small"></span>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                                        <i class="bi bi-save me-1"></i> Lưu thay đổi
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ĐỔI MẬT KHẨU -->
+        <div class="tab-pane fade" id="security-tab-pane" role="tabpanel" tabindex="0">
+            <div class="row justify-content-center">
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-shield-lock text-warning me-2"></i>Bảo mật & Đổi mật khẩu</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-info py-2 small mb-4">
+                                <i class="bi bi-info-circle-fill me-1"></i> Mật khẩu an toàn phải có tối thiểu 6 ký tự. Sau khi đổi mật khẩu, bạn vẫn duy trì phiên làm việc hiện tại.
+                            </div>
+                            <form asp-controller="Account" asp-action="ChangePassword" method="post">
+                                @Html.AntiForgeryToken()
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" asp-for="ChangePassword.CurrentPassword">Mật khẩu hiện tại <span class="text-danger">*</span></label>
+                                    <input type="password" class="form-control" asp-for="ChangePassword.CurrentPassword" placeholder="Nhập mật khẩu đang sử dụng..." required />
+                                    <span asp-validation-for="ChangePassword.CurrentPassword" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" asp-for="ChangePassword.NewPassword">Mật khẩu mới <span class="text-danger">*</span></label>
+                                    <input type="password" class="form-control" asp-for="ChangePassword.NewPassword" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)..." required />
+                                    <span asp-validation-for="ChangePassword.NewPassword" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label fw-semibold" asp-for="ChangePassword.ConfirmPassword">Xác nhận mật khẩu mới <span class="text-danger">*</span></label>
+                                    <input type="password" class="form-control" asp-for="ChangePassword.ConfirmPassword" placeholder="Nhập lại mật khẩu mới..." required />
+                                    <span asp-validation-for="ChangePassword.ConfirmPassword" class="text-danger small"></span>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-warning px-4 fw-semibold shadow-sm text-dark">
+                                        <i class="bi bi-check2-circle me-1"></i> Xác nhận đổi mật khẩu
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. CÔNG TY ĐƯỢC PHÂN QUYỀN -->
+        <div class="tab-pane fade" id="companies-tab-pane" role="tabpanel" tabindex="0">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-buildings text-success me-2"></i>Danh sách Công ty / MST bạn có quyền làm việc</h5>
+                    <a asp-controller="TaxAccount" asp-action="Index" class="btn btn-outline-success btn-sm fw-semibold">
+                        <i class="bi bi-plus-lg me-1"></i> Quản lý Tài khoản thuế
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">STT</th>
+                                    <th style="width: 140px;">Mã số thuế</th>
+                                    <th>Tên công ty / Đơn vị</th>
+                                    <th>Địa chỉ trụ sở</th>
+                                    <th class="text-center" style="width: 130px;">Trạng thái</th>
+                                    <th class="text-center" style="width: 120px;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.AccessibleTaxAccounts.Any())
+                                {
+                                    int idx = 1;
+                                    foreach (var c in Model.AccessibleTaxAccounts)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted">@idx</td>
+                                            <td>
+                                                <span class="badge bg-light text-primary border font-monospace fs-6">@c.TaxCode</span>
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold text-dark">@c.CompanyName</div>
+                                                <div class="small text-muted">@(c.Email ?? "Chưa cấu hình email")</div>
+                                            </td>
+                                            <td>
+                                                <div class="small text-muted text-truncate" style="max-width: 380px;">@c.Address</div>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Hoạt động</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <form asp-controller="TaxAccount" asp-action="Switch" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@c.Id" />
+                                                    <input type="hidden" name="returnUrl" value="/Invoice" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary fw-semibold" title="Chọn làm công ty đang làm việc">
+                                                        <i class="bi bi-box-arrow-in-right me-1"></i> Chọn
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        idx++;
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            Chưa được gán tài khoản thuế nào. Vui lòng liên hệ Admin.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. QUẢN TRỊ NGƯỜI DÙNG (DÀNH CHO ADMIN) -->
+        @if (Model.IsAdmin)
+        {
+            <div class="tab-pane fade" id="users-tab-pane" role="tabpanel" tabindex="0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-people-fill text-danger me-2"></i>Danh sách người dùng hệ thống</h5>
+                            <div class="small text-muted">Quản trị phân quyền tài khoản Kế toán, Quản trị viên và Người xem</div>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-sm fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCreateUser">
+                            <i class="bi bi-person-plus-fill me-1"></i> Thêm người dùng mới
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 50px;" class="text-center">STT</th>
+                                        <th>Họ tên & Email</th>
+                                        <th>Số điện thoại</th>
+                                        <th class="text-center" style="width: 140px;">Vai trò</th>
+                                        <th class="text-center" style="width: 130px;">Trạng thái</th>
+                                        <th style="width: 130px;">Ngày tạo</th>
+                                        <th class="text-center" style="width: 180px;">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ int uIdx = 1; }
+                                    @foreach (var u in Model.AllUsers)
+                                    {
+                                        bool isSelf = u.Id == Model.User.Id;
+                                        <tr>
+                                            <td class="text-center text-muted">@uIdx</td>
+                                            <td>
+                                                <div class="fw-bold text-dark">@u.FullName</div>
+                                                <div class="small text-muted font-monospace">@u.Email</div>
+                                            </td>
+                                            <td>@(string.IsNullOrEmpty(u.PhoneNumber) ? "-" : u.PhoneNumber)</td>
+                                            <td class="text-center">
+                                                @foreach (var role in u.Roles)
+                                                {
+                                                    <span class="badge @(role == "Admin" ? "bg-danger" : role == "Accountant" ? "bg-primary" : "bg-secondary")">
+                                                        @role
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                @if (u.IsActive)
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Hoạt động</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Đã khóa</span>
+                                                }
+                                            </td>
+                                            <td class="small text-muted">@u.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                            <td class="text-center">
+                                                <div class="d-inline-flex gap-1">
+                                                    <!-- Đặt lại mật khẩu -->
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm p-1 px-2" title="Đặt lại mật khẩu" onclick="promptResetPassword('@u.Id', '@u.FullName')">
+                                                        <i class="bi bi-key"></i>
+                                                    </button>
+                                                    <!-- Khóa / Mở khóa -->
+                                                    @if (!isSelf)
+                                                    {
+                                                        <form asp-controller="Account" asp-action="ToggleUserStatus" method="post" class="d-inline">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="userId" value="@u.Id" />
+                                                            <button type="submit" class="btn @(u.IsActive ? "btn-outline-danger" : "btn-outline-success") btn-sm p-1 px-2" title="@(u.IsActive ? "Khóa tài khoản" : "Mở khóa tài khoản")" onclick="return confirm('Bạn có chắc chắn muốn @(u.IsActive ? "khóa" : "mở khóa") tài khoản @u.Email?');">
+                                                                <i class="bi @(u.IsActive ? "bi-lock" : "bi-unlock")"></i>
+                                                            </button>
+                                                        </form>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        uIdx++;
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Thêm Người Dùng Mới -->
+            <div class="modal fade" id="modalCreateUser" tabindex="-1" aria-labelledby="modalCreateUserLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form asp-controller="Account" asp-action="CreateUser" method="post">
+                            @Html.AntiForgeryToken()
+                            <div class="modal-header bg-light">
+                                <h5 class="modal-title fw-bold" id="modalCreateUserLabel">
+                                    <i class="bi bi-person-plus-fill text-danger me-2"></i>Thêm tài khoản người dùng
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Email đăng nhập <span class="text-danger">*</span></label>
+                                    <input type="email" name="Email" class="form-control" placeholder="user@company.com" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Họ và tên <span class="text-danger">*</span></label>
+                                    <input type="text" name="FullName" class="form-control" placeholder="Nguyễn Văn A" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Số điện thoại</label>
+                                    <input type="text" name="PhoneNumber" class="form-control" placeholder="0901234567" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Vai trò hệ thống <span class="text-danger">*</span></label>
+                                    <select name="Role" class="form-select">
+                                        <option value="Accountant">Kế toán viên (Toàn quyền quản lý HĐ, XML, đối soát)</option>
+                                        <option value="Viewer">Người xem (Chỉ xem và tra cứu dữ liệu)</option>
+                                        <option value="Admin">Quản trị viên (Toàn quyền hệ thống)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Mật khẩu khởi tạo <span class="text-danger">*</span></label>
+                                    <input type="password" name="Password" class="form-control" placeholder="Tối thiểu 6 ký tự..." required />
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                <button type="submit" class="btn btn-danger fw-semibold"><i class="bi bi-check-lg me-1"></i> Tạo tài khoản</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden Form Reset Password -->
+            <form id="formResetUserPassword" asp-controller="Account" asp-action="ResetUserPassword" method="post" class="d-none">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="userId" id="resetUserId" />
+                <input type="hidden" name="newPassword" id="resetNewPassword" />
+            </form>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function promptResetPassword(userId, userName) {
+            var newPass = prompt("Nhập mật khẩu mới cho tài khoản: " + userName, "Pass@123456");
+            if (newPass && newPass.trim().length >= 6) {
+                $('#resetUserId').val(userId);
+                $('#resetNewPassword').val(newPass.trim());
+                $('#formResetUserPassword').submit();
+            } else if (newPass !== null) {
+                alert("Mật khẩu phải có ít nhất 6 ký tự!");
+            }
+        }
+    </script>
+}

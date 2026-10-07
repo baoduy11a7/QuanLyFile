@@ -19,5 +19,7 @@ namespace InvoiceManager.Services
     {
         Task<ImportBatchResult> ImportXmlAsync(Stream xmlStream, string fileName, int taxAccountId, string invoiceType, string? userId);
         Task<ImportBatchResult> ImportZipAsync(Stream zipStream, int taxAccountId, string invoiceType, string? userId);
+        Task<ImportBatchResult> ImportExcelAsync(Stream excelStream, string fileName, int taxAccountId, string invoiceType, string? userId);
+        Task<byte[]> GenerateExcelTemplateAsync(string invoiceType);
     }
 }

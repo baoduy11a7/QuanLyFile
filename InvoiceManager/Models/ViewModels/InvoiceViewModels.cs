@@ -12,6 +12,12 @@ namespace InvoiceManager.Models.ViewModels
         public string QuickDateRange { get; set; } = "thisMonth"; // today, thisMonth, lastMonth, thisQuarter, thisYear, custom
         public string? Keyword { get; set; }
         public string? SellerTaxCode { get; set; }
+        public string? SellerName { get; set; }
+        public string? InvoiceSymbol { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? TemplateType { get; set; } // 1, 2, 3, 4, 5, 6 (Ký hiệu mẫu số HĐ)
+        public string? FileDownloadStatus { get; set; } // HasPdf, MissingPdf, HasXml, MissingXml, HasBoth
+        public string? ValidationResult { get; set; } // Normal, Warning, HasTaxCode, NoTaxCode, CashRegister
         public bool? HasTaxCode { get; set; }
         public bool? IsCashRegister { get; set; }
         public string? Status { get; set; }

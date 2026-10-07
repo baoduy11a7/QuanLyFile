@@ -110,6 +110,94 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var account = await _db.TaxAccounts.FindAsync(id);
+            if (account == null)
+            {
+                TempData["ErrorMessage"] = "Không tìm thấy tài khoản thuế cần xóa.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var totalCount = await _db.TaxAccounts.CountAsync();
+            if (totalCount <= 1)
+            {
+                TempData["ErrorMessage"] = "Không thể xóa tài khoản thuế duy nhất còn lại trên hệ thống.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                // 1. Dọn dẹp các dữ liệu phụ thuộc
+                var invoices = await _db.Invoices
+                    .Include(i => i.Details)
+                    .Where(i => i.TaxAccountId == id)
+                    .ToListAsync();
+                _db.Invoices.RemoveRange(invoices);
+
+                var userMappings = await _db.UserTaxAccounts
+                    .Where(u => u.TaxAccountId == id)
+                    .ToListAsync();
+                _db.UserTaxAccounts.RemoveRange(userMappings);
+
+                var remoteConns = await _db.RemoteConnections
+                    .Where(r => r.TaxAccountId == id)
+                    .ToListAsync();
+                _db.RemoteConnections.RemoveRange(remoteConns);
+
+                var syncLogs = await _db.SyncLogs
+                    .Where(s => s.TaxAccountId == id)
+                    .ToListAsync();
+                _db.SyncLogs.RemoveRange(syncLogs);
+
+                var featureRequests = await _db.FeatureRequests
+                    .Where(f => f.TaxAccountId == id)
+                    .ToListAsync();
+                _db.FeatureRequests.RemoveRange(featureRequests);
+
+                // Giữ vết kiểm toán: set TaxAccountId = null
+                var auditLogs = await _db.AuditLogs
+                    .Where(a => a.TaxAccountId == id)
+                    .ToListAsync();
+                foreach (var log in auditLogs)
+                {
+                    log.TaxAccountId = null;
+                }
+
+                // 2. Xóa tài khoản thuế
+                _db.TaxAccounts.Remove(account);
+                await _db.SaveChangesAsync();
+
+                // 3. Nếu đang kích hoạt tài khoản này, tự động chuyển sang tài khoản khác
+                var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+                if (currentId == id)
+                {
+                    var nextAccount = await _db.TaxAccounts.FirstOrDefaultAsync();
+                    if (nextAccount != null)
+                    {
+                        await _taxAccountContext.SetCurrentTaxAccountAsync(nextAccount.Id);
+                    }
+                }
+
+                await _auditLog.LogActionAsync(
+                    "Xóa Tài khoản thuế",
+                    $"MST: {account.TaxCode}",
+                    $"Đã xóa tài khoản {account.CompanyName} cùng {invoices.Count} hóa đơn liên quan.",
+                    null);
+
+                TempData["SuccessMessage"] = $"Đã xóa thành công tài khoản thuế: {account.CompanyName} (MST: {account.TaxCode})!";
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = $"Lỗi khi xóa tài khoản thuế: {ex.Message}";
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> SubmitFeedback(string requestType, string title, string description, string? contactName, string? contactPhone)
         {
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();

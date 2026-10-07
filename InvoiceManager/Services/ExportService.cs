@@ -306,6 +306,111 @@ namespace InvoiceManager.Services
             return zipStream.ToArray();
         }
 
+        public async Task<byte[]> ExportInvoicesPdfZipAsync(List<Invoice> invoices)
+        {
+            using var zipStream = new MemoryStream();
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
+            {
+                foreach (var inv in invoices)
+                {
+                    try
+                    {
+                        byte[] pdfBytes = await GenerateInvoicePdfAsync(inv);
+                        var entryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}.pdf";
+                        var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+                        using var entryStream = entry.Open();
+                        await entryStream.WriteAsync(pdfBytes, 0, pdfBytes.Length);
+                    }
+                    catch
+                    {
+                        // Tiếp tục với các hóa đơn khác nếu có lỗi đơn lẻ
+                    }
+                }
+            }
+
+            return zipStream.ToArray();
+        }
+
+        public async Task<byte[]> GenerateInvoicePdfAsync(Invoice invoice)
+        {
+            // 1. Nếu đã có file PDF gốc tải lên hoặc tải từ cổng thuế, ưu tiên trả về ngay
+            if (!string.IsNullOrEmpty(invoice.RawPdfPath) && File.Exists(invoice.RawPdfPath))
+            {
+                return await File.ReadAllBytesAsync(invoice.RawPdfPath);
+            }
+
+            // 2. Kiểm tra thư mục cache đã sinh PDF trước đó
+            var cacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "GeneratedPdfs");
+            Directory.CreateDirectory(cacheDir);
+            var cachedPdfPath = Path.Combine(cacheDir, $"HD_{invoice.Id}_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf");
+            if (File.Exists(cachedPdfPath))
+            {
+                var cachedInfo = new FileInfo(cachedPdfPath);
+                if (cachedInfo.Length > 0)
+                {
+                    return await File.ReadAllBytesAsync(cachedPdfPath);
+                }
+            }
+
+            // 3. Sử dụng Microsoft Edge Headless trên máy Windows để in HTML thành PDF vector chuẩn
+            string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+            if (!File.Exists(edgePath))
+            {
+                edgePath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
+            }
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "InvoicePdfGen");
+            Directory.CreateDirectory(tempDir);
+            var tempGuid = Guid.NewGuid().ToString("N");
+            var tempHtml = Path.Combine(tempDir, $"{tempGuid}.html");
+            var tempPdf = Path.Combine(tempDir, $"{tempGuid}.pdf");
+
+            try
+            {
+                var html = GenerateInvoiceHtml(invoice);
+                await File.WriteAllTextAsync(tempHtml, html, Encoding.UTF8);
+
+                if (File.Exists(edgePath))
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = edgePath,
+                        Arguments = $"--headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf=\"{tempPdf}\" \"{tempHtml}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                    };
+
+                    using var proc = System.Diagnostics.Process.Start(psi);
+                    if (proc != null)
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        await proc.WaitForExitAsync(cts.Token);
+
+                        if (File.Exists(tempPdf) && new FileInfo(tempPdf).Length > 0)
+                        {
+                            var pdfBytes = await File.ReadAllBytesAsync(tempPdf);
+                            // Lưu vào cache để lần sau tải nhanh tức thì
+                            try { File.Copy(tempPdf, cachedPdfPath, true); } catch { }
+                            return pdfBytes;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback nếu có ngoại lệ
+            }
+            finally
+            {
+                try { if (File.Exists(tempHtml)) File.Delete(tempHtml); } catch { }
+                try { if (File.Exists(tempPdf)) File.Delete(tempPdf); } catch { }
+            }
+
+            // 4. Nếu không gọi được Edge, fallback trả về nội dung HTML có header PDF hoặc UTF8
+            return Encoding.UTF8.GetBytes(GenerateInvoiceHtml(invoice));
+        }
+
         public string GenerateInvoiceHtml(Invoice invoice)
         {
             var sb = new StringBuilder();

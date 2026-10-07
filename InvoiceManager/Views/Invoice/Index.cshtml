@@ -3,6 +3,19 @@
     ViewData["Title"] = "Hóa đơn điện tử";
     var filter = Model.Filter;
     var summary = Model.Summary;
+
+    // Đếm số lượng tiêu chí lọc đang được kích hoạt
+    int activeFilterCount = 0;
+    if (!string.IsNullOrEmpty(filter.FileDownloadStatus)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.TemplateType)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.InvoiceSymbol)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.InvoiceNumber)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.SellerName)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.SellerTaxCode)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.Status)) activeFilterCount++;
+    if (!string.IsNullOrEmpty(filter.ValidationResult)) activeFilterCount++;
+    if (filter.MinAmount.HasValue || filter.MaxAmount.HasValue) activeFilterCount++;
+    if (filter.IsReconciled.HasValue) activeFilterCount++;
 }
 
 <div class="d-flex flex-column gap-3">
@@ -76,6 +89,17 @@
                 <input type="hidden" name="QuickDateRange" id="inputQuickDateRange" value="@filter.QuickDateRange" />
                 <input type="hidden" name="SortBy" id="inputSortBy" value="@filter.SortBy" />
                 <input type="hidden" name="Page" id="inputPage" value="1" />
+                <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
+                <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
+                <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
+                <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
+                <input type="hidden" name="SellerName" value="@filter.SellerName" />
+                <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+                <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
+                <input type="hidden" name="Status" value="@filter.Status" />
+                <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
+                <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
+                <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
 
                 <!-- Row 1: Tab Loại HĐ & Quick Actions -->
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-3 mb-3 border-bottom">
@@ -89,24 +113,49 @@
                         </button>
                     </div>
 
-                    <!-- Right Quick Actions: Đồng bộ, Nhập XML, Xuất file -->
-                    <div class="d-flex align-items-center gap-2">
-                        <!-- Nút Đồng bộ (Mở thẳng Tab B - Cổng Thuế) -->
+                    <!-- Right Quick Actions: Bộ lọc chuyên sâu, Đồng bộ, Nhập XML, Tải PDF Hàng loạt, Xuất file -->
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <!-- Nút Mở Drawer Bộ Lọc (Khớp ảnh tham khảo) -->
+                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold position-relative" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilter">
+                            <i class="bi bi-funnel me-1"></i> Bộ lọc
+                            @if (activeFilterCount > 0)
+                            {
+                                <span class="badge bg-danger rounded-pill ms-1">@activeFilterCount</span>
+                            }
+                        </button>
+
+                        <!-- Nút Tải PDF gốc hàng loạt trực tiếp -->
+                        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="triggerBatchPdfZip()" title="Tải toàn bộ file PDF gốc các hóa đơn đang chọn hoặc đang lọc (.zip)">
+                            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc (.zip)
+                        </button>
+
+                        <!-- Nút Đồng bộ -->
                         <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="openImportModal('tab-remote-btn')">
                             <i class="bi bi-arrow-repeat me-1"></i> Đồng bộ
                         </button>
 
-                        <!-- Nút Nhập XML / ZIP (Mở Tab A - Tải file) -->
+                        <!-- Nút Nhập XML / ZIP -->
                         <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openImportModal('tab-upload-btn')">
                             <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
                         </button>
 
-                        <!-- Nút Xuất Báo Cáo Hàng Loạt -->
+                        <!-- Nút Xuất Báo Cáo & File Hàng Loạt -->
                         <div class="dropdown">
                             <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-download me-1"></i> Xuất dữ liệu
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li>
+                                    <button type="button" class="dropdown-item py-2 fw-semibold text-danger" onclick="triggerBatchPdfZip()">
+                                        <i class="bi bi-file-earmark-pdf-fill me-2"></i> Tải PDF gốc hàng loạt (.zip)
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item py-2" onclick="triggerBatchZip()">
+                                        <i class="bi bi-file-earmark-zip text-primary me-2"></i> Tải file ZIP Bản thể hiện & XML
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelDetailed')">
                                         <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i> Xuất Excel Chi tiết (dòng hàng)
@@ -115,12 +164,6 @@
                                 <li>
                                     <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelSummary')">
                                         <i class="bi bi-file-earmark-excel text-success me-2"></i> Xuất Excel Tổng hợp theo HĐ
-                                    </button>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <button type="button" class="dropdown-item py-2" onclick="triggerBatchZip()">
-                                        <i class="bi bi-file-earmark-zip text-primary me-2"></i> Tải file ZIP Bản thể hiện & XML
                                     </button>
                                 </li>
                             </ul>
@@ -152,64 +195,24 @@
                     <div class="col">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" name="Keyword" class="form-control" placeholder="Tìm theo Ký hiệu, Số HĐ, Tên hoặc MST người bán..." value="@filter.Keyword" />
+                            <input type="text" name="Keyword" class="form-control" placeholder="Tìm nhanh theo Ký hiệu, Số HĐ, Tên hoặc MST người bán..." value="@filter.Keyword" />
                         </div>
                     </div>
 
-                    <!-- Submit & Advanced Filter Toggle Buttons -->
+                    <!-- Submit & Filter Actions -->
                     <div class="col-auto d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">
-                            <i class="bi bi-funnel"></i> Lọc
+                            <i class="bi bi-search"></i> Tìm kiếm
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#collapseAdvancedFilter" aria-expanded="false" title="Mở rộng bộ lọc nâng cao">
-                            <i class="bi bi-sliders"></i> Nâng cao
+                        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilter" title="Mở bộ lọc nâng cao bên trái">
+                            <i class="bi bi-sliders"></i> Lọc chi tiết
                         </button>
-                        <a asp-action="Index" class="btn btn-outline-danger btn-sm" title="Xóa toàn bộ bộ lọc">
-                            <i class="bi bi-x-circle"></i>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Row 3: Collapsible Advanced Filter -->
-                <div class="collapse mt-3 pt-3 border-top @(!string.IsNullOrEmpty(filter.SellerTaxCode) || filter.HasTaxCode.HasValue || !string.IsNullOrEmpty(filter.Status) || filter.MinAmount.HasValue || filter.IsReconciled.HasValue ? "show" : "")" id="collapseAdvancedFilter">
-                    <div class="row g-2">
-                        <div class="col-md-3">
-                            <label class="form-label small text-muted mb-1">MST Người bán</label>
-                            <input type="text" name="SellerTaxCode" class="form-control form-control-sm" placeholder="Nhập MST..." value="@filter.SellerTaxCode" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small text-muted mb-1">Phân loại CQT</label>
-                            <select name="HasTaxCode" class="form-select form-select-sm">
-                                <option value="">-- Tất cả --</option>
-                                <option value="true" selected="@(filter.HasTaxCode == true)">Có mã CQT</option>
-                                <option value="false" selected="@(filter.HasTaxCode == false)">Không mã CQT</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small text-muted mb-1">Trạng thái HĐ</label>
-                            <select name="Status" class="form-select form-select-sm">
-                                <option value="">-- Tất cả --</option>
-                                <option value="Hóa đơn mới" selected="@(filter.Status == "Hóa đơn mới")">Hóa đơn mới</option>
-                                <option value="Đã điều chỉnh" selected="@(filter.Status == "Đã điều chỉnh")">Đã điều chỉnh</option>
-                                <option value="Đã thay thế" selected="@(filter.Status == "Đã thay thế")">Đã thay thế</option>
-                                <option value="Đã bị hủy" selected="@(filter.Status == "Đã bị hủy")">Đã bị hủy</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small text-muted mb-1">Khoảng tiền thanh toán (VND)</label>
-                            <div class="d-flex gap-1">
-                                <input type="number" name="MinAmount" class="form-control form-control-sm" placeholder="Từ..." value="@filter.MinAmount" />
-                                <input type="number" name="MaxAmount" class="form-control form-control-sm" placeholder="Đến..." value="@filter.MaxAmount" />
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small text-muted mb-1">Ghi sổ kế toán</label>
-                            <select name="IsReconciled" class="form-select form-select-sm">
-                                <option value="">-- Tất cả --</option>
-                                <option value="true" selected="@(filter.IsReconciled == true)">Đã vào sổ</option>
-                                <option value="false" selected="@(filter.IsReconciled == false)">Chưa vào sổ</option>
-                            </select>
-                        </div>
+                        @if (activeFilterCount > 0 || !string.IsNullOrEmpty(filter.Keyword))
+                        {
+                            <a asp-action="Index" class="btn btn-outline-danger btn-sm" title="Xóa toàn bộ bộ lọc">
+                                <i class="bi bi-x-circle"></i> Đặt lại
+                            </a>
+                        }
                     </div>
                 </div>
             </form>
@@ -221,7 +224,7 @@
         @Html.AntiForgeryToken()
     </form>
 
-    <!-- Hidden Form for Batch ZIP export -->
+    <!-- Hidden Form for Batch ZIP export (HTML & XML) -->
     <form id="formBatchZip" asp-controller="Export" asp-action="BatchZip" method="post" class="d-none">
         @Html.AntiForgeryToken()
         <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
@@ -229,8 +232,38 @@
         <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
         <input type="hidden" name="Keyword" value="@filter.Keyword" />
         <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+        <input type="hidden" name="SellerName" value="@filter.SellerName" />
+        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
+        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
+        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
+        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
+        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
         <input type="hidden" name="Status" value="@filter.Status" />
+        <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
+        <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
+        <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
         <div id="selectedIdsContainer"></div>
+    </form>
+
+    <!-- Hidden Form for Batch PDF ZIP export (File PDF gốc hàng loạt) -->
+    <form id="formBatchPdfZip" asp-controller="Export" asp-action="BatchPdfZip" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="Keyword" value="@filter.Keyword" />
+        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+        <input type="hidden" name="SellerName" value="@filter.SellerName" />
+        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
+        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
+        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
+        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
+        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
+        <input type="hidden" name="Status" value="@filter.Status" />
+        <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
+        <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
+        <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
+        <div id="selectedPdfIdsContainer"></div>
     </form>
 
     <!-- 3. Bảng Danh Sách Hóa Đơn Điện Tử (Bám sát layout tham khảo) -->
@@ -348,6 +381,10 @@
                             </td>
                             <td class="text-center">
                                 <div class="d-inline-flex gap-1">
+                                    <!-- Tải file PDF gốc trực tiếp -->
+                                    <a href="/Export/DownloadPdf/@inv.Id" class="btn-action-icon" title="Tải file PDF hóa đơn gốc" download>
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                    </a>
                                     <!-- Xem bản thể hiện PDF / HTML -->
                                     <button type="button" class="btn-action-icon" title="Xem bản thể hiện hóa đơn" onclick="openInvoiceModal(@inv.Id)">
                                         <i class="bi bi-file-earmark-text text-primary"></i>
@@ -416,6 +453,167 @@
     </div>
 </div>
 
+    <!-- Floating Bulk Action Bar (Thao tác hàng loạt khi chọn checkbox) -->
+    <div id="bulkActionBar" class="card shadow-lg border-primary position-fixed bottom-0 start-50 translate-middle-x mb-4 d-none" style="z-index: 1050; min-width: 480px; border-radius: 12px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);">
+        <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary fs-6 px-2 py-1" id="bulkSelectedCount">0</span>
+                <span class="fw-semibold text-dark small">hóa đơn đã chọn</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <!-- Tải file PDF gốc hàng loạt -->
+                <button type="button" class="btn btn-danger btn-sm fw-semibold shadow-sm" onclick="triggerBatchPdfZip()">
+                    <i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc (.zip)
+                </button>
+                <!-- Tải bản thể hiện & XML hàng loạt -->
+                <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="triggerBatchZip()">
+                    <i class="bi bi-file-earmark-zip me-1"></i> Tải XML/HTML (.zip)
+                </button>
+                <!-- Nút bỏ chọn -->
+                <button type="button" class="btn btn-light btn-sm text-secondary" onclick="clearAllSelections()">
+                    Bỏ chọn
+                </button>
+            </div>
+        </div>
+    </div>
+
+<!-- Offcanvas Bộ Lọc Nghiệp Vụ Chuẩn Ảnh Giao Diện Tham Khảo -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasFilter" aria-labelledby="offcanvasFilterLabel" style="width: 380px;">
+    <div class="offcanvas-header border-bottom py-3">
+        <h5 class="offcanvas-title fw-bold text-dark fs-5" id="offcanvasFilterLabel">
+            <i class="bi bi-funnel text-primary me-2"></i>Bộ lọc
+        </h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-3">
+        <form id="drawerFilterForm" asp-controller="Invoice" asp-action="Index" method="get">
+            <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+            <input type="hidden" name="SortBy" value="@filter.SortBy" />
+            <input type="hidden" name="Page" value="1" />
+
+            <!-- 1. Trạng thái tải file -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Trạng thái tải file</label>
+                <select name="FileDownloadStatus" class="form-select form-select-sm">
+                    <option value="">Chọn trạng thái tải file</option>
+                    <option value="HasPdf" selected="@(filter.FileDownloadStatus == "HasPdf")">Đã tải PDF gốc</option>
+                    <option value="MissingPdf" selected="@(filter.FileDownloadStatus == "MissingPdf")">Chưa tải PDF</option>
+                    <option value="HasXml" selected="@(filter.FileDownloadStatus == "HasXml")">Đã tải XML gốc</option>
+                    <option value="MissingXml" selected="@(filter.FileDownloadStatus == "MissingXml")">Chưa tải XML</option>
+                    <option value="HasBoth" selected="@(filter.FileDownloadStatus == "HasBoth")">Đã tải đủ PDF & XML</option>
+                </select>
+            </div>
+
+            <!-- 2. Ký hiệu mẫu số hóa đơn -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Ký hiệu mẫu số hóa đơn</label>
+                <select name="TemplateType" class="form-select form-select-sm">
+                    <option value="">Chọn ký hiệu mẫu số hóa đơn</option>
+                    <option value="1" selected="@(filter.TemplateType == "1")">1 - Hóa đơn GTGT</option>
+                    <option value="2" selected="@(filter.TemplateType == "2")">2 - Hóa đơn bán hàng</option>
+                    <option value="3" selected="@(filter.TemplateType == "3")">3 - Hóa đơn bán tài sản công</option>
+                    <option value="4" selected="@(filter.TemplateType == "4")">4 - Hóa đơn bán hàng dự trữ quốc gia</option>
+                    <option value="5" selected="@(filter.TemplateType == "5")">5 - Hóa đơn khác (tem, vé, thẻ...)</option>
+                    <option value="6" selected="@(filter.TemplateType == "6")">6 - Chứng từ thu phí, lệ phí</option>
+                </select>
+            </div>
+
+            <!-- 3. Ký hiệu hóa đơn -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Ký hiệu hóa đơn</label>
+                <input type="text" name="InvoiceSymbol" class="form-control form-control-sm font-monospace" placeholder="C25TTP" value="@filter.InvoiceSymbol" />
+            </div>
+
+            <!-- 4. Số hóa đơn -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Số hóa đơn</label>
+                <input type="text" name="InvoiceNumber" class="form-control form-control-sm font-monospace" placeholder="2835" value="@filter.InvoiceNumber" />
+            </div>
+
+            <!-- 5. Tên người bán -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Tên người bán</label>
+                <input type="text" name="SellerName" class="form-control form-control-sm" placeholder="Công ty TNHH ABC" value="@filter.SellerName" />
+            </div>
+
+            <!-- 6. MST người bán -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">MST người bán</label>
+                <input type="text" name="SellerTaxCode" class="form-control form-control-sm font-monospace" placeholder="0309587979" value="@filter.SellerTaxCode" />
+            </div>
+
+            <!-- 7. Trạng thái hóa đơn -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Trạng thái hóa đơn</label>
+                <select name="Status" class="form-select form-select-sm">
+                    <option value="">Chọn trạng thái hóa đơn</option>
+                    <option value="Hóa đơn mới" selected="@(filter.Status == "Hóa đơn mới")">Hóa đơn mới</option>
+                    <option value="Đã thay thế" selected="@(filter.Status == "Đã thay thế")">Đã thay thế</option>
+                    <option value="Đã điều chỉnh" selected="@(filter.Status == "Đã điều chỉnh")">Đã điều chỉnh</option>
+                    <option value="Đã bị hủy" selected="@(filter.Status == "Đã bị hủy")">Đã bị hủy</option>
+                </select>
+            </div>
+
+            <!-- 8. Kết quả kiểm tra -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Kết quả kiểm tra</label>
+                <select name="ValidationResult" class="form-select form-select-sm">
+                    <option value="">Chọn kết quả kiểm tra</option>
+                    <option value="Normal" selected="@(filter.ValidationResult == "Normal")">Hợp lệ / Bình thường</option>
+                    <option value="Warning" selected="@(filter.ValidationResult == "Warning")">Cảnh báo rủi ro</option>
+                    <option value="HasTaxCode" selected="@(filter.ValidationResult == "HasTaxCode")">Có mã CQT</option>
+                    <option value="NoTaxCode" selected="@(filter.ValidationResult == "NoTaxCode")">Không mã CQT</option>
+                    <option value="CashRegister" selected="@(filter.ValidationResult == "CashRegister")">HĐ từ máy tính tiền</option>
+                </select>
+            </div>
+
+            <!-- 9. Khoảng ngày lập hóa đơn -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Khoảng ngày lập</label>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="date" name="FromDate" class="form-control form-control-sm" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày" />
+                    </div>
+                    <div class="col-6">
+                        <input type="date" name="ToDate" class="form-control form-control-sm" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- 10. Khoảng tiền thanh toán -->
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Khoảng tiền thanh toán (VND)</label>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="number" name="MinAmount" class="form-control form-control-sm" placeholder="Từ số tiền..." value="@filter.MinAmount" />
+                    </div>
+                    <div class="col-6">
+                        <input type="number" name="MaxAmount" class="form-control form-control-sm" placeholder="Đến số tiền..." value="@filter.MaxAmount" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- 11. Ghi sổ kế toán -->
+            <div class="mb-4">
+                <label class="form-label small fw-semibold text-secondary mb-1">Vào sổ kế toán</label>
+                <select name="IsReconciled" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="true" selected="@(filter.IsReconciled == true)">Đã vào sổ</option>
+                    <option value="false" selected="@(filter.IsReconciled == false)">Chưa vào sổ</option>
+                </select>
+            </div>
+        </form>
+    </div>
+    <div class="offcanvas-footer p-3 border-top bg-light d-flex gap-2">
+        <button type="button" class="btn btn-primary w-100 fw-semibold" onclick="$('#drawerFilterForm').submit()">
+            <i class="bi bi-funnel me-1"></i> Áp dụng bộ lọc
+        </button>
+        <a href="/Invoice?InvoiceType=@filter.InvoiceType" class="btn btn-outline-secondary w-50">
+            Đặt lại
+        </a>
+    </div>
+</div>
+
 <!-- Modal Xem Thể Hiện Hóa Đơn Điện Tử Chuẩn Việt Nam -->
 <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -443,10 +641,35 @@
 
 @section Scripts {
     <script>
-        // Check all rows
+        // Check all rows & Cập nhật thanh thao tác hàng loạt
+        function updateBulkActionBar() {
+            var count = $('.row-select:checked').length;
+            $('#bulkSelectedCount').text(count);
+            if (count > 0) {
+                $('#bulkActionBar').removeClass('d-none');
+            } else {
+                $('#bulkActionBar').addClass('d-none');
+            }
+        }
+
         $('#selectAll').on('change', function() {
             $('.row-select').prop('checked', $(this).is(':checked'));
+            updateBulkActionBar();
         });
+
+        $(document).on('change', '.row-select', function() {
+            updateBulkActionBar();
+            if (!$(this).is(':checked')) {
+                $('#selectAll').prop('checked', false);
+            } else if ($('.row-select:checked').length === $('.row-select').length) {
+                $('#selectAll').prop('checked', true);
+            }
+        });
+
+        function clearAllSelections() {
+            $('.row-select, #selectAll').prop('checked', false);
+            updateBulkActionBar();
+        }
 
         // Quick date selection
         function setQuickDate(type) {
@@ -503,6 +726,7 @@
             window.location.href = '/Export/' + actionName + '?' + params;
         }
 
+        // Xuất file ZIP XML & Bản thể hiện HTML
         function triggerBatchZip() {
             var selected = [];
             $('.row-select:checked').each(function() {
@@ -521,6 +745,25 @@
             $('#formBatchZip').submit();
         }
 
+        // Tải File PDF Gốc Hàng Loạt (.zip)
+        function triggerBatchPdfZip() {
+            var selected = [];
+            $('.row-select:checked').each(function() {
+                selected.push($(this).val());
+            });
+
+            var container = $('#selectedPdfIdsContainer');
+            container.empty();
+
+            if (selected.length > 0) {
+                selected.forEach(function(id) {
+                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
+                });
+            }
+
+            $('#formBatchPdfZip').submit();
+        }
+
         // Open Invoice Detail Modal
         function openInvoiceModal(id) {
             $('#invoiceModal').modal('show');
@@ -529,6 +772,7 @@
             $.get('/Invoice/Detail/' + id, function(html) {
                 $('#invoiceModalBody').html(html);
                 $('#invoiceModalFooterActions').html(
+                    '<a href="/Export/DownloadPdf/' + id + '" target="_blank" class="btn btn-danger btn-sm" download><i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc</a> ' +
                     '<a href="/Invoice/ViewHtml/' + id + '" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i> In / Bản in gốc</a> ' +
                     '<a href="/Invoice/ViewRawXml/' + id + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-xml me-1"></i> Tải XML gốc</a>'
                 );

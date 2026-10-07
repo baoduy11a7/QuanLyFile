@@ -30,7 +30,13 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index(string period = "thisYear", DateTime? fromDate = null, DateTime? toDate = null)
+        public async Task<IActionResult> Index(
+            string period = "thisYear", 
+            DateTime? fromDate = null, 
+            DateTime? toDate = null,
+            int? month = null,
+            int? year = null,
+            int? quarter = null)
         {
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
@@ -40,33 +46,81 @@ namespace InvoiceManager.Controllers
             DateTime startPeriod;
             DateTime endPeriod;
 
-            // Xử lý khoảng thời gian
-            switch (period)
+            // 1. Nếu lọc theo Tháng & Năm cụ thể
+            if (month.HasValue && month.Value >= 1 && month.Value <= 12)
             {
-                case "thisMonth":
-                    startPeriod = new DateTime(now.Year, now.Month, 1);
-                    endPeriod = startPeriod.AddMonths(1).AddTicks(-1);
-                    break;
-                case "lastMonth":
-                    var prev = now.AddMonths(-1);
-                    startPeriod = new DateTime(prev.Year, prev.Month, 1);
-                    endPeriod = startPeriod.AddMonths(1).AddTicks(-1);
-                    break;
-                case "thisQuarter":
-                    int q = (now.Month - 1) / 3 + 1;
-                    startPeriod = new DateTime(now.Year, (q - 1) * 3 + 1, 1);
-                    endPeriod = startPeriod.AddMonths(3).AddTicks(-1);
-                    break;
-                case "custom":
-                    startPeriod = fromDate ?? new DateTime(now.Year, 1, 1);
-                    endPeriod = toDate.HasValue ? toDate.Value.Date.AddDays(1).AddTicks(-1) : now;
-                    break;
-                case "thisYear":
-                default:
-                    period = "thisYear";
-                    startPeriod = new DateTime(now.Year, 1, 1);
-                    endPeriod = new DateTime(now.Year, 12, 31, 23, 59, 59);
-                    break;
+                int y = year ?? now.Year;
+                startPeriod = new DateTime(y, month.Value, 1);
+                endPeriod = startPeriod.AddMonths(1).AddTicks(-1);
+                period = "custom";
+            }
+            // 2. Nếu lọc theo Quý & Năm cụ thể
+            else if (quarter.HasValue && quarter.Value >= 1 && quarter.Value <= 4)
+            {
+                int y = year ?? now.Year;
+                startPeriod = new DateTime(y, (quarter.Value - 1) * 3 + 1, 1);
+                endPeriod = startPeriod.AddMonths(3).AddTicks(-1);
+                period = "custom";
+            }
+            // 3. Nếu lọc theo Năm cụ thể
+            else if (year.HasValue && (!month.HasValue && !quarter.HasValue && !fromDate.HasValue && !toDate.HasValue))
+            {
+                startPeriod = new DateTime(year.Value, 1, 1);
+                endPeriod = new DateTime(year.Value, 12, 31, 23, 59, 59);
+                period = (year.Value == now.Year) ? "thisYear" : "custom";
+            }
+            // 4. Nếu truyền khoảng ngày cụ thể (Từ ngày - Đến ngày)
+            else if (fromDate.HasValue || toDate.HasValue || period == "custom")
+            {
+                period = "custom";
+                startPeriod = fromDate?.Date ?? new DateTime(now.Year, 1, 1);
+                endPeriod = toDate.HasValue ? toDate.Value.Date.AddDays(1).AddTicks(-1) : now.Date.AddDays(1).AddTicks(-1);
+            }
+            // 5. Các mốc thời gian nhanh chuẩn nghiệp vụ
+            else
+            {
+                switch (period)
+                {
+                    case "today":
+                        startPeriod = now.Date;
+                        endPeriod = now.Date.AddDays(1).AddTicks(-1);
+                        break;
+                    case "yesterday":
+                        startPeriod = now.Date.AddDays(-1);
+                        endPeriod = now.Date.AddTicks(-1);
+                        break;
+                    case "thisMonth":
+                        startPeriod = new DateTime(now.Year, now.Month, 1);
+                        endPeriod = startPeriod.AddMonths(1).AddTicks(-1);
+                        break;
+                    case "lastMonth":
+                        var prev = now.AddMonths(-1);
+                        startPeriod = new DateTime(prev.Year, prev.Month, 1);
+                        endPeriod = startPeriod.AddMonths(1).AddTicks(-1);
+                        break;
+                    case "thisQuarter":
+                        int q = (now.Month - 1) / 3 + 1;
+                        startPeriod = new DateTime(now.Year, (q - 1) * 3 + 1, 1);
+                        endPeriod = startPeriod.AddMonths(3).AddTicks(-1);
+                        break;
+                    case "lastQuarter":
+                        int curQ = (now.Month - 1) / 3 + 1;
+                        int prevQ = curQ == 1 ? 4 : curQ - 1;
+                        int prevQYear = curQ == 1 ? now.Year - 1 : now.Year;
+                        startPeriod = new DateTime(prevQYear, (prevQ - 1) * 3 + 1, 1);
+                        endPeriod = startPeriod.AddMonths(3).AddTicks(-1);
+                        break;
+                    case "lastYear":
+                        startPeriod = new DateTime(now.Year - 1, 1, 1);
+                        endPeriod = new DateTime(now.Year - 1, 12, 31, 23, 59, 59);
+                        break;
+                    case "thisYear":
+                    default:
+                        period = "thisYear";
+                        startPeriod = new DateTime(now.Year, 1, 1);
+                        endPeriod = new DateTime(now.Year, 12, 31, 23, 59, 59);
+                        break;
+                }
             }
 
             var queryInvoices = _db.Invoices
@@ -113,14 +167,16 @@ namespace InvoiceManager.Controllers
                 ? Math.Round((double)vm.ReconciledCount / vm.TotalInvoicesPurchase * 100, 1) 
                 : 0;
 
-            // 5. Biểu đồ 12 tháng gần nhất (không phụ thuộc vào filter period để xem xu hướng dài hạn)
+            // 5. Biểu đồ 12 tháng gần nhất (đồng bộ theo mốc thời gian đối soát đã chọn)
+            var chartAnchor = endPeriod.Date;
+            var chartStart = new DateTime(chartAnchor.Year, chartAnchor.Month, 1).AddMonths(-11);
             var allYearInvoices = await _db.Invoices
-                .Where(i => i.TaxAccountId == taxAccountId.Value && i.IssueDate >= now.AddMonths(-11).Date)
+                .Where(i => i.TaxAccountId == taxAccountId.Value && i.IssueDate >= chartStart && i.IssueDate <= chartAnchor.AddDays(1))
                 .ToListAsync();
 
             for (int m = 11; m >= 0; m--)
             {
-                var target = now.AddMonths(-m);
+                var target = chartAnchor.AddMonths(-m);
                 var label = $"T{target.Month}/{target.Year.ToString().Substring(2)}";
                 vm.MonthlyLabels.Add(label);
 

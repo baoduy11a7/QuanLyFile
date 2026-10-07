@@ -58,7 +58,16 @@ namespace InvoiceManager.Controllers
             return View();
         }
 
-        #region File Upload (XML / ZIP)
+        #region File Upload (XML / ZIP / Excel)
+        [HttpGet]
+        public async Task<IActionResult> DownloadTemplate(string invoiceType = "MuaVao")
+        {
+            var bytes = await _importService.GenerateExcelTemplateAsync(invoiceType);
+            string typeName = invoiceType == "BanRa" ? "BanRa" : "MuaVao";
+            string fileName = $"Mau_Nhap_Hoa_Don_{typeName}_{DateTime.Now:yyyyMMdd}.xlsx";
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Upload(IFormFile? file, string invoiceType = "MuaVao")
@@ -71,7 +80,7 @@ namespace InvoiceManager.Controllers
 
             if (file == null || file.Length == 0)
             {
-                return Json(new { success = false, message = "Vui lòng chọn file XML hoặc ZIP chứa hóa đơn điện tử." });
+                return Json(new { success = false, message = "Vui lòng chọn file XML, ZIP hoặc Excel chứa hóa đơn điện tử." });
             }
 
             var extension = System.IO.Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -105,9 +114,22 @@ namespace InvoiceManager.Controllers
                     messages = result.Messages
                 });
             }
+            else if (extension == ".xlsx" || extension == ".xls")
+            {
+                var result = await _importService.ImportExcelAsync(stream, file.FileName, taxAccountId.Value, invoiceType, userId);
+                return Json(new
+                {
+                    success = result.SuccessCount > 0,
+                    total = result.TotalFiles,
+                    successCount = result.SuccessCount,
+                    skippedCount = result.SkippedDuplicateCount,
+                    failedCount = result.FailedCount,
+                    messages = result.Messages
+                });
+            }
             else
             {
-                return Json(new { success = false, message = "Định dạng file không hỗ trợ. Vui lòng chỉ tải lên file .xml hoặc .zip." });
+                return Json(new { success = false, message = "Định dạng file không hỗ trợ. Vui lòng tải lên file .xml, .zip hoặc .xlsx (.xls)." });
             }
         }
         #endregion

@@ -230,7 +230,7 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index">
-                                <i class="bi bi-cloud-arrow-up"></i> Nhập XML/ZIP
+                                <i class="bi bi-cloud-arrow-up"></i> Nhập XML / Excel
                             </a>
                         </li>
                         <li class="nav-item">
@@ -333,8 +333,8 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
                             <li class="dropdown-header">Tài khoản: @User.Identity?.Name</li>
-                            <li><a class="dropdown-item" asp-controller="TaxAccount" asp-action="Index"><i class="bi bi-gear me-2"></i>Cài đặt tài khoản</a></li>
-                            <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#feedbackModal"><i class="bi bi-chat-left-dots me-2"></i>Báo lỗi / Yêu cầu tính năng</button></li>
+                            <li><a class="dropdown-item" asp-controller="Account" asp-action="Settings"><i class="bi bi-gear me-2"></i>Cài đặt tài khoản</a></li>
+                            <li><a class="dropdown-item" asp-controller="Feedback" asp-action="Index"><i class="bi bi-chat-left-dots me-2"></i>Báo lỗi / Yêu cầu tính năng</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
@@ -384,43 +384,48 @@
     <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form id="formFeedback" asp-controller="TaxAccount" asp-action="SubmitFeedback" method="post">
+                <form id="formFeedback" asp-controller="Feedback" asp-action="Create" method="post">
                     @Html.AntiForgeryToken()
-                    <div class="modal-header">
-                        <h5 class="modal-title fw-bold" id="feedbackModalLabel"><i class="bi bi-envelope-paper me-2 text-primary"></i>Gửi phản hồi / Yêu cầu hỗ trợ</h5>
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title fw-bold" id="feedbackModalLabel"><i class="bi bi-chat-left-dots text-primary me-2"></i>Báo lỗi / Yêu cầu tính năng</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Loại yêu cầu</label>
+                            <label class="form-label fw-semibold">Phân loại yêu cầu</label>
                             <select name="requestType" class="form-select">
-                                <option value="Báo lỗi">Báo lỗi nghiệp vụ hóa đơn</option>
-                                <option value="Yêu cầu tính năng">Yêu cầu tính năng mới</option>
-                                <option value="Hỗ trợ nghiệp vụ">Hỗ trợ đối soát thuế</option>
+                                <option value="Báo lỗi">🐞 Báo lỗi hệ thống / Lỗi đọc XML / Sai lệch tiền</option>
+                                <option value="Yêu cầu tính năng">💡 Đề xuất tính năng mới / Biểu mẫu báo cáo mới</option>
+                                <option value="Hỗ trợ nghiệp vụ">🛠 Hỗ trợ nghiệp vụ đối soát / Thuế GTGT</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Tiêu đề</label>
-                            <input type="text" name="title" class="form-control" placeholder="Tóm tắt yêu cầu..." required />
+                            <label class="form-label fw-semibold">Tiêu đề yêu cầu <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" placeholder="Tóm tắt yêu cầu hoặc lỗi cần xử lý..." required />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Nội dung chi tiết</label>
-                            <textarea name="description" class="form-control" rows="4" placeholder="Mô tả cụ thể hóa đơn, ký hiệu hoặc vấn đề cần xử lý..." required></textarea>
+                            <label class="form-label fw-semibold">Nội dung chi tiết <span class="text-danger">*</span></label>
+                            <textarea name="description" class="form-control" rows="4" placeholder="Mô tả cụ thể số hóa đơn, ký hiệu hoặc tình huống phát sinh..." required></textarea>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Người liên hệ</label>
-                                <input type="text" name="contactName" class="form-control" placeholder="Họ tên..." />
+                                <input type="text" name="contactName" class="form-control" placeholder="Họ tên người gửi..." />
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Số điện thoại</label>
-                                <input type="text" name="contactPhone" class="form-control" placeholder="SĐT liên hệ..." />
+                                <input type="text" name="contactPhone" class="form-control" placeholder="SĐT để kỹ thuật liên hệ..." />
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i> Gửi yêu cầu</button>
+                    <div class="modal-footer bg-light d-flex justify-content-between">
+                        <a asp-controller="Feedback" asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-list-ul me-1"></i> Danh sách yêu cầu
+                        </a>
+                        <div>
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                            <button type="submit" class="btn btn-primary btn-sm fw-semibold"><i class="bi bi-send me-1"></i> Gửi yêu cầu</button>
+                        </div>
                     </div>
                 </form>
             </div>

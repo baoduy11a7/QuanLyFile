@@ -90,6 +90,80 @@ namespace InvoiceManager.Controllers
                 query = query.Where(i => i.SellerTaxCode == stc);
             }
 
+            // Lọc theo Tên người bán
+            if (!string.IsNullOrWhiteSpace(filter.SellerName))
+            {
+                var sn = filter.SellerName.Trim();
+                query = query.Where(i => i.SellerName.Contains(sn));
+            }
+
+            // Lọc theo Ký hiệu hóa đơn
+            if (!string.IsNullOrWhiteSpace(filter.InvoiceSymbol))
+            {
+                var sym = filter.InvoiceSymbol.Trim();
+                query = query.Where(i => i.InvoiceSymbol.Contains(sym));
+            }
+
+            // Lọc theo Số hóa đơn
+            if (!string.IsNullOrWhiteSpace(filter.InvoiceNumber))
+            {
+                var num = filter.InvoiceNumber.Trim();
+                query = query.Where(i => i.InvoiceNumber.Contains(num));
+            }
+
+            // Ký hiệu mẫu số hóa đơn (ký tự đầu tiên của ký hiệu mẫu số: 1, 2, 3...)
+            if (!string.IsNullOrWhiteSpace(filter.TemplateType))
+            {
+                var tt = filter.TemplateType.Trim();
+                query = query.Where(i => i.InvoiceSymbol.StartsWith(tt));
+            }
+
+            // Lọc theo Trạng thái tải file (PDF, XML)
+            if (!string.IsNullOrWhiteSpace(filter.FileDownloadStatus))
+            {
+                switch (filter.FileDownloadStatus)
+                {
+                    case "HasPdf":
+                        query = query.Where(i => i.RawPdfPath != null && i.RawPdfPath != "");
+                        break;
+                    case "MissingPdf":
+                        query = query.Where(i => i.RawPdfPath == null || i.RawPdfPath == "");
+                        break;
+                    case "HasXml":
+                        query = query.Where(i => i.RawXmlPath != null && i.RawXmlPath != "");
+                        break;
+                    case "MissingXml":
+                        query = query.Where(i => i.RawXmlPath == null || i.RawXmlPath == "");
+                        break;
+                    case "HasBoth":
+                        query = query.Where(i => (i.RawPdfPath != null && i.RawPdfPath != "") && (i.RawXmlPath != null && i.RawXmlPath != ""));
+                        break;
+                }
+            }
+
+            // Lọc theo Kết quả kiểm tra
+            if (!string.IsNullOrWhiteSpace(filter.ValidationResult))
+            {
+                switch (filter.ValidationResult)
+                {
+                    case "Normal":
+                        query = query.Where(i => i.RiskLevel == "Normal");
+                        break;
+                    case "Warning":
+                        query = query.Where(i => i.RiskLevel == "Warning" || i.RiskLevel == "HighRisk");
+                        break;
+                    case "HasTaxCode":
+                        query = query.Where(i => i.HasTaxCode);
+                        break;
+                    case "NoTaxCode":
+                        query = query.Where(i => !i.HasTaxCode);
+                        break;
+                    case "CashRegister":
+                        query = query.Where(i => i.IsCashRegister);
+                        break;
+                }
+            }
+
             // 5. Lọc theo Có mã / Không mã CQT
             if (filter.HasTaxCode.HasValue)
             {
