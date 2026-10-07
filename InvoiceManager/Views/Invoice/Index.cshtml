@@ -41,12 +41,12 @@
                         </div>
                     </div>
 
-                    <!-- Sync badge Hangfire -->
-                    <div class="sync-pill" title="Hệ thống tự động quét và đồng bộ dữ liệu qua Hangfire">
-                        <span class="sync-dot"></span>
-                        <span class="sync-text">
+                    <!-- Real-time Clock & Sync Status Badge -->
+                    <div class="sync-pill" id="realtimeSyncPill" title="Thời gian thực (Real-time): cập nhật liên tục | Lần đồng bộ gần nhất: @(summary.LastSyncedAt.HasValue ? summary.LastSyncedAt.Value.ToString("dd/MM/yyyy HH:mm") : "Tự động")" style="cursor: pointer;" onclick="openImportModal('tab-remote-btn')">
+                        <span class="sync-dot" title="Hệ thống hoạt động thời gian thực"></span>
+                        <span class="sync-text d-flex align-items-center">
                             <i class="bi bi-clock-history me-1 text-info"></i>
-                            @(summary.LastSyncedAt.HasValue ? summary.LastSyncedAt.Value.ToString("dd/MM HH:mm") : "Chưa đồng bộ")
+                            <span id="liveRealtimeClock" class="font-monospace fw-semibold">@DateTime.Now.ToString("dd/MM HH:mm:ss")</span>
                         </span>
                     </div>
                 </div>
@@ -1015,6 +1015,21 @@
                 }
             }
         }
+
+        // Cập nhật đồng hồ thời gian thực (Real-time Clock ticking live every second)
+        function updateRealtimeClock() {
+            var clockEl = document.getElementById('liveRealtimeClock');
+            if (!clockEl) return;
+            var now = new Date();
+            var d = String(now.getDate()).padStart(2, '0');
+            var m = String(now.getMonth() + 1).padStart(2, '0');
+            var h = String(now.getHours()).padStart(2, '0');
+            var min = String(now.getMinutes()).padStart(2, '0');
+            var s = String(now.getSeconds()).padStart(2, '0');
+            clockEl.textContent = d + '/' + m + ' ' + h + ':' + min + ':' + s;
+        }
+        updateRealtimeClock();
+        setInterval(updateRealtimeClock, 1000);
     </script>
 }
 
