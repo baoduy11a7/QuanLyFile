@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon>
+  <DLHDon>
+    <TTChung>
+      <PBan>2.1</PBan>
+      <THDon>Hóa đơn giá trị gia tăng</THDon>
+      <KHMSHDon>GTGT</KHMSHDon>
+      <KHHDon>1C26TAA</KHHDon>
+      <SHDon>00000010</SHDon>
+      <NLap>2026-09-25</NLap>
+      <HTTToan>TM/CK</HTTToan>
+      <DVTTe>VND</DVTTe>
+      <TGia>1</TGia>
+      <LoaiHDon>GTGT</LoaiHDon>
+      <GChu>Hóa đơn có nhiều mức thuế suất</GChu>
+    </TTChung>
+    <NDHDon>
+      <NBan>
+        <Ten>CONG TY PHAN PHOI HANG TIEU DUNG</Ten>
+        <MST>0311010101</MST>
+        <DChi>50 Nguyen Oanh, Go Vap, TP Ho Chi Minh</DChi>
+        <SDThoai>028-3822-0000</SDThoai>
+      </NBan>
+      <NMua>
+        <Ten>CONG TY GHI</Ten>
+        <MST>0312020202</MST>
+        <DChi>60 Quang Trung, Go Vap, TP Ho Chi Minh</DChi>
+        <SDThoai>0900000000</SDThoai>
+      </NMua>
+      <DSHHDVu>
+        <HHDVu>
+          <STT>1</STT>
+          <THHDVu>Hang tieu dung A</THHDVu>
+          <DVTinh>thung</DVTinh>
+          <SLuong>10</SLuong>
+          <DGia>500000.00</DGia>
+          <ThTien>5000000.00</ThTien>
+          <TSuat>10%</TSuat>
+          <TThue>500000.00</TThue>
+        </HHDVu>
+        <HHDVu>
+          <STT>2</STT>
+          <THHDVu>Hang tieu dung B</THHDVu>
+          <DVTinh>thung</DVTinh>
+          <SLuong>5</SLuong>
+          <DGia>800000.00</DGia>
+          <ThTien>4000000.00</ThTien>
+          <TSuat>8%</TSuat>
+          <TThue>320000.00</TThue>
+        </HHDVu>
+        <HHDVu>
+          <STT>3</STT>
+          <THHDVu>Dich vu van chuyen</THHDVu>
+          <DVTinh>chuyen</DVTinh>
+          <SLuong>1</SLuong>
+          <DGia>300000.00</DGia>
+          <ThTien>300000.00</ThTien>
+          <TSuat>5%</TSuat>
+          <TThue>15000.00</TThue>
+        </HHDVu>
+      </DSHHDVu>
+      <TToan>
+        <THTTLTSuat>9300000.00</THTTLTSuat>
+        <TGTGT>835000.00</TGTGT>
+        <TgTToan>10135000.00</TgTToan>
+        <SoTienBangChu>Tổng tiền theo hóa đơn</SoTienBangChu>
+      </TToan>
+    </NDHDon>
+  </DLHDon>
+</HDon>

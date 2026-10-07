@@ -1,0 +1,9 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/logs
+**/App_Data/RawFiles/*
+!**/App_Data/RawFiles/.gitkeep
+**/App_Data/WatchFolder/*
+!**/App_Data/WatchFolder/.gitkeep

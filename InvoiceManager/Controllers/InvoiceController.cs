@@ -198,16 +198,27 @@ namespace InvoiceManager.Controllers
                 query = query.Where(i => i.IsReconciled == filter.IsReconciled.Value);
             }
 
-            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu đã lọc (Khớp chính xác thanh Card phía trên ảnh tham khảo)
+            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu đã lọc (Tương thích 100% cả SQL Server và SQLite)
+            var stats = await query
+                .Select(i => new
+                {
+                    i.AmountBeforeTax,
+                    i.TaxAmount,
+                    i.TotalAmount,
+                    i.HasTaxCode,
+                    i.IsCashRegister
+                })
+                .ToListAsync();
+
             var summary = new InvoiceSummaryViewModel
             {
-                TotalCount = await query.CountAsync(),
-                WithTaxCodeCount = await query.CountAsync(i => i.HasTaxCode && !i.IsCashRegister),
-                WithoutTaxCodeCount = await query.CountAsync(i => !i.HasTaxCode && !i.IsCashRegister),
-                CashRegisterCount = await query.CountAsync(i => i.IsCashRegister),
-                TotalAmountBeforeTax = await query.SumAsync(i => (decimal?)i.AmountBeforeTax) ?? 0,
-                TotalTaxAmount = await query.SumAsync(i => (decimal?)i.TaxAmount) ?? 0,
-                TotalAmount = await query.SumAsync(i => (decimal?)i.TotalAmount) ?? 0
+                TotalCount = stats.Count,
+                WithTaxCodeCount = stats.Count(i => i.HasTaxCode && !i.IsCashRegister),
+                WithoutTaxCodeCount = stats.Count(i => !i.HasTaxCode && !i.IsCashRegister),
+                CashRegisterCount = stats.Count(i => i.IsCashRegister),
+                TotalAmountBeforeTax = stats.Sum(i => i.AmountBeforeTax),
+                TotalTaxAmount = stats.Sum(i => i.TaxAmount),
+                TotalAmount = stats.Sum(i => i.TotalAmount)
             };
 
             // Lấy thời điểm đồng bộ gần nhất
@@ -347,6 +358,72 @@ namespace InvoiceManager.Controllers
 
             TempData["SuccessMessage"] = $"Đồng bộ hoàn tất: {log.ErrorMessage}";
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
+
+            var invoice = await _db.Invoices
+                .Include(i => i.Details)
+                .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId.Value);
+
+            if (invoice == null) return Json(new { success = false, message = "Không tìm thấy hóa đơn cần xóa hoặc bạn không có quyền." });
+
+            if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
+            {
+                try { System.IO.File.Delete(invoice.RawXmlPath); } catch { }
+            }
+            if (!string.IsNullOrEmpty(invoice.RawPdfPath) && System.IO.File.Exists(invoice.RawPdfPath))
+            {
+                try { System.IO.File.Delete(invoice.RawPdfPath); } catch { }
+            }
+
+            _db.Invoices.Remove(invoice);
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync("Xóa hóa đơn", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", $"MST: {invoice.SellerTaxCode}, Tiền: {invoice.TotalAmount:N0} đ, Nguồn: {invoice.SourceProvider}", taxAccountId.Value);
+
+            return Json(new { success = true, message = $"Đã xóa thành công hóa đơn {invoice.InvoiceSymbol}-{invoice.InvoiceNumber}." });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteBatch([FromBody] int[] ids)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
+
+            if (ids == null || ids.Length == 0) return Json(new { success = false, message = "Chưa chọn hóa đơn nào để xóa." });
+
+            var invoices = await _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => ids.Contains(i.Id) && i.TaxAccountId == taxAccountId.Value)
+                .ToListAsync();
+
+            if (!invoices.Any()) return Json(new { success = false, message = "Không tìm thấy hóa đơn hợp lệ để xóa." });
+
+            foreach (var invoice in invoices)
+            {
+                if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
+                {
+                    try { System.IO.File.Delete(invoice.RawXmlPath); } catch { }
+                }
+                if (!string.IsNullOrEmpty(invoice.RawPdfPath) && System.IO.File.Exists(invoice.RawPdfPath))
+                {
+                    try { System.IO.File.Delete(invoice.RawPdfPath); } catch { }
+                }
+            }
+
+            _db.Invoices.RemoveRange(invoices);
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync("Xóa hóa đơn hàng loạt", $"{invoices.Count} hóa đơn", $"Đã xóa {invoices.Count} hóa đơn được chọn", taxAccountId.Value);
+
+            return Json(new { success = true, message = $"Đã xóa thành công {invoices.Count} hóa đơn đã chọn." });
         }
 
         private void SetupDateRange(InvoiceFilterViewModel filter)

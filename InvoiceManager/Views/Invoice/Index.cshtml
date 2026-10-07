@@ -1,6 +1,6 @@
 @model InvoiceManager.Models.ViewModels.InvoiceIndexViewModel
 @{
-    ViewData["Title"] = "Hóa đơn điện tử";
+    ViewData["Title"] = "Quản lý Hóa đơn & Kế toán";
     var filter = Model.Filter;
     var summary = Model.Summary;
 
@@ -19,64 +19,129 @@
 }
 
 <div class="d-flex flex-column gap-3">
-    <!-- 1. Thanh Tổng hợp Số liệu phía trên (Cards khớp chính xác ảnh tham khảo) -->
-    <div class="row g-2">
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-collection text-primary me-1"></i> Tổng số hóa đơn</div>
-                <div class="stat-value primary">@summary.TotalCount.ToString("N0")</div>
-                <div class="small text-muted" style="font-size: 0.725rem;">hóa đơn trong kỳ lọc</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-patch-check-fill text-success me-1"></i> Có mã CQT</div>
-                <div class="stat-value text-success">@summary.WithTaxCodeCount.ToString("N0")</div>
-                <div class="small text-muted" style="font-size: 0.725rem;">HĐ có mã cơ quan thuế</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-shield-x text-secondary me-1"></i> Không mã CQT</div>
-                <div class="stat-value text-secondary">@summary.WithoutTaxCodeCount.ToString("N0")</div>
-                <div class="small text-muted" style="font-size: 0.725rem;">HĐ không mã CQT</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-calculator text-warning me-1"></i> Máy tính tiền</div>
-                <div class="stat-value text-warning">@summary.CashRegisterCount.ToString("N0")</div>
-                <div class="small text-muted" style="font-size: 0.725rem;">HĐ khởi tạo từ MTT</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-arrow-repeat text-info me-1"></i> Đồng bộ gần nhất</div>
-                <div class="stat-value text-dark" style="font-size: 1.05rem; padding-top: 2px;">
-                    @(summary.LastSyncedAt.HasValue ? summary.LastSyncedAt.Value.ToString("dd/MM HH:mm") : "Chưa đồng bộ")
+    <!-- 1. Thanh Tổng hợp Số liệu Thông Minh (Executive Financial & Volume Hub) -->
+    <div class="row g-3 align-items-stretch">
+        <!-- Khối 1: Tổng quan Nghiệp vụ Hóa đơn (Volume & Type Hub) -->
+        <div class="col-12 col-xl-5">
+            <div class="summary-hub-card h-100">
+                <!-- Top: Header + Hero Count + Sync Status -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="hub-icon-badge bg-primary-subtle text-primary">
+                            <i class="bi bi-receipt-cutoff"></i>
+                        </div>
+                        <div>
+                            <div class="hub-title">Tổng số hóa đơn</div>
+                            <div class="d-flex align-items-baseline gap-2">
+                                <span class="hub-hero-value cursor-pointer" onclick="quickFilterTaxType('all')" title="Xem tất cả hóa đơn">
+                                    @summary.TotalCount.ToString("N0")
+                                </span>
+                                <span class="hub-subtext">hóa đơn trong kỳ lọc</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sync badge Hangfire -->
+                    <div class="sync-pill" title="Hệ thống tự động quét và đồng bộ dữ liệu qua Hangfire">
+                        <span class="sync-dot"></span>
+                        <span class="sync-text">
+                            <i class="bi bi-clock-history me-1 text-info"></i>
+                            @(summary.LastSyncedAt.HasValue ? summary.LastSyncedAt.Value.ToString("dd/MM HH:mm") : "Chưa đồng bộ")
+                        </span>
+                    </div>
                 </div>
-                <div class="small text-muted" style="font-size: 0.725rem;">Tự động qua Hangfire</div>
+
+                <!-- Bottom: 3 Phân loại hóa đơn tương tác -->
+                <div class="hub-breakdown-grid">
+                    <!-- Có mã CQT -->
+                    <div class="mini-stat-item has-tax-code @(filter.HasTaxCode == true && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('with_tax_code')" role="button" title="Lọc hóa đơn có mã CQT">
+                        <div class="mini-stat-header">
+                            <i class="bi bi-patch-check-fill text-success"></i>
+                            <span>Có mã CQT</span>
+                        </div>
+                        <div class="mini-stat-value text-success">@summary.WithTaxCodeCount.ToString("N0")</div>
+                        <div class="mini-stat-desc">Có mã cơ quan thuế</div>
+                    </div>
+
+                    <!-- Không mã CQT -->
+                    <div class="mini-stat-item no-tax-code @(filter.HasTaxCode == false ? "active" : "")" onclick="quickFilterTaxType('without_tax_code')" role="button" title="Lọc hóa đơn không mã CQT">
+                        <div class="mini-stat-header">
+                            <i class="bi bi-shield-x text-secondary"></i>
+                            <span>Không mã CQT</span>
+                        </div>
+                        <div class="mini-stat-value text-secondary">@summary.WithoutTaxCodeCount.ToString("N0")</div>
+                        <div class="mini-stat-desc">HĐ không mã CQT</div>
+                    </div>
+
+                    <!-- Máy tính tiền -->
+                    <div class="mini-stat-item cash-register @(filter.IsCashRegister == true ? "active" : "")" onclick="quickFilterTaxType('cash_register')" role="button" title="Lọc hóa đơn từ Máy tính tiền">
+                        <div class="mini-stat-header">
+                            <i class="bi bi-calculator-fill text-warning"></i>
+                            <span>Máy tính tiền</span>
+                        </div>
+                        <div class="mini-stat-value text-warning">@summary.CashRegisterCount.ToString("N0")</div>
+                        <div class="mini-stat-desc">Khởi tạo từ MTT</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card bg-light">
-                <div class="stat-label">Chưa thuế</div>
-                <div class="stat-value text-dark" style="font-size: 1.1rem;">@summary.TotalAmountBeforeTax.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
-                <div class="small text-muted" style="font-size: 0.725rem;">Tổng tiền hàng</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="stat-card bg-light">
-                <div class="stat-label">Tiền thuế</div>
-                <div class="stat-value text-danger" style="font-size: 1.1rem;">@summary.TotalTaxAmount.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
-                <div class="small text-muted" style="font-size: 0.725rem;">Thuế GTGT khấu trừ</div>
-            </div>
-        </div>
-        <div class="col-12 col-md-6 col-xl-2">
-            <div class="stat-card" style="background-color: #eff6ff; border-color: #bfdbfe;">
-                <div class="stat-label text-primary">Tổng thanh toán</div>
-                <div class="stat-value text-primary" style="font-size: 1.15rem;">@summary.TotalAmount.ToString("N0") <span style="font-size: 0.75rem;">đ</span></div>
-                <div class="small text-primary" style="font-size: 0.725rem; font-weight: 500;">Tổng tiền đã gồm thuế</div>
+
+        <!-- Khối 2: Tổng hợp Dòng tiền & Nghĩa vụ Thuế (Financial Highlights) -->
+        <div class="col-12 col-xl-7">
+            <div class="row g-2 h-100">
+                <!-- Chưa thuế -->
+                <div class="col-12 col-sm-4">
+                    <div class="financial-card h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="financial-label">Chưa thuế</span>
+                            <div class="financial-icon-badge bg-light text-secondary border">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                        </div>
+                        <div class="financial-value text-dark">
+                            @summary.TotalAmountBeforeTax.ToString("N0") <span class="currency">đ</span>
+                        </div>
+                        <div class="financial-subtext text-muted">
+                            <i class="bi bi-receipt me-1 text-muted"></i>Tổng tiền hàng
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tiền thuế GTGT -->
+                <div class="col-12 col-sm-4">
+                    <div class="financial-card h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="financial-label">Tiền thuế GTGT</span>
+                            <div class="financial-icon-badge bg-danger-subtle text-danger border border-danger-subtle">
+                                <i class="bi bi-percent"></i>
+                            </div>
+                        </div>
+                        <div class="financial-value text-danger">
+                            @summary.TotalTaxAmount.ToString("N0") <span class="currency">đ</span>
+                        </div>
+                        <div class="financial-subtext text-muted">
+                            <i class="bi bi-shield-check me-1 text-success"></i>Thuế GTGT khấu trừ
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tổng thanh toán (Hero Card) -->
+                <div class="col-12 col-sm-4">
+                    <div class="financial-card hero-card h-100">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="financial-label text-primary fw-bold">Tổng thanh toán</span>
+                            <div class="financial-icon-badge bg-primary text-white shadow-sm">
+                                <i class="bi bi-wallet2"></i>
+                            </div>
+                        </div>
+                        <div class="financial-value text-primary">
+                            @summary.TotalAmount.ToString("N0") <span class="currency text-primary">đ</span>
+                        </div>
+                        <div class="financial-subtext text-primary" style="font-weight: 500;">
+                            <i class="bi bi-check2-circle me-1 text-primary"></i>Tổng tiền đã gồm thuế
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -100,6 +165,7 @@
                 <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
                 <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
                 <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
+                <input type="hidden" name="IsCashRegister" id="inputIsCashRegister" value="@(filter.IsCashRegister.HasValue ? filter.IsCashRegister.Value.ToString().ToLower() : "")" />
 
                 <!-- Row 1: Tab Loại HĐ & Quick Actions -->
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-3 mb-3 border-bottom">
@@ -137,6 +203,11 @@
                         <!-- Nút Nhập XML / ZIP -->
                         <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openImportModal('tab-upload-btn')">
                             <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
+                        </button>
+
+                        <!-- Nút Xóa Hàng Loạt (chỉ hiện khi có chọn checkbox) -->
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold d-none" id="btnDeleteSelected" onclick="deleteSelectedInvoices()">
+                            <i class="bi bi-trash me-1"></i> Xóa đã chọn (<span id="selectedCount">0</span>)
                         </button>
 
                         <!-- Nút Xuất Báo Cáo & File Hàng Loạt -->
@@ -304,6 +375,10 @@
                                 {
                                     <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Khởi tạo từ máy tính tiền" style="font-size: 0.65rem;">MTT</span>
                                 }
+                                @if (inv.SourceProvider == "ManualExcel")
+                                {
+                                    <span class="badge bg-warning text-dark border border-warning-subtle" title="Hóa đơn nhập tay từ file Excel (Không có file XML gốc)" style="font-size: 0.65rem;"><i class="bi bi-file-earmark-excel text-success me-1"></i>Excel</span>
+                                }
                             </td>
                             <td>
                                 <strong class="text-primary font-monospace">@inv.InvoiceNumber</strong>
@@ -397,6 +472,10 @@
                                     <a asp-action="ViewHtml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Mở bản thể hiện ra tab mới">
                                         <i class="bi bi-box-arrow-up-right text-info"></i>
                                     </a>
+                                    <!-- Xóa hóa đơn -->
+                                    <button type="button" class="btn-action-icon text-danger" title="Xóa hóa đơn này" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -655,10 +734,12 @@
         $('#selectAll').on('change', function() {
             $('.row-select').prop('checked', $(this).is(':checked'));
             updateBulkActionBar();
+            updateSelectedCount();
         });
 
         $(document).on('change', '.row-select', function() {
             updateBulkActionBar();
+            updateSelectedCount();
             if (!$(this).is(':checked')) {
                 $('#selectAll').prop('checked', false);
             } else if ($('.row-select:checked').length === $('.row-select').length) {
@@ -669,6 +750,84 @@
         function clearAllSelections() {
             $('.row-select, #selectAll').prop('checked', false);
             updateBulkActionBar();
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            var count = $('.row-select:checked').length;
+            $('#selectedCount').text(count);
+            if (count > 0) {
+                $('#btnDeleteSelected').removeClass('d-none');
+            } else {
+                $('#btnDeleteSelected').addClass('d-none');
+            }
+        }
+
+        // Xóa 1 hóa đơn
+        function deleteSingleInvoice(id, symbol, number) {
+            if (!confirm('Bạn có chắc chắn muốn xóa hóa đơn ' + symbol + '-' + number + ' khỏi hệ thống? Hành động này không thể hoàn tác!')) {
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/Delete',
+                type: 'POST',
+                data: {
+                    id: id,
+                    __RequestVerificationToken: token
+                },
+                success: function(res) {
+                    if (res.success) {
+                        alert(res.message);
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi hệ thống khi gửi yêu cầu xóa.');
+                }
+            });
+        }
+
+        // Xóa hàng loạt hóa đơn đã chọn
+        function deleteSelectedInvoices() {
+            var selectedIds = [];
+            $('.row-select:checked').each(function() {
+                selectedIds.push(parseInt($(this).val()));
+            });
+
+            if (selectedIds.length === 0) {
+                alert('Vui lòng tích chọn ít nhất 1 hóa đơn để xóa.');
+                return;
+            }
+
+            if (!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn ' + selectedIds.length + ' hóa đơn đã chọn khỏi hệ thống?')) {
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/DeleteBatch',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    "RequestVerificationToken": token
+                },
+                data: JSON.stringify(selectedIds),
+                success: function(res) {
+                    if (res.success) {
+                        alert(res.message);
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn hàng loạt.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi hệ thống khi xóa hàng loạt.');
+                }
+            });
         }
 
         // Quick date selection
@@ -708,6 +867,24 @@
             if (month.length < 2) month = '0' + month;
             if (day.length < 2) day = '0' + day;
             return [year, month, day].join('-');
+        }
+
+        function quickFilterTaxType(type) {
+            if (type === 'all') {
+                $('select[name="HasTaxCode"]').val('');
+                $('#inputIsCashRegister').val('');
+            } else if (type === 'with_tax_code') {
+                $('select[name="HasTaxCode"]').val('true');
+                $('#inputIsCashRegister').val('');
+            } else if (type === 'without_tax_code') {
+                $('select[name="HasTaxCode"]').val('false');
+                $('#inputIsCashRegister').val('');
+            } else if (type === 'cash_register') {
+                $('select[name="HasTaxCode"]').val('');
+                $('#inputIsCashRegister').val('true');
+            }
+            $('#inputPage').val(1);
+            $('#filterForm').submit();
         }
 
         function switchInvoiceType(type) {

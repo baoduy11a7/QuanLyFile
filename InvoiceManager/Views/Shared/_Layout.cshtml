@@ -8,7 +8,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - InvoiceManager | Hệ thống Hóa đơn Điện tử Doanh nghiệp</title>
+    <title>@ViewData["Title"] - Phần mềm kế toán | Hệ thống Quản lý Hóa đơn & Doanh nghiệp</title>
     
     <!-- Google Fonts Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,68 +42,100 @@
         }
 
         /* Top Navbar */
+        /* Top Navbar - Clean Single-Row Enterprise Design */
         .tax-navbar {
             background: #ffffff;
             border-bottom: 1px solid var(--border-color);
-            padding: 0.5rem 1.5rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            padding: 0 1.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
             position: sticky;
             top: 0;
             z-index: 1030;
+            height: 62px;
+            display: flex;
+            align-items: center;
+        }
+
+        .tax-navbar-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            flex-wrap: nowrap;
+            gap: 1.25rem;
         }
 
         .brand-logo {
-            font-weight: 800;
-            font-size: 1.25rem;
-            color: var(--primary-navy);
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.65rem;
             text-decoration: none;
+            white-space: nowrap;
+            flex-shrink: 0;
+            user-select: none;
         }
 
-        .brand-logo i {
-            font-size: 1.4rem;
-            color: var(--primary-blue);
-        }
-
-        .tax-selector-dropdown {
-            min-width: 320px;
-            border-radius: 8px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border-color);
-            padding: 0.5rem 0;
-        }
-
-        .tax-company-badge {
-            background-color: #eff6ff;
-            color: #1d4ed8;
-            border: 1px solid #bfdbfe;
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.875rem;
+        .brand-icon-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            color: #ffffff;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s;
+            justify-content: center;
+            font-size: 1.25rem;
+            box-shadow: 0 3px 8px rgba(37, 99, 235, 0.28);
+            flex-shrink: 0;
+            transition: transform 0.15s ease;
         }
-        .tax-company-badge:hover {
-            background-color: #dbeafe;
+
+        .brand-logo:hover .brand-icon-box {
+            transform: scale(1.04);
+        }
+
+        .brand-title {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--primary-navy);
+            letter-spacing: -0.01em;
+            line-height: 1.15;
+            white-space: nowrap;
+        }
+
+        .brand-subtitle {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            line-height: 1;
+            margin-top: 2px;
         }
 
         /* Navigation links */
+        .nav-pills-custom {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 0.35rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
         .nav-pills-custom .nav-link {
             color: #475569;
-            font-weight: 500;
-            font-size: 0.9rem;
-            padding: 0.5rem 0.85rem;
-            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.45rem 0.8rem;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             gap: 0.4rem;
-            transition: all 0.15s;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+            border: 1px solid transparent;
         }
 
         .nav-pills-custom .nav-link:hover {
@@ -114,28 +146,124 @@
         .nav-pills-custom .nav-link.active {
             background-color: #eff6ff;
             color: var(--primary-blue);
-            font-weight: 600;
+            font-weight: 700;
+            border-color: #bfdbfe;
+            box-shadow: 0 1px 2px rgba(37, 99, 235, 0.05);
         }
 
-        /* Summary Stats Cards */
+        .tax-selector-dropdown {
+            min-width: 320px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 0;
+        }
+
+        .tax-company-badge {
+            background-color: #f8fafc;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            padding: 0.35rem 0.75rem;
+            border-radius: 9px;
+            font-size: 0.825rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .tax-company-badge:hover {
+            background-color: #eff6ff;
+            border-color: #93c5fd;
+        }
+
+        .tax-badge-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            background: #eff6ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+
+        .tax-badge-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #64748b;
+            letter-spacing: 0.04em;
+            line-height: 1;
+        }
+
+        .tax-badge-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+
+        .user-profile-btn {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            padding: 0.3rem 0.65rem;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .user-profile-btn:hover {
+            background-color: #f8fafc;
+            border-color: #94a3b8;
+        }
+
+        .user-avatar-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+        }
+
+        /* ==========================================================================
+           Modern Polished Dashboard Summary Cards
+           ========================================================================== */
         .stat-card {
             background: #ffffff;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 0.85rem 1rem;
-            transition: transform 0.15s, box-shadow 0.15s;
+            border-radius: 12px;
+            padding: 0.9rem 1.1rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .stat-card:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px -2px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
         }
 
         .stat-label {
-            font-size: 0.775rem;
+            font-size: 0.725rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 0.25rem;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .stat-value {
@@ -143,11 +271,240 @@
             font-weight: 700;
             color: var(--text-dark);
             line-height: 1.2;
+            font-variant-numeric: tabular-nums;
         }
 
         .stat-value.primary { color: var(--primary-blue); }
         .stat-value.success { color: var(--accent-emerald); }
         .stat-value.warning { color: var(--accent-amber); }
+
+        /* Summary Hub Card (Volume & Breakdown) */
+        .summary-hub-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .summary-hub-card:hover {
+            box-shadow: 0 6px 18px -4px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .hub-icon-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+            border: 1px solid #bfdbfe;
+        }
+
+        .hub-title {
+            font-size: 0.725rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .hub-hero-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+            color: var(--primary-navy);
+            transition: color 0.15s;
+        }
+
+        .hub-hero-value:hover {
+            color: var(--primary-blue);
+        }
+
+        .hub-subtext {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .sync-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.75rem;
+            color: #475569;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .sync-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: syncPulse 2s infinite;
+        }
+
+        @@keyframes syncPulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* 3 Mini breakdown items */
+        .hub-breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .mini-stat-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.5rem 0.65rem;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .mini-stat-item:hover {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .mini-stat-item.active {
+            background: #eff6ff !important;
+            border-color: #93c5fd !important;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .mini-stat-header {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.725rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+        }
+
+        .mini-stat-value {
+            font-size: 1.15rem;
+            font-weight: 800;
+            line-height: 1.2;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mini-stat-desc {
+            font-size: 0.675rem;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Financial cards */
+        .financial-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem 1.15rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .financial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px -3px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .financial-label {
+            font-size: 0.725rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .financial-icon-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .financial-value {
+            font-size: 1.25rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin: 0.4rem 0;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+        }
+
+        .financial-value .currency {
+            font-size: 0.8rem;
+            font-weight: 600;
+            opacity: 0.8;
+            margin-left: 2px;
+        }
+
+        .financial-subtext {
+            font-size: 0.725rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-weight: 500;
+        }
+
+        /* Hero card: Tổng thanh toán */
+        .financial-card.hero-card {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1.5px solid #93c5fd;
+            box-shadow: 0 3px 12px rgba(37, 99, 235, 0.1);
+        }
+
+        .financial-card.hero-card:hover {
+            box-shadow: 0 10px 22px -3px rgba(37, 99, 235, 0.2);
+            border-color: #60a5fa;
+        }
+
+        .financial-card.hero-card .financial-value {
+            color: #1d4ed8;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
 
         /* Modern Table styling */
         .table-invoice {
@@ -212,20 +569,25 @@
 <body>
     <!-- Top Header -->
     <header class="tax-navbar">
-        <div class="d-flex align-items-center justify-content-between">
+        <div class="tax-navbar-inner">
             <!-- Left: Logo & Navigation -->
-            <div class="d-flex align-items-center gap-4">
-                <a class="brand-logo" asp-controller="Invoice" asp-action="Index">
-                    <i class="bi bi-file-earmark-ruled-fill"></i>
-                    <span>InvoiceManager</span>
+            <div class="d-flex align-items-center gap-3">
+                <a class="brand-logo" href="/phan-mem-ke-toan" title="Phần mềm kế toán">
+                    <div class="brand-icon-box">
+                        <i class="bi bi-file-earmark-ruled-fill"></i>
+                    </div>
+                    <div class="d-flex flex-column">
+                        <span class="brand-title">Phần mềm kế toán</span>
+                        <span class="brand-subtitle">HÓA ĐƠN & THUẾ</span>
+                    </div>
                 </a>
 
                 @if (User.Identity?.IsAuthenticated == true)
                 {
-                    <ul class="nav nav-pills nav-pills-custom d-none d-md-flex">
+                    <ul class="nav-pills-custom d-none d-md-flex">
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" asp-controller="Invoice" asp-action="Index">
-                                <i class="bi bi-receipt"></i> Hóa đơn điện tử
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" href="/phan-mem-ke-toan">
+                                <i class="bi bi-receipt"></i> Hóa đơn & Kế toán
                             </a>
                         </li>
                         <li class="nav-item">
@@ -248,44 +610,60 @@
                                 <i class="bi bi-search"></i> Tra cứu MST
                             </a>
                         </li>
-                        @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" asp-controller="AuditLog" asp-action="Index">
-                                    <i class="bi bi-shield-check"></i> Nhật ký kiểm toán
-                                </a>
-                            </li>
-                        }
-                        @if (User.IsInRole("Admin"))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link" href="/hangfire" target="_blank">
-                                    <i class="bi bi-gear-wide-connected"></i> Hangfire Jobs
-                                </a>
-                            </li>
-                        }
+                        <!-- Dropdown Hệ thống / Tiện ích mở rộng -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-gear-wide-connected"></i> Hệ thống
+                            </a>
+                            <ul class="dropdown-menu shadow">
+                                <li>
+                                    <a class="dropdown-item py-2 d-flex align-items-center gap-2" asp-controller="AuditLog" asp-action="Index">
+                                        <i class="bi bi-shield-check text-success fs-6"></i>
+                                        <div>
+                                            <div class="fw-semibold">Nhật ký kiểm toán</div>
+                                            <div class="small text-muted">Lịch sử tra cứu, tải file & xuất dữ liệu</div>
+                                        </div>
+                                    </a>
+                                </li>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="/hangfire" target="_blank">
+                                            <i class="bi bi-cpu text-info fs-6"></i>
+                                            <div>
+                                                <div class="fw-semibold">Hangfire Jobs</div>
+                                                <div class="small text-muted">Giám sát tiến trình đồng bộ ngầm</div>
+                                            </div>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        </li>
                     </ul>
                 }
             </div>
 
             <!-- Right: TaxAccount Switcher & User Profile -->
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <!-- Tài khoản thuế Dropdown (Chuyển đổi đa công ty) -->
                     <div class="dropdown">
                         <div class="tax-company-badge dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Nhấp để đổi Tài khoản thuế">
-                            <i class="bi bi-building-check text-primary"></i>
+                            <div class="tax-badge-icon">
+                                <i class="bi bi-buildings text-primary"></i>
+                            </div>
                             <div class="text-start">
-                                <div style="font-size: 0.725rem; color: #64748b; line-height: 1;">MST CÔNG TY</div>
-                                <div class="text-truncate" style="max-width: 220px;">
-                                    @(currentTaxAccount != null ? $"{currentTaxAccount.TaxCode} - {currentTaxAccount.CompanyName}" : "Chọn tài khoản thuế...")
+                                <div class="tax-badge-label">MST CÔNG TY</div>
+                                <div class="tax-badge-name text-truncate" style="max-width: 190px;">
+                                    @(currentTaxAccount != null ? $"{currentTaxAccount.TaxCode} • {currentTaxAccount.CompanyName}" : "Chọn công ty...")
                                 </div>
                             </div>
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end tax-selector-dropdown shadow">
                             <li class="dropdown-header text-uppercase" style="font-size: 0.7rem; font-weight: 700; color: #64748b;">
-                                <i class="bi bi-repeat"></i> Chuyển đổi Tài khoản thuế
+                                <i class="bi bi-repeat me-1"></i> Chuyển đổi Tài khoản thuế
                             </li>
                             @foreach (var acc in accessibleAccounts)
                             {
@@ -319,17 +697,16 @@
 
                     <!-- User Menu -->
                     <div class="dropdown">
-                        <button class="btn btn-outline-light text-dark border d-flex align-items-center gap-2 py-1 px-2 rounded-3" data-bs-toggle="dropdown">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.85rem;">
+                        <button class="user-profile-btn dropdown-toggle" data-bs-toggle="dropdown">
+                            <div class="user-avatar-circle">
                                 @(User.Identity?.Name?.Substring(0, 1).ToUpper() ?? "U")
                             </div>
-                            <div class="text-start d-none d-lg-block" style="font-size: 0.825rem; line-height: 1.2;">
-                                <div class="fw-semibold">@User.Identity?.Name</div>
+                            <div class="text-start d-none d-xl-block" style="font-size: 0.8rem; line-height: 1.2;">
+                                <div class="fw-bold text-dark text-truncate" style="max-width: 140px;">@User.Identity?.Name</div>
                                 <div class="badge @(User.IsInRole("Admin") ? "bg-danger" : User.IsInRole("Accountant") ? "bg-primary" : "bg-secondary")" style="font-size: 0.65rem;">
                                     @(User.IsInRole("Admin") ? "Admin" : User.IsInRole("Accountant") ? "Kế toán" : "Người xem")
                                 </div>
                             </div>
-                            <i class="bi bi-chevron-down small text-muted"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
                             <li class="dropdown-header">Tài khoản: @User.Identity?.Name</li>
@@ -436,7 +813,7 @@
     <footer>
         <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
             <div>
-                <strong>InvoiceManager</strong> &bull; Phần mềm quản lý hóa đơn điện tử chuẩn Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC
+                <strong>Phần mềm kế toán</strong> &bull; Quản lý hóa đơn điện tử chuẩn Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC
             </div>
             <div>
                 Môi trường: <span class="badge bg-success-subtle text-success border border-success-subtle">Hệ thống sẵn sàng</span> &bull; Bản quyền &copy; @DateTime.Now.Year
