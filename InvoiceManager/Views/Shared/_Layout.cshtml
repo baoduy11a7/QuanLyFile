@@ -32,6 +32,12 @@
             --text-muted: #64748b;
         }
 
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100vw;
+        }
+
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: #f1f5f9;
@@ -41,19 +47,21 @@
             flex-direction: column;
         }
 
-        /* Top Navbar */
-        /* Top Navbar - Clean Single-Row Enterprise Design */
+        /* Top Navbar - Responsive Auto-Fitting Design */
         .tax-navbar {
             background: #ffffff;
             border-bottom: 1px solid var(--border-color);
-            padding: 0 1.5rem;
+            padding: 0 1rem;
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
             position: sticky;
             top: 0;
             z-index: 1030;
-            height: 62px;
+            height: 56px;
             display: flex;
             align-items: center;
+            width: 100%;
+            max-width: 100vw;
+            box-sizing: border-box;
         }
 
         .tax-navbar-inner {
@@ -62,13 +70,14 @@
             justify-content: space-between;
             width: 100%;
             flex-wrap: nowrap;
-            gap: 1.25rem;
+            gap: 0.5rem;
+            min-width: 0;
         }
 
         .brand-logo {
             display: flex;
             align-items: center;
-            gap: 0.65rem;
+            gap: 0.5rem;
             text-decoration: none;
             white-space: nowrap;
             flex-shrink: 0;
@@ -76,16 +85,16 @@
         }
 
         .brand-icon-box {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
             background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
             color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
-            box-shadow: 0 3px 8px rgba(37, 99, 235, 0.28);
+            font-size: 1.05rem;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
             flex-shrink: 0;
             transition: transform 0.15s ease;
         }
@@ -96,7 +105,7 @@
 
         .brand-title {
             font-weight: 800;
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             color: var(--primary-navy);
             letter-spacing: -0.01em;
             line-height: 1.15;
@@ -104,13 +113,13 @@
         }
 
         .brand-subtitle {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: 700;
             color: var(--text-muted);
             letter-spacing: 0.06em;
             text-transform: uppercase;
             line-height: 1;
-            margin-top: 2px;
+            margin-top: 1px;
         }
 
         /* Navigation links */
@@ -118,21 +127,22 @@
             display: flex;
             align-items: center;
             flex-wrap: nowrap;
-            gap: 0.35rem;
+            gap: 0.2rem;
             margin: 0;
             padding: 0;
             list-style: none;
+            min-width: 0;
         }
 
         .nav-pills-custom .nav-link {
             color: #475569;
             font-weight: 600;
-            font-size: 0.85rem;
-            padding: 0.45rem 0.8rem;
-            border-radius: 8px;
+            font-size: 0.8125rem;
+            padding: 0.35rem 0.55rem;
+            border-radius: 7px;
             display: flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             white-space: nowrap;
             transition: all 0.15s ease;
             border: 1px solid transparent;
@@ -151,8 +161,16 @@
             box-shadow: 0 1px 2px rgba(37, 99, 235, 0.05);
         }
 
+        @@media (max-width: 1399px) {
+            .nav-pills-custom .nav-link {
+                padding: 0.3rem 0.45rem;
+                font-size: 0.785rem;
+                gap: 0.25rem;
+            }
+        }
+
         .tax-selector-dropdown {
-            min-width: 320px;
+            min-width: 300px;
             border-radius: 10px;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
             border: 1px solid var(--border-color);
@@ -163,16 +181,17 @@
             background-color: #f8fafc;
             color: #1e293b;
             border: 1px solid #cbd5e1;
-            padding: 0.35rem 0.75rem;
-            border-radius: 9px;
-            font-size: 0.825rem;
+            padding: 0.25rem 0.55rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.45rem;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
             flex-shrink: 0;
+            max-width: 220px;
         }
 
         .tax-company-badge:hover {
@@ -181,19 +200,19 @@
         }
 
         .tax-badge-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 7px;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
             background: #eff6ff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             flex-shrink: 0;
         }
 
         .tax-badge-label {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: 700;
             color: #64748b;
             letter-spacing: 0.04em;
@@ -201,20 +220,44 @@
         }
 
         .tax-badge-name {
-            font-size: 0.8rem;
+            font-size: 0.785rem;
             font-weight: 600;
             color: #0f172a;
             line-height: 1.2;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @@media (max-width: 1399px) {
+            .tax-badge-name {
+                max-width: 95px;
+            }
+        }
+
+        @@media (max-width: 1199px) {
+            .tax-badge-name {
+                max-width: 80px;
+                font-size: 0.75rem;
+            }
+            .tax-badge-label {
+                display: none;
+            }
+            .tax-company-badge {
+                padding: 0.25rem 0.4rem;
+                gap: 0.35rem;
+            }
         }
 
         .user-profile-btn {
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            padding: 0.3rem 0.65rem;
-            border-radius: 9px;
+            padding: 0.25rem 0.5rem;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.45rem;
             transition: all 0.2s ease;
             white-space: nowrap;
             flex-shrink: 0;
@@ -226,8 +269,8 @@
         }
 
         .user-avatar-circle {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: #ffffff;
@@ -235,9 +278,24 @@
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             flex-shrink: 0;
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+            box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+        }
+
+        .user-profile-info {
+            font-size: 0.785rem;
+            line-height: 1.2;
+            text-align: left;
+        }
+
+        .user-profile-name {
+            font-weight: 600;
+            color: #0f172a;
+            max-width: 95px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* ==========================================================================
@@ -335,34 +393,6 @@
             font-weight: 500;
         }
 
-        .sync-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.45rem;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 20px;
-            padding: 0.35rem 0.75rem;
-            font-size: 0.75rem;
-            color: #475569;
-            font-weight: 500;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-        }
-
-        .sync-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background-color: #10b981;
-            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-            animation: syncPulse 2s infinite;
-        }
-
-        @@keyframes syncPulse {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
 
         /* 3 Mini breakdown items */
         .hub-breakdown-grid {
@@ -571,49 +601,63 @@
     <header class="tax-navbar">
         <div class="tax-navbar-inner">
             <!-- Left: Logo & Navigation -->
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 min-w-0">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <!-- Hamburger Toggle on small screens (< 992px) -->
+                    <button class="btn btn-sm btn-light border d-lg-none p-1 px-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavDrawer" aria-controls="mobileNavDrawer" title="Danh mục hệ thống">
+                        <i class="bi bi-list fs-5"></i>
+                    </button>
+                }
+
                 <a class="brand-logo" href="/phan-mem-ke-toan" title="Phần mềm kế toán">
                     <div class="brand-icon-box">
                         <i class="bi bi-file-earmark-ruled-fill"></i>
                     </div>
                     <div class="d-flex flex-column">
                         <span class="brand-title">Phần mềm kế toán</span>
-                        <span class="brand-subtitle">HÓA ĐƠN & THUẾ</span>
+                        <span class="brand-subtitle d-none d-xl-block">HÓA ĐƠN & THUẾ</span>
                     </div>
                 </a>
 
                 @if (User.Identity?.IsAuthenticated == true)
                 {
-                    <ul class="nav-pills-custom d-none d-md-flex">
+                    <ul class="nav-pills-custom d-none d-lg-flex">
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" href="/phan-mem-ke-toan">
-                                <i class="bi bi-receipt"></i> Hóa đơn & Kế toán
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" href="/phan-mem-ke-toan" title="Quản lý hóa đơn">
+                                <i class="bi bi-receipt"></i>
+                                <span>Hóa đơn<span class="d-none d-xxl-inline"> & Kế toán</span></span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index">
-                                <i class="bi bi-cloud-arrow-up"></i> Nhập XML / Excel
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index" title="Nhập hóa đơn từ file XML / Excel">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                                <span>Nhập <span class="d-none d-xxl-inline">XML / Excel</span><span class="d-inline d-xxl-none">file</span></span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")" asp-controller="Dashboard" asp-action="Index">
-                                <i class="bi bi-pie-chart"></i> Dashboard & Đối soát
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")" asp-controller="Dashboard" asp-action="Index" title="Dashboard thống kê & Đối soát số liệu">
+                                <i class="bi bi-pie-chart"></i>
+                                <span>Đối soát<span class="d-none d-xxl-inline"> & Dashboard</span></span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() != "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Index">
-                                <i class="bi bi-buildings"></i> Tài khoản thuế
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() != "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Index" title="Quản lý tài khoản cơ quan thuế">
+                                <i class="bi bi-buildings"></i>
+                                <span>Tài khoản thuế</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() == "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Lookup">
-                                <i class="bi bi-search"></i> Tra cứu MST
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() == "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Lookup" title="Tra cứu mã số thuế doanh nghiệp">
+                                <i class="bi bi-search"></i>
+                                <span>Tra cứu<span class="d-none d-xxl-inline"> MST</span></span>
                             </a>
                         </li>
                         <!-- Dropdown Hệ thống / Tiện ích mở rộng -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-gear-wide-connected"></i> Hệ thống
+                            <a class="nav-link dropdown-toggle @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" href="#" data-bs-toggle="dropdown" aria-expanded="false" title="Công cụ hệ thống">
+                                <i class="bi bi-gear-wide-connected"></i>
+                                <span>Hệ thống</span>
                             </a>
                             <ul class="dropdown-menu shadow">
                                 <li>
@@ -650,13 +694,13 @@
                 {
                     <!-- Tài khoản thuế Dropdown (Chuyển đổi đa công ty) -->
                     <div class="dropdown">
-                        <div class="tax-company-badge dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Nhấp để đổi Tài khoản thuế">
+                        <div class="tax-company-badge dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="@(currentTaxAccount != null ? $"{currentTaxAccount.TaxCode} - {currentTaxAccount.CompanyName} (Nhấp để đổi)" : "Chọn công ty...")">
                             <div class="tax-badge-icon">
                                 <i class="bi bi-buildings text-primary"></i>
                             </div>
                             <div class="text-start">
                                 <div class="tax-badge-label">MST CÔNG TY</div>
-                                <div class="tax-badge-name text-truncate" style="max-width: 190px;">
+                                <div class="tax-badge-name">
                                     @(currentTaxAccount != null ? $"{currentTaxAccount.TaxCode} • {currentTaxAccount.CompanyName}" : "Chọn công ty...")
                                 </div>
                             </div>
@@ -676,7 +720,7 @@
                                         <button type="submit" class="dropdown-item py-2 d-flex justify-content-between align-items-center @(isSelected ? "bg-light text-primary fw-bold" : "")">
                                             <div>
                                                 <div class="fw-bold">@acc.TaxCode</div>
-                                                <div class="small text-muted text-truncate" style="max-width: 260px;">@acc.CompanyName</div>
+                                                <div class="small text-muted text-truncate" style="max-width: 250px;">@acc.CompanyName</div>
                                             </div>
                                             @if (isSelected)
                                             {
@@ -697,19 +741,29 @@
 
                     <!-- User Menu -->
                     <div class="dropdown">
-                        <button class="user-profile-btn dropdown-toggle" data-bs-toggle="dropdown">
+                        <button class="user-profile-btn dropdown-toggle" data-bs-toggle="dropdown" title="Tài khoản @User.Identity?.Name">
                             <div class="user-avatar-circle">
                                 @(User.Identity?.Name?.Substring(0, 1).ToUpper() ?? "U")
                             </div>
-                            <div class="text-start d-none d-xl-block" style="font-size: 0.8rem; line-height: 1.2;">
-                                <div class="fw-bold text-dark text-truncate" style="max-width: 140px;">@User.Identity?.Name</div>
-                                <div class="badge @(User.IsInRole("Admin") ? "bg-danger" : User.IsInRole("Accountant") ? "bg-primary" : "bg-secondary")" style="font-size: 0.65rem;">
+                            <!-- Wide screens (>= 1400px): Name + Badge -->
+                            <div class="user-profile-info d-none d-xxl-block">
+                                <div class="user-profile-name">@(User.Identity?.Name?.Split('@')[0] ?? User.Identity?.Name)</div>
+                                <div class="badge @(User.IsInRole("Admin") ? "bg-danger" : User.IsInRole("Accountant") ? "bg-primary" : "bg-secondary")" style="font-size: 0.6rem; padding: 2px 5px;">
                                     @(User.IsInRole("Admin") ? "Admin" : User.IsInRole("Accountant") ? "Kế toán" : "Người xem")
                                 </div>
                             </div>
+                            <!-- Medium screens (992px to 1399px): Badge only -->
+                            <div class="d-none d-lg-block d-xxl-none">
+                                <span class="badge @(User.IsInRole("Admin") ? "bg-danger" : User.IsInRole("Accountant") ? "bg-primary" : "bg-secondary")" style="font-size: 0.65rem; padding: 2px 6px;">
+                                    @(User.IsInRole("Admin") ? "Admin" : User.IsInRole("Accountant") ? "Kế toán" : "User")
+                                </span>
+                            </div>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
-                            <li class="dropdown-header">Tài khoản: @User.Identity?.Name</li>
+                            <li class="dropdown-header">
+                                <div class="fw-bold text-truncate" style="max-width: 220px;">@User.Identity?.Name</div>
+                                <small class="text-muted">@(User.IsInRole("Admin") ? "Quản trị viên hệ thống" : User.IsInRole("Accountant") ? "Nhân viên kế toán" : "Người dùng")</small>
+                            </li>
                             <li><a class="dropdown-item" asp-controller="Account" asp-action="Settings"><i class="bi bi-gear me-2"></i>Cài đặt tài khoản</a></li>
                             <li><a class="dropdown-item" asp-controller="Feedback" asp-action="Index"><i class="bi bi-chat-left-dots me-2"></i>Báo lỗi / Yêu cầu tính năng</a></li>
                             <li><hr class="dropdown-divider"></li>
@@ -731,6 +785,58 @@
             </div>
         </div>
     </header>
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <!-- Mobile Navigation Drawer (Offcanvas for < 992px) -->
+        <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileNavDrawer" aria-labelledby="mobileNavDrawerLabel" style="max-width: 280px;">
+            <div class="offcanvas-header border-bottom">
+                <div class="d-flex align-items-center gap-2" id="mobileNavDrawerLabel">
+                    <div class="brand-icon-box" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                        <i class="bi bi-file-earmark-ruled-fill"></i>
+                    </div>
+                    <span class="fw-bold text-primary" style="font-size: 0.95rem;">Phần mềm kế toán</span>
+                </div>
+                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body p-2">
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "Invoice" ? "active" : "")" href="/phan-mem-ke-toan">
+                        <i class="bi bi-receipt fs-5"></i>
+                        <span class="fw-medium">Hóa đơn & Kế toán</span>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index">
+                        <i class="bi bi-cloud-arrow-up fs-5"></i>
+                        <span class="fw-medium">Nhập XML / Excel</span>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")" asp-controller="Dashboard" asp-action="Index">
+                        <i class="bi bi-pie-chart fs-5"></i>
+                        <span class="fw-medium">Dashboard & Đối soát</span>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() != "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Index">
+                        <i class="bi bi-buildings fs-5"></i>
+                        <span class="fw-medium">Tài khoản thuế</span>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "TaxAccount" && ViewContext.RouteData.Values["action"]?.ToString() == "Lookup" ? "active" : "")" asp-controller="TaxAccount" asp-action="Lookup">
+                        <i class="bi bi-search fs-5"></i>
+                        <span class="fw-medium">Tra cứu MST</span>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 @(ViewContext.RouteData.Values["controller"]?.ToString() == "AuditLog" ? "active" : "")" asp-controller="AuditLog" asp-action="Index">
+                        <i class="bi bi-shield-check fs-5"></i>
+                        <span class="fw-medium">Nhật ký kiểm toán</span>
+                    </a>
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2.5 rounded mb-1 text-info" href="/hangfire" target="_blank">
+                            <i class="bi bi-cpu fs-5"></i>
+                            <span class="fw-medium">Hangfire Jobs</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
 
     <!-- Global Toast / Alert Notifications -->
     <div class="container-fluid px-4 mt-3">
