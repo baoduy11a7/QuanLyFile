@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: quanlyhoadon
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /Account/Login
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: UseSqlite
+        value: "true"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production

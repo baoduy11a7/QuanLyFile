@@ -14,8 +14,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Cấu hình cổng cho Render (mặc định .NET 8 lắng nghe 8080)
-ENV ASPNETCORE_HTTP_PORTS=8080
+# Cấu hình cổng cho Render (hỗ trợ cả 8080 và 10000)
+ENV ASPNETCORE_HTTP_PORTS=8080;10000
 EXPOSE 8080
+EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "InvoiceManager.dll"]

@@ -187,7 +187,12 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 8. Pipeline cấu hình HTTP
+// 8. Pipeline cấu hình HTTP & Hỗ trợ Reverse Proxy (Render / Cloudflare)
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -198,7 +203,10 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!isRender)
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
 app.UseRouting();
