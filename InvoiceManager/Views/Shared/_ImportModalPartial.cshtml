@@ -126,14 +126,14 @@
                                     <!-- Mã Captcha -->
                                     <div class="col-md-12">
                                         <label class="form-label fw-semibold">Mã xác thực (Captcha):</label>
-                                        <div class="d-flex align-items-center gap-3">
-                                            <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center" style="min-width: 170px; height: 50px;">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center" style="min-width: 140px; height: 50px;">
                                                 <span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
                                             </div>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshCaptcha" title="Làm mới Captcha">
                                                 <i class="bi bi-arrow-clockwise fs-5"></i>
                                             </button>
-                                            <input type="text" id="remoteCaptchaCode" class="form-control text-uppercase fw-bold" style="max-width: 160px; letter-spacing: 3px;" placeholder="Nhập mã..." maxlength="10">
+                                            <input type="text" id="remoteCaptchaCode" class="form-control text-uppercase fw-bold flex-fill" style="min-width: 120px; max-width: 160px; letter-spacing: 3px;" placeholder="Nhập mã..." maxlength="10">
                                             <input type="hidden" id="remoteCaptchaKey">
                                         </div>
                                     </div>

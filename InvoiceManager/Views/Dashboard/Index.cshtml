@@ -28,7 +28,7 @@
                 </div>
 
                 <!-- Các nút chọn nhanh kỳ phổ biến -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm btn-group-responsive w-100-mobile" role="group">
                     <a asp-action="Index" asp-route-period="today" class="btn @(Model.Period == "today" ? "btn-primary fw-bold" : "btn-outline-secondary")">Hôm nay</a>
                     <a asp-action="Index" asp-route-period="thisMonth" class="btn @(Model.Period == "thisMonth" ? "btn-primary fw-bold" : "btn-outline-secondary")">Tháng này</a>
                     <a asp-action="Index" asp-route-period="lastMonth" class="btn @(Model.Period == "lastMonth" ? "btn-primary fw-bold" : "btn-outline-secondary")">Tháng trước</a>
@@ -42,16 +42,16 @@
                 <input type="hidden" name="period" value="custom" />
 
                 <!-- 1. Chọn khoảng ngày tùy biến (Từ ngày - Đến ngày) -->
-                <div class="col-auto d-flex align-items-center gap-2">
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2 flex-wrap">
                     <label class="small fw-semibold text-muted mb-0 d-flex align-items-center gap-1">
                         <i class="bi bi-calendar3 text-primary"></i> Từ ngày:
                     </label>
-                    <input type="date" name="fromDate" class="form-control form-control-sm shadow-none" 
-                           style="width: 140px;" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
+                    <input type="date" name="fromDate" class="form-control form-control-sm shadow-none flex-fill" 
+                           style="min-width: 125px;" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
                     
-                    <label class="small fw-semibold text-muted mb-0">Đến ngày:</label>
-                    <input type="date" name="toDate" class="form-control form-control-sm shadow-none" 
-                           style="width: 140px;" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+                    <label class="small fw-semibold text-muted mb-0">Đến:</label>
+                    <input type="date" name="toDate" class="form-control form-control-sm shadow-none flex-fill" 
+                           style="min-width: 125px;" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
                     
                     <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">
                         <i class="bi bi-funnel-fill me-1"></i> Áp dụng
@@ -59,9 +59,9 @@
                 </div>
 
                 <!-- 2. Menu Chọn nhanh Theo Tháng cụ thể -->
-                <div class="col-auto">
+                <div class="col-6 col-sm-auto">
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-medium" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-medium w-100" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-calendar-month me-1 text-primary"></i> Chọn Tháng
                         </button>
                         <div class="dropdown-menu p-3 shadow" style="min-width: 280px;">
@@ -83,9 +83,9 @@
                 </div>
 
                 <!-- 3. Menu Chọn nhanh Theo Quý -->
-                <div class="col-auto">
+                <div class="col-6 col-sm-auto">
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-medium" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-medium w-100" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-pie-chart me-1 text-primary"></i> Chọn Quý
                         </button>
                         <ul class="dropdown-menu shadow">

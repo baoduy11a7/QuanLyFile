@@ -540,7 +540,8 @@
         .table-invoice {
             background: #ffffff;
             border-radius: 8px;
-            overflow: hidden;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
             border: 1px solid var(--border-color);
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
             font-size: 0.875rem;
@@ -582,6 +583,105 @@
             background: #eff6ff;
             color: var(--primary-blue);
             border-color: #bfdbfe;
+        }
+
+        /* Mobile & Multi-Device Utilities */
+        .btn-group-responsive {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+            gap: 0.25rem;
+        }
+        .btn-group-responsive::-webkit-scrollbar {
+            display: none;
+        }
+
+        #bulkActionBar {
+            max-width: calc(100vw - 20px) !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }
+
+        @@media (max-width: 767.98px) {
+            .table-invoice {
+                font-size: 0.8rem;
+            }
+            .table-invoice thead th,
+            .table-invoice tbody td {
+                padding: 0.45rem 0.55rem;
+            }
+            .stat-card,
+            .summary-hub-card,
+            .financial-card {
+                padding: 0.75rem 0.85rem;
+            }
+            .hub-hero-value {
+                font-size: 1.4rem;
+            }
+            .financial-value {
+                font-size: 1.15rem;
+            }
+            .financial-icon-badge {
+                width: 28px;
+                height: 28px;
+                font-size: 0.85rem;
+            }
+            .hub-breakdown-grid {
+                gap: 0.35rem;
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+            }
+            .mini-stat-item {
+                padding: 0.35rem 0.4rem;
+            }
+            .mini-stat-desc {
+                display: none;
+            }
+            #bulkActionBar .card-body {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 0.4rem !important;
+                padding: 0.5rem 0.75rem !important;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .tax-navbar {
+                padding: 0 0.5rem;
+                height: 52px;
+            }
+            .brand-icon-box {
+                width: 28px;
+                height: 28px;
+                font-size: 0.95rem;
+            }
+            .brand-title {
+                font-size: 0.825rem;
+            }
+            .tax-company-badge {
+                padding: 0.2rem 0.35rem;
+                max-width: 125px;
+            }
+            .tax-badge-icon {
+                width: 22px;
+                height: 22px;
+                font-size: 0.75rem;
+            }
+            .tax-badge-name {
+                max-width: 65px;
+                font-size: 0.7rem;
+            }
+            .user-profile-btn {
+                padding: 0.2rem 0.35rem;
+            }
+            .user-avatar-circle {
+                width: 25px;
+                height: 25px;
+                font-size: 0.7rem;
+            }
         }
 
         /* Footer */
@@ -839,7 +939,7 @@
 
 
     <!-- Global Toast / Alert Notifications -->
-    <div class="container-fluid px-4 mt-3">
+    <div class="container-fluid px-2 px-sm-3 px-lg-4 mt-3">
         @if (TempData["SuccessMessage"] != null)
         {
             <div class="alert alert-success alert-dismissible fade show shadow-sm d-flex align-items-center" role="alert">
@@ -859,7 +959,7 @@
     </div>
 
     <!-- Main Body -->
-    <main class="container-fluid px-4 py-3 flex-grow-1">
+    <main class="container-fluid px-2 px-sm-3 px-lg-4 py-2 py-sm-3 flex-grow-1">
         @RenderBody()
     </main>
 

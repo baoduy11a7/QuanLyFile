@@ -116,12 +116,12 @@
     <div class="tab-content" id="invoiceDetailTabContent">
         <!-- Tab 1: Biểu mẫu hóa đơn điện tử chuẩn A4 theo Cổng Thuế -->
         <div class="tab-pane fade show active" id="preview-content" role="tabpanel">
-            <div id="invoiceViewerContainer" style="background: #e2e8f0; padding: 24px 12px; overflow-y: auto; max-height: calc(88vh - 120px); border-radius: 8px;">
+            <div id="invoiceViewerContainer" style="background: #e2e8f0; padding: 12px 6px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: calc(88vh - 120px); border-radius: 8px;">
                 <div id="invoicePaperWrapper" style="display: block; width: 100%; text-align: center;">
                     <!-- Khung viền ngoài chuẩn Hóa đơn điện tử Cổng Thuế -->
-                    <div id="invoicePaperSheet" style="display: inline-block; text-align: left; width: 100%; max-width: 860px; background: #ffffff; border: 2px solid #1e3a8a; padding: 5px; box-shadow: 0 4px 25px rgba(0,0,0,0.15); box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.5; transform-origin: top center; transition: transform 0.15s ease; height: auto !important;">
+                    <div id="invoicePaperSheet" style="display: inline-block; text-align: left; width: 100%; max-width: 860px; background: #ffffff; border: 2px solid #1e3a8a; padding: 4px; box-shadow: 0 4px 25px rgba(0,0,0,0.15); box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.5; transform-origin: top center; transition: transform 0.15s ease; height: auto !important;">
                         <!-- Khung viền trong (Inner Border) bao bọc toàn bộ nội dung từ tiêu đề đến chữ ký số -->
-                        <div style="border: 1px solid #1e3a8a; padding: 32px 36px; box-sizing: border-box; background: #ffffff; height: auto !important;">
+                        <div style="border: 1px solid #1e3a8a; padding: clamp(14px, 3.5vw, 32px) clamp(12px, 4vw, 36px); box-sizing: border-box; background: #ffffff; height: auto !important;">
                             
                             <!-- 1. Header Hóa đơn chuẩn Tổng cục Thuế -->
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
