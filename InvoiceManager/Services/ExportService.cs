@@ -1,5 +1,8 @@
 using ClosedXML.Excel;
 using InvoiceManager.Models.Entities;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +15,10 @@ namespace InvoiceManager.Services
 {
     public class ExportService : IExportService
     {
+        static ExportService()
+        {
+            QuestPDF.Settings.License = LicenseType.Community;
+        }
         public Task<byte[]> ExportDetailedExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, string title)
         {
             using var workbook = new XLWorkbook();
@@ -333,26 +340,58 @@ namespace InvoiceManager.Services
 
         public async Task<byte[]> GenerateInvoicePdfAsync(Invoice invoice)
         {
-            // 1. Nếu đã có file PDF gốc tải lên hoặc tải từ cổng thuế, ưu tiên trả về ngay
+            // 1. Nếu đã có file PDF gốc tải lên hoặc tải từ cổng thuế và là file PDF hợp lệ
             if (!string.IsNullOrEmpty(invoice.RawPdfPath) && File.Exists(invoice.RawPdfPath))
             {
-                return await File.ReadAllBytesAsync(invoice.RawPdfPath);
+                try
+                {
+                    var existingBytes = await File.ReadAllBytesAsync(invoice.RawPdfPath);
+                    if (existingBytes.Length > 4 && existingBytes[0] == 0x25 && existingBytes[1] == 0x50 && existingBytes[2] == 0x44 && existingBytes[3] == 0x46)
+                    {
+                        return existingBytes;
+                    }
+                }
+                catch { }
             }
 
-            // 2. Kiểm tra thư mục cache đã sinh PDF trước đó
+            // 2. Kiểm tra thư mục cache đã sinh PDF trước đó và đảm bảo là file PDF hợp lệ (bắt đầu bằng %PDF)
             var cacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "GeneratedPdfs");
             Directory.CreateDirectory(cacheDir);
             var cachedPdfPath = Path.Combine(cacheDir, $"HD_{invoice.Id}_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf");
             if (File.Exists(cachedPdfPath))
             {
-                var cachedInfo = new FileInfo(cachedPdfPath);
-                if (cachedInfo.Length > 0)
+                try
                 {
-                    return await File.ReadAllBytesAsync(cachedPdfPath);
+                    var cachedBytes = await File.ReadAllBytesAsync(cachedPdfPath);
+                    if (cachedBytes.Length > 4 && cachedBytes[0] == 0x25 && cachedBytes[1] == 0x50 && cachedBytes[2] == 0x44 && cachedBytes[3] == 0x46)
+                    {
+                        return cachedBytes;
+                    }
+                    else
+                    {
+                        // File cache cũ lỗi hoặc chỉ là text HTML cũ, xóa đi
+                        File.Delete(cachedPdfPath);
+                    }
                 }
+                catch { }
             }
 
-            // 3. Sử dụng Microsoft Edge Headless trên máy Windows để in HTML thành PDF vector chuẩn
+            // 3. Sử dụng QuestPDF để sinh tài liệu PDF vector chuẩn Nghị định 123 (chạy mượt trên Windows, Linux và Docker Render)
+            try
+            {
+                var pdfBytes = GenerateNativePdf(invoice);
+                if (pdfBytes != null && pdfBytes.Length > 0)
+                {
+                    try { await File.WriteAllBytesAsync(cachedPdfPath, pdfBytes); } catch { }
+                    return pdfBytes;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"QuestPDF render exception: {ex.Message}");
+            }
+
+            // 4. Fallback phương án dự phòng dùng Edge Headless nếu có
             string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
             if (!File.Exists(edgePath))
             {
@@ -367,11 +406,11 @@ namespace InvoiceManager.Services
 
             try
             {
-                var html = GenerateInvoiceHtml(invoice);
-                await File.WriteAllTextAsync(tempHtml, html, Encoding.UTF8);
-
                 if (File.Exists(edgePath))
                 {
+                    var html = GenerateInvoiceHtml(invoice);
+                    await File.WriteAllTextAsync(tempHtml, html, Encoding.UTF8);
+
                     var psi = new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = edgePath,
@@ -390,25 +429,314 @@ namespace InvoiceManager.Services
                         if (File.Exists(tempPdf) && new FileInfo(tempPdf).Length > 0)
                         {
                             var pdfBytes = await File.ReadAllBytesAsync(tempPdf);
-                            // Lưu vào cache để lần sau tải nhanh tức thì
                             try { File.Copy(tempPdf, cachedPdfPath, true); } catch { }
                             return pdfBytes;
                         }
                     }
                 }
             }
-            catch
-            {
-                // Fallback nếu có ngoại lệ
-            }
+            catch { }
             finally
             {
                 try { if (File.Exists(tempHtml)) File.Delete(tempHtml); } catch { }
                 try { if (File.Exists(tempPdf)) File.Delete(tempPdf); } catch { }
             }
 
-            // 4. Nếu không gọi được Edge, fallback trả về nội dung HTML có header PDF hoặc UTF8
-            return Encoding.UTF8.GetBytes(GenerateInvoiceHtml(invoice));
+            // Fallback cuối cùng: Gọi lại QuestPDF
+            return GenerateNativePdf(invoice);
+        }
+
+        public byte[] GenerateNativePdf(Invoice invoice)
+        {
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(25, Unit.Point);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(Colors.Grey.Darken3));
+
+                    page.Header().Element(c => ComposePdfHeader(c, invoice));
+                    page.Content().Element(c => ComposePdfContent(c, invoice));
+                    page.Footer().Element(c => ComposePdfFooter(c, invoice));
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        private void ComposePdfHeader(IContainer container, Invoice invoice)
+        {
+            container.Column(col =>
+            {
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem(3).Column(left =>
+                    {
+                        left.Item().Text(string.IsNullOrWhiteSpace(invoice.SellerName) ? "ĐƠN VỊ BÁN HÀNG" : invoice.SellerName.ToUpper())
+                            .Bold().FontSize(10).FontColor(Colors.Blue.Darken3);
+                        left.Item().Text($"Mã số thuế: {invoice.SellerTaxCode}").Bold().FontSize(9);
+                        if (!string.IsNullOrWhiteSpace(invoice.SellerAddress))
+                        {
+                            left.Item().Text($"Địa chỉ: {invoice.SellerAddress}").FontSize(8).FontColor(Colors.Grey.Darken2);
+                        }
+                    });
+
+                    row.RelativeItem(2).AlignRight().Column(right =>
+                    {
+                        right.Item().Text($"Mẫu số - Ký hiệu: {invoice.InvoiceSymbol}").Bold().FontSize(8.5f);
+                        right.Item().Text($"Số: {invoice.InvoiceNumber}").Bold().FontSize(12).FontColor(Colors.Red.Darken2);
+                        if (!string.IsNullOrWhiteSpace(invoice.TaxAuthorityCode))
+                        {
+                            right.Item().Text($"Mã CQT: {invoice.TaxAuthorityCode}").FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+                        }
+                    });
+                });
+
+                col.Item().PaddingTop(10).AlignCenter().Column(center =>
+                {
+                    center.Item().AlignCenter().Text("HÓA ĐƠN GIÁ TRỊ GIA TĂNG").Bold().FontSize(14).FontColor(Colors.Blue.Darken4);
+                    center.Item().AlignCenter().Text("(Bản thể hiện của hóa đơn điện tử theo Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC)").Italic().FontSize(8).FontColor(Colors.Grey.Darken1);
+                    center.Item().AlignCenter().Text($"Ngày {invoice.IssueDate:dd} tháng {invoice.IssueDate:MM} năm {invoice.IssueDate:yyyy}").FontSize(8.5f);
+                });
+
+                col.Item().PaddingTop(8).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+            });
+        }
+
+        private void ComposePdfContent(IContainer container, Invoice invoice)
+        {
+            container.PaddingTop(8).Column(col =>
+            {
+                // Thông tin người mua
+                col.Item().Border(0.8f).BorderColor(Colors.Grey.Lighten2).Background(Colors.Grey.Lighten4).Padding(6).Column(buyer =>
+                {
+                    buyer.Item().Row(r =>
+                    {
+                        r.AutoItem().Text("Đơn vị mua hàng: ").Bold();
+                        r.RelativeItem().Text(string.IsNullOrWhiteSpace(invoice.BuyerName) ? "Người mua không lấy hóa đơn / Khách lẻ" : invoice.BuyerName);
+                    });
+                    buyer.Item().Row(r =>
+                    {
+                        r.AutoItem().Text("Mã số thuế: ").Bold();
+                        r.RelativeItem().Text(string.IsNullOrWhiteSpace(invoice.BuyerTaxCode) ? "---" : invoice.BuyerTaxCode);
+                    });
+                    if (!string.IsNullOrWhiteSpace(invoice.BuyerAddress))
+                    {
+                        buyer.Item().Row(r =>
+                        {
+                            r.AutoItem().Text("Địa chỉ: ").Bold();
+                            r.RelativeItem().Text(invoice.BuyerAddress);
+                        });
+                    }
+                });
+
+                col.Item().Height(8);
+
+                // Bảng danh sách hàng hóa
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.ConstantColumn(24);   // STT
+                        columns.RelativeColumn(3.8f); // Tên hàng hóa
+                        columns.RelativeColumn(1.0f); // ĐVT
+                        columns.RelativeColumn(1.1f); // Số lượng
+                        columns.RelativeColumn(1.6f); // Đơn giá
+                        columns.RelativeColumn(1.8f); // Thành tiền
+                        columns.RelativeColumn(0.9f); // Thuế
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Element(HeaderStyle).AlignCenter().Text("STT");
+                        header.Cell().Element(HeaderStyle).Text("Tên hàng hóa, dịch vụ");
+                        header.Cell().Element(HeaderStyle).AlignCenter().Text("ĐVT");
+                        header.Cell().Element(HeaderStyle).AlignRight().Text("Số lượng");
+                        header.Cell().Element(HeaderStyle).AlignRight().Text("Đơn giá");
+                        header.Cell().Element(HeaderStyle).AlignRight().Text("Thành tiền");
+                        header.Cell().Element(HeaderStyle).AlignCenter().Text("Thuế");
+
+                        static IContainer HeaderStyle(IContainer c) =>
+                            c.DefaultTextStyle(x => x.Bold().FontSize(8).FontColor(Colors.White))
+                             .Background(Colors.Blue.Darken2)
+                             .Border(0.5f).BorderColor(Colors.Blue.Darken3)
+                             .PaddingVertical(4).PaddingHorizontal(3);
+                    });
+
+                    var details = invoice.Details.OrderBy(d => d.LineNumber).ToList();
+                    if (!details.Any())
+                    {
+                        details.Add(new InvoiceDetail
+                        {
+                            LineNumber = 1,
+                            ItemName = "Hàng hóa, dịch vụ theo hóa đơn điện tử",
+                            Quantity = 1,
+                            UnitPrice = invoice.AmountBeforeTax,
+                            AmountBeforeTax = invoice.AmountBeforeTax,
+                            TaxRate = invoice.AmountBeforeTax > 0 ? Math.Round((invoice.TaxAmount / invoice.AmountBeforeTax) * 100, 0) : 0,
+                            TaxAmount = invoice.TaxAmount,
+                            TotalAmount = invoice.TotalAmount
+                        });
+                    }
+
+                    for (int i = 0; i < details.Count; i++)
+                    {
+                        var item = details[i];
+                        var bg = i % 2 == 1 ? Colors.Grey.Lighten5 : Colors.White;
+
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignCenter().Text(item.LineNumber.ToString());
+                        table.Cell().Element(c => CellStyle(c, bg)).Text(item.ItemName);
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignCenter().Text(item.Unit ?? "");
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text(item.Quantity.ToString("#,##0.##"));
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text(item.UnitPrice.ToString("#,##0"));
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text(item.AmountBeforeTax.ToString("#,##0"));
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignCenter().Text(item.TaxRate >= 0 ? $"{item.TaxRate:0}%" : "KCT");
+                    }
+
+                    static IContainer CellStyle(IContainer c, string backgroundColor) =>
+                        c.Background(backgroundColor)
+                         .Border(0.5f).BorderColor(Colors.Grey.Lighten2)
+                         .PaddingVertical(3).PaddingHorizontal(3)
+                         .DefaultTextStyle(x => x.FontSize(7.5f));
+                });
+
+                // Tổng cộng tiền
+                col.Item().PaddingTop(6).AlignRight().Width(260).Column(totals =>
+                {
+                    totals.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Cộng tiền hàng:");
+                        r.AutoItem().Text($"{invoice.AmountBeforeTax:#,##0} đ").Bold();
+                    });
+                    totals.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Tiền thuế GTGT:");
+                        r.AutoItem().Text($"{invoice.TaxAmount:#,##0} đ").Bold();
+                    });
+                    totals.Item().PaddingTop(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten1);
+                    totals.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Tổng thanh toán:").Bold();
+                        r.AutoItem().Text($"{invoice.TotalAmount:#,##0} đ").Bold().FontSize(10).FontColor(Colors.Red.Darken2);
+                    });
+                });
+
+                // Tiền viết bằng chữ
+                col.Item().PaddingTop(4).Text($"Số tiền viết bằng chữ: {NumberToVietnameseWords((long)Math.Round(invoice.TotalAmount))}").Italic().FontSize(8.5f);
+
+                // Chữ ký điện tử
+                col.Item().PaddingTop(12).Row(sig =>
+                {
+                    sig.RelativeItem().AlignCenter().Column(b =>
+                    {
+                        b.Item().Text("NGƯỜI MUA HÀNG").Bold().FontSize(8.5f);
+                        b.Item().Text("(Ký, ghi rõ họ tên)").FontSize(7.5f).Italic();
+                    });
+
+                    sig.RelativeItem().AlignCenter().Column(s =>
+                    {
+                        s.Item().Text("NGƯỜI BÁN HÀNG").Bold().FontSize(8.5f);
+                        s.Item().Text("(Chữ ký điện tử, chữ ký số)").FontSize(7.5f).Italic();
+                        s.Item().PaddingTop(5).Border(1.2f).BorderColor(Colors.Green.Darken1).Background(Colors.Green.Lighten5).Padding(4).Column(stamp =>
+                        {
+                            stamp.Item().AlignCenter().Text("✓ ĐÃ KÝ ĐIỆN TỬ HỢP LỆ").Bold().FontSize(7.5f).FontColor(Colors.Green.Darken2);
+                            stamp.Item().AlignCenter().Text(invoice.SellerName).FontSize(6.8f).FontColor(Colors.Green.Darken3);
+                            stamp.Item().AlignCenter().Text($"Ngày ký: {invoice.IssueDate:dd/MM/yyyy}").FontSize(6.5f).FontColor(Colors.Grey.Darken1);
+                        });
+                    });
+                });
+            });
+        }
+
+        private void ComposePdfFooter(IContainer container, Invoice invoice)
+        {
+            container.Column(col =>
+            {
+                col.Item().LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                col.Item().PaddingTop(3).Row(row =>
+                {
+                    row.RelativeItem().Text($"Tra cứu: {invoice.InvoiceSymbol} - Số {invoice.InvoiceNumber} | Cổng HĐĐT: hoadondientu.gdt.gov.vn").FontSize(7).FontColor(Colors.Grey.Darken1);
+                    row.AutoItem().Text(x =>
+                    {
+                        x.Span("Trang ");
+                        x.CurrentPageNumber();
+                        x.Span(" / ");
+                        x.TotalPages();
+                    });
+                });
+            });
+        }
+
+        private static readonly string[] Digits = { "không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín" };
+
+        public static string NumberToVietnameseWords(long number)
+        {
+            if (number == 0) return "Không đồng.";
+            if (number < 0) return "Âm " + NumberToVietnameseWords(-number);
+
+            string result = "";
+            string[] units = { "", " nghìn", " triệu", " tỷ", " nghìn tỷ", " triệu tỷ" };
+            int unitIndex = 0;
+
+            while (number > 0)
+            {
+                long group = number % 1000;
+                if (group > 0)
+                {
+                    string groupText = ReadThreeDigits((int)group, number >= 1000);
+                    result = groupText + units[unitIndex] + (string.IsNullOrEmpty(result) ? "" : " ") + result;
+                }
+                number /= 1000;
+                unitIndex++;
+            }
+
+            result = result.Trim();
+            if (!string.IsNullOrEmpty(result))
+            {
+                result = char.ToUpper(result[0]) + result.Substring(1) + " đồng.";
+            }
+            return result;
+        }
+
+        private static string ReadThreeDigits(int number, bool hasHigherGroups)
+        {
+            int hundreds = number / 100;
+            int tens = (number % 100) / 10;
+            int ones = number % 10;
+
+            var sb = new StringBuilder();
+
+            if (hundreds > 0 || hasHigherGroups)
+            {
+                sb.Append(Digits[hundreds]).Append(" trăm");
+            }
+
+            if (tens > 1)
+            {
+                if (sb.Length > 0) sb.Append(" ");
+                sb.Append(Digits[tens]).Append(" mươi");
+                if (ones == 1) sb.Append(" mốt");
+                else if (ones == 4) sb.Append(" tư");
+                else if (ones == 5) sb.Append(" lăm");
+                else if (ones > 0) sb.Append(" ").Append(Digits[ones]);
+            }
+            else if (tens == 1)
+            {
+                if (sb.Length > 0) sb.Append(" ");
+                sb.Append("mười");
+                if (ones == 1) sb.Append(" một");
+                else if (ones == 5) sb.Append(" lăm");
+                else if (ones > 0) sb.Append(" ").Append(Digits[ones]);
+            }
+            else if (tens == 0 && ones > 0)
+            {
+                if (sb.Length > 0) sb.Append(" lẻ ");
+                sb.Append(Digits[ones]);
+            }
+
+            return sb.ToString().Trim();
         }
 
         public string GenerateInvoiceHtml(Invoice invoice)

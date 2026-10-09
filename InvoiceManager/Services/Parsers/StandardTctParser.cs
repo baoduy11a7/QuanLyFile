@@ -67,9 +67,16 @@ namespace InvoiceManager.Services.Parsers
                 }
 
                 // 1. Thông tin chung
-                var khmsHDon = GetElementValue(ttChung, "KHMSHDon"); // Mẫu số: vd 1
-                var khHDon = GetElementValue(ttChung, "KHHDon");     // Ký hiệu: vd C25TXX
-                result.InvoiceSymbol = string.IsNullOrEmpty(khmsHDon) ? khHDon : $"{khmsHDon}{khHDon}";
+                var khmsHDon = GetElementValue(ttChung, "KHMSHDon")?.Trim() ?? ""; // Mẫu số: vd 1
+                var khHDon = GetElementValue(ttChung, "KHHDon")?.Trim() ?? "";     // Ký hiệu: vd C25TXX hoặc 1C25TXX
+                if (!string.IsNullOrEmpty(khmsHDon) && !string.IsNullOrEmpty(khHDon))
+                {
+                    result.InvoiceSymbol = khHDon.StartsWith(khmsHDon) ? khHDon : $"{khmsHDon}{khHDon}";
+                }
+                else
+                {
+                    result.InvoiceSymbol = !string.IsNullOrEmpty(khHDon) ? khHDon : khmsHDon;
+                }
                 result.InvoiceNumber = GetElementValue(ttChung, "SHDon");
 
                 var nLapStr = GetElementValue(ttChung, "NLap");
