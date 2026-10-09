@@ -62,11 +62,22 @@
                                     <i class="bi bi-arrow-left-right me-1"></i> Chọn làm việc
                                 </button>
                             </form>
+                            <form asp-action="Switch" method="post" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@acc.Id" />
+                                <input type="hidden" name="returnUrl" value="/Import?tab=api" />
+                                <button type="submit" class="btn btn-outline-success btn-sm fw-semibold" title="Đồng bộ HĐ từ API Thuế">
+                                    <i class="bi bi-cloud-arrow-down-fill"></i> API
+                                </button>
+                            </form>
                         }
                         else
                         {
                             <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm flex-fill fw-semibold">
                                 <i class="bi bi-receipt me-1"></i> Xem hóa đơn
+                            </a>
+                            <a asp-controller="Import" asp-action="Index" class="btn btn-success btn-sm fw-semibold" title="Lấy dữ liệu Vào & Ra từ API Thuế">
+                                <i class="bi bi-cloud-arrow-down-fill me-1"></i> API Thuế
                             </a>
                         }
 

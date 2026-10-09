@@ -730,9 +730,9 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index" title="Nhập hóa đơn từ file XML / Excel">
-                                <i class="bi bi-cloud-arrow-up"></i>
-                                <span>Nhập <span class="d-none d-xxl-inline">XML / Excel</span><span class="d-inline d-xxl-none">file</span></span>
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Import" ? "active" : "")" asp-controller="Import" asp-action="Index" title="Đồng bộ hóa đơn từ API Thuế & Nhập file XML/Excel">
+                                <i class="bi bi-cloud-arrow-down-fill text-success"></i>
+                                <span>API Thuế & Nhập file</span>
                             </a>
                         </li>
                         <li class="nav-item">

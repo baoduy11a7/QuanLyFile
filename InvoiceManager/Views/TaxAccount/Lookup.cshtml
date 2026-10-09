@@ -38,6 +38,9 @@
                 <!-- Gợi ý MST mẫu để thử nghiệm nhanh -->
                 <div class="d-flex flex-wrap align-items-center gap-2 mt-3 pt-2 border-top">
                     <span class="small text-muted fw-semibold"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Thử nhanh:</span>
+                    <button type="button" class="btn btn-outline-primary btn-sm font-monospace sample-mst fw-bold shadow-sm" data-mst="0314094922">
+                        <i class="bi bi-star-fill text-warning me-1"></i> 0314094922 (Giải Pháp Công Nghệ)
+                    </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm font-monospace sample-mst" data-mst="0105880697">
                         0105880697 (Hà Nội Lighting)
                     </button>
@@ -122,19 +125,28 @@
                         </div>
 
                         <!-- Các hành động tiếp theo -->
-                        <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+                        <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <a asp-action="Index" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách
                             </a>
 
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-2 flex-wrap">
                                 @if (Model.ExistsInSystem && Model.ExistingAccountId.HasValue)
                                 {
                                     <form asp-action="Switch" method="post" class="m-0">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@Model.ExistingAccountId.Value" />
-                                        <button type="submit" class="btn btn-primary fw-semibold px-4">
-                                            <i class="bi bi-arrow-left-right me-1"></i> Chuyển sang làm việc với MST này
+                                        <button type="submit" class="btn btn-outline-primary fw-semibold px-3">
+                                            <i class="bi bi-arrow-left-right me-1"></i> Chọn làm việc với MST này
+                                        </button>
+                                    </form>
+
+                                    <form asp-action="Switch" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@Model.ExistingAccountId.Value" />
+                                        <input type="hidden" name="returnUrl" value="/Import?tab=api" />
+                                        <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm">
+                                            <i class="bi bi-cloud-arrow-down-fill me-1"></i> Vào Lấy Dữ Liệu API Thuế (Vào/Ra)
                                         </button>
                                     </form>
                                 }

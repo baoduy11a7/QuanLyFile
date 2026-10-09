@@ -141,10 +141,10 @@
                                     <!-- Loại hóa đơn -->
                                     <div class="col-md-4">
                                         <label class="form-label fw-semibold">Loại hóa đơn:</label>
-                                        <select id="remoteInvoiceType" class="form-select">
-                                            <option value="MuaVao" selected>Hóa đơn Mua vào</option>
-                                            <option value="BanRa">Hóa đơn Bán ra</option>
-                                            <option value="All">Cả hai (Mua vào & Bán ra)</option>
+                                        <select id="remoteInvoiceType" class="form-select fw-semibold">
+                                            <option value="All" selected>⭐ Cả hai (Đầu vào & Đầu ra)</option>
+                                            <option value="MuaVao">Hóa đơn Mua vào (Chi phí / Đầu vào)</option>
+                                            <option value="BanRa">Hóa đơn Bán ra (Doanh thu / Đầu ra)</option>
                                         </select>
                                     </div>
 
@@ -229,13 +229,18 @@
                                 <div class="text-muted">[Sẵn sàng nhận sự kiện...]</div>
                             </div>
 
-                            <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
                                 <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelRemoteJob">
                                     <i class="bi bi-x-circle me-1"></i> Hủy tiến trình
                                 </button>
-                                <button type="button" class="btn btn-success fw-semibold d-none px-4" id="btnCompleteAndReload" onclick="location.reload()">
-                                    <i class="bi bi-arrow-clockwise me-1"></i> Hoàn tất & Cập nhật danh sách
-                                </button>
+                                <div id="postSyncActions" class="d-none d-flex gap-2 flex-wrap">
+                                    <a href="/Dashboard" class="btn btn-outline-primary btn-sm fw-semibold">
+                                        <i class="bi bi-pie-chart me-1"></i> Xem Báo Cáo & Thống Kê
+                                    </a>
+                                    <button type="button" class="btn btn-success btn-sm fw-semibold px-3" id="btnCompleteAndReload" onclick="location.reload()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i> Cập nhật bảng hóa đơn
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -286,7 +291,11 @@
                     } else {
                         container.innerHTML = `<img src="${data.imageBase64}" alt="Captcha" style="max-height: 44px; max-width: 100%; border-radius: 4px;" />`;
                     }
-                    document.getElementById('remoteCaptchaCode').value = '';
+                    if (provider === 'Mock') {
+                        document.getElementById('remoteCaptchaCode').value = 'ABCD';
+                    } else {
+                        document.getElementById('remoteCaptchaCode').value = '';
+                    }
                 } else {
                     container.innerHTML = `<span class="text-danger small">${data.message || 'Lỗi tải Captcha'}</span>`;
                 }
@@ -397,7 +406,7 @@
                             clearInterval(pollTimer);
                             document.getElementById('btnCloseImportModal').classList.remove('d-none');
                             document.getElementById('btnCancelRemoteJob').classList.add('d-none');
-                            document.getElementById('btnCompleteAndReload').classList.remove('d-none');
+                            document.getElementById('postSyncActions')?.classList.remove('d-none');
                         }
                     }
                 } catch (e) { }

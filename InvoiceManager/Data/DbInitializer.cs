@@ -119,30 +119,45 @@ namespace InvoiceManager.Data
                     CreatedAt = DateTime.Now.AddMonths(-6)
                 };
 
-                context.TaxAccounts.AddRange(company1, company2);
+                var company3 = new TaxAccount
+                {
+                    TaxCode = "0314094922",
+                    CompanyName = "CÔNG TY TNHH GIẢI PHÁP CÔNG NGHỆ BẢO DUY",
+                    Address = "Khu Phố 6, Phường Linh Trung, Thành phố Thủ Đức, TP Hồ Chí Minh",
+                    Email = "contact@baoduytech.vn",
+                    PhoneNumber = "0287.300.9988",
+                    Representative = "Bảo Duy",
+                    IsActive = true,
+                    CreatedAt = DateTime.Now.AddMonths(-3)
+                };
+
+                context.TaxAccounts.AddRange(company1, company2, company3);
                 await context.SaveChangesAsync();
 
                 // Gán quyền truy cập TaxAccount cho accountant và viewer
                 if (accountantUser != null)
                 {
                     context.UserTaxAccounts.AddRange(
-                        new UserTaxAccount { UserId = accountantUser.Id, TaxAccountId = company1.Id, IsDefault = true, CanManage = true },
-                        new UserTaxAccount { UserId = accountantUser.Id, TaxAccountId = company2.Id, IsDefault = false, CanManage = true }
+                        new UserTaxAccount { UserId = accountantUser.Id, TaxAccountId = company1.Id, IsDefault = false, CanManage = true },
+                        new UserTaxAccount { UserId = accountantUser.Id, TaxAccountId = company2.Id, IsDefault = false, CanManage = true },
+                        new UserTaxAccount { UserId = accountantUser.Id, TaxAccountId = company3.Id, IsDefault = true, CanManage = true }
                     );
                 }
 
                 if (viewerUser != null)
                 {
-                    context.UserTaxAccounts.Add(
-                        new UserTaxAccount { UserId = viewerUser.Id, TaxAccountId = company1.Id, IsDefault = true, CanManage = false }
+                    context.UserTaxAccounts.AddRange(
+                        new UserTaxAccount { UserId = viewerUser.Id, TaxAccountId = company1.Id, IsDefault = false, CanManage = false },
+                        new UserTaxAccount { UserId = viewerUser.Id, TaxAccountId = company3.Id, IsDefault = true, CanManage = false }
                     );
                 }
 
                 await context.SaveChangesAsync();
 
-                // Seed hóa đơn mẫu thực tế cho Company 1
+                // Seed hóa đơn mẫu thực tế cho các công ty
                 await SeedSampleInvoicesAsync(context, company1.Id, company1.TaxCode, company1.CompanyName);
                 await SeedSampleInvoicesAsync(context, company2.Id, company2.TaxCode, company2.CompanyName);
+                await SeedSampleInvoicesAsync(context, company3.Id, company3.TaxCode, company3.CompanyName);
             }
         }
 

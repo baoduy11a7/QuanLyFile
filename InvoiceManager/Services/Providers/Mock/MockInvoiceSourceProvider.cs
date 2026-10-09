@@ -56,7 +56,6 @@ namespace InvoiceManager.Services.Providers.Mock
             string token,
             [EnumeratorCancellation] CancellationToken ct = default)
         {
-            // Tạo 4 hóa đơn giả lập theo ngày yêu cầu
             var typesToFetch = new List<string>();
             if (req.InvoiceType == "All")
             {
@@ -68,53 +67,78 @@ namespace InvoiceManager.Services.Providers.Mock
                 typesToFetch.Add(req.InvoiceType);
             }
 
-            int count = 1;
-            var sampleSellers = new[]
+            int invIndex = 1;
+            var purchaseVendors = new[]
             {
-                ("0101234567", "CÔNG TY CỔ PHẦN CÔNG NGHỆ VÀ TRUYỀN THÔNG SAO BẮC ĐẨU"),
-                ("0309876543", "TỔNG CÔNG TY DỊCH VỤ VIỄN THÔNG VNPT - VINAPHONE"),
-                ("0100109106", "TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI VIETTEL"),
-                ("0102030405", "CÔNG TY CỔ PHẦN MISA CHI NHÁNH HÀ NỘI")
+                (TaxCode: "0100109106", Name: "TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI VIETTEL", Item: "Cước dịch vụ Cloud Server & Đường truyền cáp quang", Price: 15000000m, TaxRate: 0.10m),
+                (TaxCode: "0102030405", Name: "CÔNG TY CỔ PHẦN MISA CHI NHÁNH HÀ NỘI", Item: "Bản quyền phần mềm meInvoice & Chữ ký số từ xa", Price: 8500000m, TaxRate: 0.10m),
+                (TaxCode: "0101234567", Name: "CÔNG TY CỔ PHẦN CÔNG NGHỆ VÀ TRUYỀN THÔNG SAO BẮC ĐẨU", Item: "Máy chủ Server Dell PowerEdge & Thiết bị cân bằng tải", Price: 42000000m, TaxRate: 0.08m),
+                (TaxCode: "0309876543", Name: "TỔNG CÔNG TY DỊCH VỤ VIỄN THÔNG VNPT - VINAPHONE", Item: "Cước dịch vụ tổng đài hotline & Tin nhắn Brandname", Price: 6200000m, TaxRate: 0.10m)
+            };
+
+            var saleClients = new[]
+            {
+                (TaxCode: "0100107518", Name: "NGÂN HÀNG THƯƠNG MẠI CỔ PHẦN QUÂN ĐỘI (MB BANK)", Item: "Hợp đồng triển khai hệ thống quản trị & Đối soát hóa đơn số", Price: 85000000m, TaxRate: 0.10m),
+                (TaxCode: "0101245486", Name: "TẬP ĐOÀN VINGROUP - CÔNG TY CP", Item: "Gói giải pháp phần mềm tự động hóa kế toán và bóc tách dữ liệu", Price: 120000000m, TaxRate: 0.10m),
+                (TaxCode: "0300588569", Name: "CÔNG TY CỔ PHẦN BÁN LẺ KỸ THUẬT SỐ FPT (FPT RETAIL)", Item: "Dịch vụ tích hợp API đồng bộ hóa đơn điện tử Tổng cục Thuế", Price: 45000000m, TaxRate: 0.10m),
+                (TaxCode: "0100107574", Name: "TỔNG CÔNG TY HÀNG KHÔNG VIỆT NAM - CTCP (VIETNAM AIRLINES)", Item: "Bảo trì và vận hành hệ thống phần mềm đối soát tài chính", Price: 35000000m, TaxRate: 0.10m)
             };
 
             foreach (var type in typesToFetch)
             {
-                for (int i = 0; i < sampleSellers.Length; i++)
+                var dataset = type == "MuaVao" ? purchaseVendors : saleClients;
+                int dayOffset = 1;
+
+                for (int i = 0; i < dataset.Length; i++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    await Task.Delay(100, ct); // Mô phỏng độ trễ mạng nhẹ
+                    await Task.Delay(120, ct); // Mô phỏng độ trễ API thực tế
 
-                    var seller = sampleSellers[i];
-                    var issueDate = req.FromDate.AddDays(Math.Min(i * 3, Math.Max(0, (req.ToDate - req.FromDate).Days)));
+                    var itemData = dataset[i];
+                    var issueDate = req.FromDate.AddDays(Math.Min(dayOffset * 4, Math.Max(0, (req.ToDate - req.FromDate).Days)));
+                    dayOffset++;
+
                     var symbol = type == "MuaVao" ? "1C25TKT" : "1C25TAA";
-                    var number = $"{count:D7}";
+                    var number = $"{invIndex:D7}";
+
+                    decimal amountBeforeTax = itemData.Price;
+                    decimal taxAmount = Math.Round(amountBeforeTax * itemData.TaxRate, 0);
+                    decimal totalAmount = amountBeforeTax + taxAmount;
+
+                    string sellerTaxCode = type == "MuaVao" ? itemData.TaxCode : req.TaxCode;
+                    string sellerName = type == "MuaVao" ? itemData.Name : "DOANH NGHIỆP HIỆN TẠI";
+                    string buyerTaxCode = type == "MuaVao" ? req.TaxCode : itemData.TaxCode;
+                    string buyerName = type == "MuaVao" ? "DOANH NGHIỆP HIỆN TẠI" : itemData.Name;
 
                     yield return new RemoteInvoice
                     {
-                        ProviderKey = $"mock_{type}_{count}_{symbol}_{number}",
+                        ProviderKey = $"mock_{type}_{invIndex}_{symbol}_{number}",
                         InvoiceSymbol = symbol,
                         InvoiceNumber = number,
                         IssueDate = issueDate,
-                        SellerTaxCode = type == "MuaVao" ? seller.Item1 : req.TaxCode,
-                        SellerName = type == "MuaVao" ? seller.Item2 : "DOANH NGHIỆP ĐANG CHỌN",
-                        BuyerTaxCode = type == "MuaVao" ? req.TaxCode : seller.Item1,
-                        BuyerName = type == "MuaVao" ? "DOANH NGHIỆP ĐANG CHỌN" : seller.Item2,
-                        AmountBeforeTax = 10000000m * (i + 1),
-                        TaxAmount = 1000000m * (i + 1),
-                        TotalAmount = 11000000m * (i + 1),
+                        SellerTaxCode = sellerTaxCode,
+                        SellerName = sellerName,
+                        BuyerTaxCode = buyerTaxCode,
+                        BuyerName = buyerName,
+                        AmountBeforeTax = amountBeforeTax,
+                        TaxAmount = taxAmount,
+                        TotalAmount = totalAmount,
                         InvoiceType = type,
                         CqtCode = $"CQT_{Guid.NewGuid().ToString("N").Substring(0, 10).ToUpper()}",
                         Status = "Mới"
                     };
 
-                    count++;
+                    invIndex++;
                 }
             }
         }
 
         public Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
         {
-            // Tạo XML theo chuẩn Tổng cục Thuế Quyết định 1450/QĐ-TCT
+            decimal taxRateVal = inv.AmountBeforeTax > 0 ? Math.Round(inv.TaxAmount / inv.AmountBeforeTax * 100, 0) : 10;
+            string taxRateStr = $"{taxRateVal}%";
+
+            // Tạo XML theo chuẩn Tổng cục Thuế Quyết định 1450/QĐ-TCT với chi tiết dòng hàng
             var xml = $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <HDon>
   <TTChung>
@@ -131,13 +155,13 @@ namespace InvoiceManager.Services.Providers.Mock
   </TTChung>
   <NDHDon>
     <NBan>
-      <Ten>{inv.SellerName}</Ten>
+      <Ten>{System.Security.SecurityElement.Escape(inv.SellerName)}</Ten>
       <MST>{inv.SellerTaxCode}</MST>
       <DChi>Số 123 Đường Giải Phóng, Quận Hai Bà Trưng, Hà Nội</DChi>
       <SDThoai>02431234567</SDThoai>
     </NBan>
     <NMua>
-      <Ten>{inv.BuyerName}</Ten>
+      <Ten>{System.Security.SecurityElement.Escape(inv.BuyerName)}</Ten>
       <MST>{inv.BuyerTaxCode}</MST>
       <DChi>Số 456 Đường Nguyễn Huệ, Quận 1, TP Hồ Chí Minh</DChi>
     </NMua>
@@ -145,24 +169,30 @@ namespace InvoiceManager.Services.Providers.Mock
       <HHDVu>
         <TCat>1</TCat>
         <STT>1</STT>
-        <THHDVu>Dịch vụ phần mềm quản lý hóa đơn điện tử gói chuyên nghiệp</THHDVu>
+        <THHDVu>{System.Security.SecurityElement.Escape(inv.InvoiceType == "MuaVao" ? "Dịch vụ hạ tầng viễn thông và thiết bị phần mềm chuyên dụng" : "Dịch vụ cung cấp giải pháp công nghệ và phần mềm quản lý hóa đơn")}</THHDVu>
         <DVT>Gói</DVT>
         <SLuong>1</SLuong>
         <DGia>{inv.AmountBeforeTax:F0}</DGia>
         <ThTien>{inv.AmountBeforeTax:F0}</ThTien>
-        <TSuat>10%</TSuat>
+        <TSuat>{taxRateStr}</TSuat>
       </HHDVu>
     </DSHHDVu>
     <TToan>
       <TgTCThue>{inv.AmountBeforeTax:F0}</TgTCThue>
       <TgTThue>{inv.TaxAmount:F0}</TgTThue>
       <TgTTTBSo>{inv.TotalAmount:F0}</TgTTTBSo>
-      <TgTTTBChu>Mười một triệu đồng chẵn</TgTTTBChu>
+      <TgTTTBChu>{NumberToWords(inv.TotalAmount)}</TgTTTBChu>
     </TToan>
   </NDHDon>
 </HDon>";
 
             return Task.FromResult(Encoding.UTF8.GetBytes(xml));
+        }
+
+        private static string NumberToWords(decimal number)
+        {
+            if (number <= 0) return "Không đồng";
+            return $"{number:N0} đồng chẵn";
         }
     }
 }

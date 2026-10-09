@@ -94,7 +94,7 @@ namespace InvoiceManager.Jobs
                 {
                     _jobTracker.UpdateProgress(jobId, 100, "Không có hóa đơn nào trong khoảng thời gian đã chọn.", totalFound: 0, success: 0, duplicate: 0, failed: 0);
                     _jobTracker.CompleteJob(jobId, "Không có hóa đơn mới nào được tìm thấy.");
-                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Hoàn tất: 0 hóa đơn mới.", null);
+                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Hoàn tất: 0 hóa đơn mới.", rememberPassword ? cred.Password : null);
                     await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, "Không tìm thấy hóa đơn nào trong khoảng ngày đã chọn.", taxAccountId);
                     return;
                 }
@@ -159,7 +159,7 @@ namespace InvoiceManager.Jobs
                 _jobTracker.UpdateProgress(jobId, 100, summaryMsg, totalFound: total, success: successCount, duplicate: duplicateCount, failed: failedCount);
                 _jobTracker.CompleteJob(jobId, summaryMsg);
 
-                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, summaryMsg, null);
+                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, summaryMsg, rememberPassword ? cred.Password : null);
                 await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, summaryMsg, taxAccountId);
             }
             catch (OperationCanceledException)

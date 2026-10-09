@@ -39,7 +39,13 @@ namespace InvoiceManager.Services.Parsers
                     return result;
                 }
 
-                var doc = XDocument.Parse(rawXml);
+                // Tự động chuẩn hóa các ký tự & tự do trong XML (EntityName parse error)
+                var sanitizedXml = System.Text.RegularExpressions.Regex.Replace(
+                    rawXml,
+                    @"&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)",
+                    "&amp;");
+
+                var doc = XDocument.Parse(sanitizedXml);
                 var root = doc.Root;
                 if (root == null)
                 {
