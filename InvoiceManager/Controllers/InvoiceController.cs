@@ -232,19 +232,39 @@ namespace InvoiceManager.Controllers
             summary.LastSyncedAt = lastSync;
 
             // Sắp xếp linh hoạt theo ngày hoặc theo các chỉ số tài chính (Chưa thuế, Tiền thuế GTGT, Tổng thanh toán)
-            query = filter.SortBy switch
+            // Lưu ý: SQLite không hỗ trợ ORDER BY trực tiếp trên kiểu decimal, cần cast sang double
+            if (_db.Database.IsSqlite())
             {
-                "DateAsc" => query.OrderBy(i => i.IssueDate),
-                "AmountBeforeTaxDesc" => query.OrderByDescending(i => i.AmountBeforeTax),
-                "AmountBeforeTaxAsc" => query.OrderBy(i => i.AmountBeforeTax),
-                "TaxAmountDesc" => query.OrderByDescending(i => i.TaxAmount),
-                "TaxAmountAsc" => query.OrderBy(i => i.TaxAmount),
-                "TotalAmountDesc" or "AmountDesc" => query.OrderByDescending(i => i.TotalAmount),
-                "TotalAmountAsc" or "AmountAsc" => query.OrderBy(i => i.TotalAmount),
-                "NumberAsc" => query.OrderBy(i => i.InvoiceNumber),
-                "NumberDesc" => query.OrderByDescending(i => i.InvoiceNumber),
-                _ => query.OrderByDescending(i => i.IssueDate)
-            };
+                query = filter.SortBy switch
+                {
+                    "DateAsc" => query.OrderBy(i => i.IssueDate),
+                    "AmountBeforeTaxDesc" => query.OrderByDescending(i => (double)i.AmountBeforeTax),
+                    "AmountBeforeTaxAsc" => query.OrderBy(i => (double)i.AmountBeforeTax),
+                    "TaxAmountDesc" => query.OrderByDescending(i => (double)i.TaxAmount),
+                    "TaxAmountAsc" => query.OrderBy(i => (double)i.TaxAmount),
+                    "TotalAmountDesc" or "AmountDesc" => query.OrderByDescending(i => (double)i.TotalAmount),
+                    "TotalAmountAsc" or "AmountAsc" => query.OrderBy(i => (double)i.TotalAmount),
+                    "NumberAsc" => query.OrderBy(i => i.InvoiceNumber),
+                    "NumberDesc" => query.OrderByDescending(i => i.InvoiceNumber),
+                    _ => query.OrderByDescending(i => i.IssueDate)
+                };
+            }
+            else
+            {
+                query = filter.SortBy switch
+                {
+                    "DateAsc" => query.OrderBy(i => i.IssueDate),
+                    "AmountBeforeTaxDesc" => query.OrderByDescending(i => i.AmountBeforeTax),
+                    "AmountBeforeTaxAsc" => query.OrderBy(i => i.AmountBeforeTax),
+                    "TaxAmountDesc" => query.OrderByDescending(i => i.TaxAmount),
+                    "TaxAmountAsc" => query.OrderBy(i => i.TaxAmount),
+                    "TotalAmountDesc" or "AmountDesc" => query.OrderByDescending(i => i.TotalAmount),
+                    "TotalAmountAsc" or "AmountAsc" => query.OrderBy(i => i.TotalAmount),
+                    "NumberAsc" => query.OrderBy(i => i.InvoiceNumber),
+                    "NumberDesc" => query.OrderByDescending(i => i.InvoiceNumber),
+                    _ => query.OrderByDescending(i => i.IssueDate)
+                };
+            }
 
             // Phân trang trên tập dữ liệu đã áp dụng bộ lọc nhánh
             int totalItems = await query.CountAsync();
