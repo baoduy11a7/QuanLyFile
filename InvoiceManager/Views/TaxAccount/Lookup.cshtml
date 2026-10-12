@@ -161,12 +161,13 @@
                                         </button>
                                     </form>
                                 }
-                                else if (User.IsInRole("Admin"))
+                                else if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
                                 {
                                     <form asp-action="QuickAddFromTaxCode" method="post" class="m-0">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="taxCode" value="@Model.TaxCode" />
-                                        <button type="submit" class="btn btn-success fw-semibold px-4">
+                                        <input type="hidden" name="returnUrl" value="/Import" />
+                                        <button type="submit" class="btn btn-success fw-semibold px-4 shadow-sm" title="Thêm công ty này vào hệ thống và chuyển ngay đến trang Nhập & Lấy hóa đơn">
                                             <i class="bi bi-plus-circle-fill me-1"></i> Thêm nhanh vào Hệ thống (1-Click)
                                         </button>
                                     </form>

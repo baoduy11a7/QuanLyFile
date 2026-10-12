@@ -87,10 +87,10 @@ namespace InvoiceManager.Services
                     var address = dataProp.TryGetProperty("address", out var addrProp) ? addrProp.GetString() : null;
                     var status = dataProp.TryGetProperty("status", out var stProp) ? stProp.GetString() : "Đang hoạt động";
 
-                    // Kiểm tra xem MST này đã có trong cơ sở dữ liệu hệ thống chưa
+                    // Kiểm tra xem MST này đã có trong cơ sở dữ liệu hệ thống chưa (và đang kích hoạt)
                     var existingAccount = await _db.TaxAccounts
                         .AsNoTracking()
-                        .FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode || t.TaxCode == id, cancellationToken);
+                        .FirstOrDefaultAsync(t => (t.TaxCode == cleanTaxCode || t.TaxCode == id) && t.IsActive, cancellationToken);
 
                     return new TaxCodeLookupResult
                     {
@@ -143,7 +143,7 @@ namespace InvoiceManager.Services
         {
             var existingAccount = await _db.TaxAccounts
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode, cancellationToken);
+                .FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode && t.IsActive, cancellationToken);
 
             if (existingAccount != null)
             {

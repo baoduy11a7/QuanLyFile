@@ -7,31 +7,121 @@
 
 <div class="row justify-content-center">
     <div class="col-xl-10">
-        <!-- Banner Công Ty Hiện Tại & Header -->
-        <div class="card shadow-sm border-0 mb-4 bg-primary text-white overflow-hidden" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);">
-            <div class="card-body p-4">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <div>
-                        <div class="badge bg-white text-primary font-monospace fs-6 px-3 py-1 mb-2 shadow-sm">
-                            <i class="bi bi-building me-1"></i> MST: @(taxAccount?.TaxCode ?? "Chưa chọn")
+        @if (taxAccount == null)
+        {
+            <!-- Banner Cảnh báo khi tài khoản bị xóa hoặc chưa chọn -->
+            <div class="card shadow-sm border-0 mb-4 bg-warning bg-opacity-10 border border-warning text-dark overflow-hidden">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <span class="badge bg-warning text-dark font-monospace fs-6 px-3 py-1 mb-2 shadow-sm">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Chưa có tài khoản thuế được kích hoạt
+                            </span>
+                            <h4 class="fw-bold mb-1 text-dark">Tài khoản thuế chưa được chọn hoặc đã bị xóa khỏi hệ thống</h4>
+                            <p class="mb-0 text-secondary small">
+                                <i class="bi bi-info-circle me-1"></i> Bạn có thể cào thông tin bất kỳ Mã số thuế nào bên dưới để thêm doanh nghiệp vào hệ thống và bắt đầu lấy hóa đơn ngay tức thì!
+                            </p>
                         </div>
-                        <h4 class="fw-bold mb-1 text-white">@(taxAccount?.CompanyName ?? "Chưa chọn tài khoản thuế")</h4>
-                        <p class="mb-0 text-white-50 small">
-                            <i class="bi bi-geo-alt me-1"></i>@(taxAccount?.Address ?? "Chưa có địa chỉ")
-                        </p>
-                    </div>
-
-                    <div class="d-flex gap-2 flex-wrap">
-                        <a asp-controller="TaxAccount" asp-action="Index" class="btn btn-outline-light btn-sm fw-semibold">
-                            <i class="bi bi-repeat me-1"></i> Đổi công ty
-                        </a>
-                        <a asp-controller="Dashboard" asp-action="Index" class="btn btn-light btn-sm text-primary fw-bold shadow-sm">
-                            <i class="bi bi-pie-chart me-1"></i> Xem Dashboard thống kê
-                        </a>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrawlTaxAccount">
+                                <i class="bi bi-cloud-arrow-down-fill me-1"></i> Cào & Thêm MST ngay
+                            </button>
+                            <a asp-controller="TaxAccount" asp-action="Index" class="btn btn-outline-secondary btn-sm fw-semibold">
+                                <i class="bi bi-buildings me-1"></i> Quản lý công ty
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- Card Cào & Thêm trực tiếp ngay trên trang Import -->
+            <div class="card shadow-sm border-0 mb-4 bg-white p-4 rounded-3 border">
+                <div class="text-center py-2">
+                    <div class="mb-3">
+                        <span class="badge bg-primary-subtle text-primary p-3 rounded-circle fs-3 shadow-sm">
+                            <i class="bi bi-cloud-arrow-down-fill"></i>
+                        </span>
+                    </div>
+                    <h5 class="fw-bold text-primary mb-2">Cào Thông Tin Doanh Nghiệp & Thêm Vào Hệ Thống Trực Tiếp</h5>
+                    <p class="text-muted small mx-auto" style="max-width: 650px;">
+                        Nhập Mã số thuế doanh nghiệp (10 hoặc 14 chữ số), hệ thống sẽ tự động cào tên công ty, địa chỉ chính thức từ Cổng Tổng cục Thuế và thiết lập sẵn sàng để nhập hóa đơn:
+                    </p>
+
+                    <div class="row justify-content-center mt-3">
+                        <div class="col-md-8 col-lg-7">
+                            <form id="formDirectCrawlOnImport" class="m-0">
+                                <div class="input-group input-group-lg shadow-sm">
+                                    <span class="input-group-text bg-light text-primary fw-bold font-monospace"><i class="bi bi-upc-scan"></i></span>
+                                    <input type="text" id="directCrawlTaxCode" class="form-control font-monospace fw-bold fs-5 text-uppercase" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14" required>
+                                    <button type="submit" class="btn btn-primary fw-bold px-4" id="btnSubmitDirectCrawl">
+                                        <span class="spinner-border spinner-border-sm d-none me-1" id="directCrawlSpinner" role="status"></span>
+                                        <i class="bi bi-cloud-arrow-down-fill me-1" id="directCrawlIcon"></i> Cào & Thêm ngay
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div id="directCrawlAlert" class="alert d-none mt-3 text-start small"></div>
+
+                            <!-- Preview Card khi cào thành công -->
+                            <div id="directCrawlPreviewCard" class="card mt-3 border-success border-opacity-50 text-start shadow-sm d-none bg-success bg-opacity-10">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <span class="badge bg-success font-monospace fs-6 px-2 py-1" id="previewTaxCodeBadge"></span>
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle" id="previewStatusBadge"></span>
+                                    </div>
+                                    <h6 class="fw-bold text-dark mb-1" id="previewCompanyName"></h6>
+                                    <p class="text-muted small mb-3"><i class="bi bi-geo-alt text-danger me-1"></i><span id="previewAddress"></span></p>
+
+                                    <button type="button" class="btn btn-success fw-bold w-100 shadow-sm" id="btnConfirmDirectAdd">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Xác nhận Thêm vào hệ thống & Bắt đầu lấy hóa đơn
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 text-muted small d-flex justify-content-center gap-2 flex-wrap">
+                                <span>MST mẫu tra cứu nhanh:</span>
+                                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none font-monospace fw-semibold" onclick="$('#directCrawlTaxCode').val('0314094922'); $('#btnSubmitDirectCrawl').click();">0314094922</button>
+                                &bull;
+                                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none font-monospace fw-semibold" onclick="$('#directCrawlTaxCode').val('0105880697'); $('#btnSubmitDirectCrawl').click();">0105880697</button>
+                                &bull;
+                                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none font-monospace fw-semibold" onclick="$('#directCrawlTaxCode').val('0100109106'); $('#btnSubmitDirectCrawl').click();">0100109106</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Banner Công Ty Hiện Tại & Header -->
+            <div class="card shadow-sm border-0 mb-4 bg-primary text-white overflow-hidden" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <div class="badge bg-white text-primary font-monospace fs-6 px-3 py-1 mb-2 shadow-sm">
+                                <i class="bi bi-building me-1"></i> MST: @taxAccount.TaxCode
+                            </div>
+                            <h4 class="fw-bold mb-1 text-white">@taxAccount.CompanyName</h4>
+                            <p class="mb-0 text-white-50 small">
+                                <i class="bi bi-geo-alt me-1"></i>@taxAccount.Address
+                            </p>
+                        </div>
+
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-warning text-dark btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCrawlTaxAccount" title="Cào thêm MST mới hoặc kích hoạt lại MST đã xóa">
+                                <i class="bi bi-cloud-arrow-down-fill me-1"></i> Cào & Thêm MST mới
+                            </button>
+                            <a asp-controller="TaxAccount" asp-action="Index" class="btn btn-outline-light btn-sm fw-semibold">
+                                <i class="bi bi-repeat me-1"></i> Đổi công ty
+                            </a>
+                            <a asp-controller="Dashboard" asp-action="Index" class="btn btn-light btn-sm text-primary fw-bold shadow-sm">
+                                <i class="bi bi-pie-chart me-1"></i> Xem Dashboard thống kê
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
 
         <!-- Card Điều Khiển Chính -->
         <div class="card shadow-sm border-0 mb-4">
@@ -99,7 +189,12 @@
 
                                     <!-- Mã số thuế -->
                                     <div class="col-md-6">
-                                        <label class="form-label fw-bold">2. Mã số thuế doanh nghiệp:</label>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label fw-bold mb-0">2. Mã số thuế doanh nghiệp:</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalCrawlTaxAccount" title="Cào thông tin hoặc thêm MST khác">
+                                                <i class="bi bi-cloud-arrow-down-fill me-1"></i> Cào / Đổi MST
+                                            </button>
+                                        </div>
                                         <input type="text" id="pageRemoteTaxCode" class="form-control bg-light fw-bold text-primary font-monospace fs-5" 
                                                readonly value="@taxAccount?.TaxCode" placeholder="MST công ty...">
                                     </div>
@@ -396,6 +491,62 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cào & Thêm Doanh Nghiệp Trực Tiếp Trên Trang Import -->
+<div class="modal fade" id="modalCrawlTaxAccount" tabindex="-1" aria-labelledby="modalCrawlTaxAccountLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold" id="modalCrawlTaxAccountLabel">
+                    <i class="bi bi-cloud-arrow-down-fill me-2"></i> Tra Cứu & Cào Thông Tin Doanh Nghiệp (Cổng Thuế)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-3">
+                    Nhập Mã số thuế để hệ thống tự động cào thông tin chính thức từ Cổng Tổng cục Thuế (Tên công ty, địa chỉ, trạng thái hoạt động) và thêm ngay vào hệ thống để tiếp tục lấy hóa đơn:
+                </p>
+
+                <div class="input-group input-group-lg shadow-sm mb-3">
+                    <span class="input-group-text bg-light text-primary fw-bold font-monospace"><i class="bi bi-upc-scan"></i></span>
+                    <input type="text" id="modalCrawlTaxCodeInput" class="form-control font-monospace fw-bold fs-5 text-uppercase" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14">
+                    <button type="button" class="btn btn-primary fw-bold px-4" id="btnModalSubmitCrawl">
+                        <span class="spinner-border spinner-border-sm d-none me-1" id="modalCrawlSpinner" role="status"></span>
+                        <i class="bi bi-search me-1" id="modalCrawlIcon"></i> Cào thông tin
+                    </button>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+                    <span class="small text-muted fw-semibold">MST mẫu:</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-monospace sample-modal-mst" data-mst="0314094922">0314094922</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-monospace sample-modal-mst" data-mst="0105880697">0105880697</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-monospace sample-modal-mst" data-mst="0100109106">0100109106</button>
+                </div>
+
+                <div id="modalCrawlAlert" class="alert d-none small"></div>
+
+                <!-- Thẻ xem trước kết quả cào -->
+                <div id="modalCrawlResultBox" class="border rounded-3 p-3 bg-light d-none">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-primary font-monospace fs-6 px-2 py-1" id="modalResTaxCode"></span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold" id="modalResStatus"></span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-2 fs-5" id="modalResCompanyName"></h6>
+                    <p class="text-secondary small mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="modalResAddress"></span></p>
+
+                    <div class="d-grid mt-3">
+                        <button type="button" class="btn btn-success btn-lg fw-bold shadow-sm" id="btnConfirmAddAndSelect">
+                            <i class="bi bi-plus-circle-fill me-2"></i> Xác nhận Thêm vào hệ thống & Làm việc ngay
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-4">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
     </div>
@@ -749,6 +900,161 @@
                     $('#uploadProgress').addClass('d-none');
                     btnSubmit.prop('disabled', false);
                     alert('Lỗi hệ thống khi tải lên file.');
+                }
+            });
+        });
+
+        // Direct Crawl trên trang Import khi chưa có tài khoản hoặc tài khoản bị xóa
+        let crawledTaxCodeDirect = null;
+        $('#formDirectCrawlOnImport').on('submit', function(e) {
+            e.preventDefault();
+            const taxCode = $('#directCrawlTaxCode').val().trim();
+            if (!taxCode) return;
+
+            $('#btnSubmitDirectCrawl').prop('disabled', true);
+            $('#directCrawlSpinner').removeClass('d-none');
+            $('#directCrawlIcon').addClass('d-none');
+            $('#directCrawlAlert').removeClass('d-none alert-danger alert-success').addClass('alert-info').html('<span class="spinner-border spinner-border-sm me-2"></span> Đang cào thông tin MST <strong>' + taxCode + '</strong> từ Cổng Tổng cục Thuế...');
+
+            $.ajax({
+                url: '/TaxAccount/LookupApi?taxCode=' + encodeURIComponent(taxCode),
+                type: 'GET',
+                success: function(res) {
+                    $('#btnSubmitDirectCrawl').prop('disabled', false);
+                    $('#directCrawlSpinner').addClass('d-none');
+                    $('#directCrawlIcon').removeClass('d-none');
+
+                    if (!res.success) {
+                        $('#directCrawlAlert').removeClass('alert-info alert-success').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Không thể cào thông tin từ MST này.'));
+                        $('#directCrawlPreviewCard').addClass('d-none');
+                        return;
+                    }
+
+                    crawledTaxCodeDirect = res.taxCode;
+                    $('#directCrawlAlert').addClass('d-none');
+                    $('#previewTaxCodeBadge').text('MST: ' + res.taxCode);
+                    $('#previewStatusBadge').text(res.status || 'Đang hoạt động');
+                    $('#previewCompanyName').text(res.companyName);
+                    $('#previewAddress').text(res.address || 'Chưa có thông tin địa chỉ');
+                    $('#directCrawlPreviewCard').removeClass('d-none');
+                },
+                error: function() {
+                    $('#btnSubmitDirectCrawl').prop('disabled', false);
+                    $('#directCrawlSpinner').addClass('d-none');
+                    $('#directCrawlIcon').removeClass('d-none');
+                    $('#directCrawlAlert').removeClass('alert-info alert-success').addClass('alert-danger').text('Lỗi kết nối khi cào thông tin từ máy chủ.');
+                }
+            });
+        });
+
+        $('#btnConfirmDirectAdd').on('click', function() {
+            if (!crawledTaxCodeDirect) return;
+            const $btn = $(this);
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Đang thêm vào hệ thống & thiết lập...');
+
+            $.ajax({
+                url: '/Import/QuickCrawlAndSelect',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'RequestVerificationToken': antiXsrfToken
+                },
+                data: JSON.stringify({ taxCode: crawledTaxCodeDirect }),
+                success: function(res) {
+                    if (res.success) {
+                        $('#directCrawlAlert').removeClass('d-none alert-danger alert-info').addClass('alert-success').html('<i class="bi bi-check-circle-fill me-1"></i> ' + res.message + ' Đang kích hoạt giao diện nhập...');
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 700);
+                    } else {
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-1"></i> Xác nhận Thêm vào hệ thống & Bắt đầu lấy hóa đơn');
+                        $('#directCrawlAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Có lỗi xảy ra.'));
+                    }
+                },
+                error: function() {
+                    $btn.prop('disabled', false).html('<i class="bi bi-check-circle-fill me-1"></i> Xác nhận Thêm vào hệ thống & Bắt đầu lấy hóa đơn');
+                    $('#directCrawlAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').text('Lỗi kết nối khi lưu tài khoản thuế.');
+                }
+            });
+        });
+
+        // Modal Quick Crawl logic
+        let modalCrawledTaxCode = null;
+        $('.sample-modal-mst').on('click', function() {
+            $('#modalCrawlTaxCodeInput').val($(this).data('mst'));
+            $('#btnModalSubmitCrawl').click();
+        });
+
+        $('#btnModalSubmitCrawl').on('click', function() {
+            const taxCode = $('#modalCrawlTaxCodeInput').val().trim();
+            if (!taxCode) {
+                $('#modalCrawlAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').text('Vui lòng nhập Mã số thuế.');
+                return;
+            }
+
+            $('#btnModalSubmitCrawl').prop('disabled', true);
+            $('#modalCrawlSpinner').removeClass('d-none');
+            $('#modalCrawlIcon').addClass('d-none');
+            $('#modalCrawlAlert').removeClass('d-none alert-danger alert-success').addClass('alert-info').html('<span class="spinner-border spinner-border-sm me-2"></span> Đang cào thông tin MST <strong>' + taxCode + '</strong> từ Cổng Thuế...');
+
+            $.ajax({
+                url: '/TaxAccount/LookupApi?taxCode=' + encodeURIComponent(taxCode),
+                type: 'GET',
+                success: function(res) {
+                    $('#btnModalSubmitCrawl').prop('disabled', false);
+                    $('#modalCrawlSpinner').addClass('d-none');
+                    $('#modalCrawlIcon').removeClass('d-none');
+
+                    if (!res.success) {
+                        $('#modalCrawlAlert').removeClass('alert-info alert-success').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Không thể cào thông tin.'));
+                        $('#modalCrawlResultBox').addClass('d-none');
+                        return;
+                    }
+
+                    modalCrawledTaxCode = res.taxCode;
+                    $('#modalCrawlAlert').addClass('d-none');
+                    $('#modalResTaxCode').text('MST: ' + res.taxCode);
+                    $('#modalResStatus').text(res.status || 'Đang hoạt động');
+                    $('#modalResCompanyName').text(res.companyName);
+                    $('#modalResAddress').text(res.address || 'Chưa có thông tin địa chỉ');
+                    $('#modalCrawlResultBox').removeClass('d-none');
+                },
+                error: function() {
+                    $('#btnModalSubmitCrawl').prop('disabled', false);
+                    $('#modalCrawlSpinner').addClass('d-none');
+                    $('#modalCrawlIcon').removeClass('d-none');
+                    $('#modalCrawlAlert').removeClass('alert-info alert-success').addClass('alert-danger').text('Lỗi kết nối khi cào dữ liệu.');
+                }
+            });
+        });
+
+        $('#btnConfirmAddAndSelect').on('click', function() {
+            if (!modalCrawledTaxCode) return;
+            const $btn = $(this);
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span> Đang thêm vào hệ thống...');
+
+            $.ajax({
+                url: '/Import/QuickCrawlAndSelect',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'RequestVerificationToken': antiXsrfToken
+                },
+                data: JSON.stringify({ taxCode: modalCrawledTaxCode }),
+                success: function(res) {
+                    if (res.success) {
+                        $('#modalCrawlAlert').removeClass('d-none alert-danger alert-info').addClass('alert-success').html('<i class="bi bi-check-circle-fill me-1"></i> ' + res.message + ' Đang chuyển sang doanh nghiệp mới...');
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 700);
+                    } else {
+                        $btn.prop('disabled', false).html('<i class="bi bi-plus-circle-fill me-2"></i> Xác nhận Thêm vào hệ thống & Làm việc ngay');
+                        $('#modalCrawlAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Có lỗi xảy ra.'));
+                    }
+                },
+                error: function() {
+                    $btn.prop('disabled', false).html('<i class="bi bi-plus-circle-fill me-2"></i> Xác nhận Thêm vào hệ thống & Làm việc ngay');
+                    $('#modalCrawlAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').text('Lỗi kết nối khi lưu tài khoản.');
                 }
             });
         });

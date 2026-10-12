@@ -28,6 +28,7 @@ namespace InvoiceManager.Controllers
         private readonly IRemoteJobTracker _jobTracker;
         private readonly ICredentialProtector _credentialProtector;
         private readonly IAuditLogService _auditLogService;
+        private readonly ITaxCodeLookupService _taxCodeLookupService;
         private readonly ApplicationDbContext _db;
 
         public ImportController(
@@ -37,6 +38,7 @@ namespace InvoiceManager.Controllers
             IRemoteJobTracker jobTracker,
             ICredentialProtector credentialProtector,
             IAuditLogService auditLogService,
+            ITaxCodeLookupService taxCodeLookupService,
             ApplicationDbContext db)
         {
             _importService = importService;
@@ -45,6 +47,7 @@ namespace InvoiceManager.Controllers
             _jobTracker = jobTracker;
             _credentialProtector = credentialProtector;
             _auditLogService = auditLogService;
+            _taxCodeLookupService = taxCodeLookupService;
             _db = db;
         }
 
@@ -52,10 +55,88 @@ namespace InvoiceManager.Controllers
         public async Task<IActionResult> Index()
         {
             var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
-            if (taxAccount == null) return RedirectToAction("Index", "TaxAccount");
-
             ViewBag.TaxAccount = taxAccount;
             return View();
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuickCrawlAndSelect([FromBody] QuickCrawlRequest model)
+        {
+            if (string.IsNullOrWhiteSpace(model?.TaxCode))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập mã số thuế cần cào thông tin." });
+            }
+
+            var lookup = await _taxCodeLookupService.LookupAsync(model.TaxCode);
+            if (!lookup.Success)
+            {
+                return Json(new { success = false, message = lookup.Message ?? "Không thể cào thông tin từ mã số thuế này." });
+            }
+
+            var cleanTaxCode = lookup.TaxCode!.Trim();
+            var account = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
+            bool isNew = false;
+
+            if (account == null)
+            {
+                isNew = true;
+                account = new TaxAccount
+                {
+                    TaxCode = cleanTaxCode,
+                    CompanyName = lookup.CompanyName?.Trim() ?? "Doanh nghiệp mới",
+                    Address = lookup.Address?.Trim() ?? "",
+                    IsActive = true,
+                    CreatedAt = DateTime.Now
+                };
+                _db.TaxAccounts.Add(account);
+            }
+            else
+            {
+                account.IsActive = true;
+                if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
+                if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
+            }
+
+            await _db.SaveChangesAsync();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var hasAccess = await _db.UserTaxAccounts.AnyAsync(u => u.UserId == userId && u.TaxAccountId == account.Id);
+                if (!hasAccess)
+                {
+                    _db.UserTaxAccounts.Add(new UserTaxAccount
+                    {
+                        UserId = userId,
+                        TaxAccountId = account.Id
+                    });
+                    await _db.SaveChangesAsync();
+                }
+            }
+
+            await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
+
+            await _auditLogService.LogActionAsync(
+                isNew ? "Cào và thêm Doanh nghiệp mới (từ Import)" : "Cào và kích hoạt lại Doanh nghiệp (từ Import)",
+                $"MST: {account.TaxCode}",
+                account.CompanyName,
+                account.Id);
+
+            return Json(new
+            {
+                success = true,
+                isNew = isNew,
+                taxAccountId = account.Id,
+                taxCode = account.TaxCode,
+                companyName = account.CompanyName,
+                address = account.Address,
+                status = lookup.Status ?? "Đang hoạt động",
+                message = isNew
+                    ? $"Đã cào thông tin và thêm doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) vào hệ thống thành công!"
+                    : $"Đã cào thông tin và kích hoạt lại doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
+            });
         }
 
         #region File Upload (XML / ZIP / Excel)

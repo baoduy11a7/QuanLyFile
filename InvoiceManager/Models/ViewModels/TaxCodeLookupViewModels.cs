@@ -14,4 +14,9 @@ namespace InvoiceManager.Models.ViewModels
         public bool ExistsInSystem { get; set; }
         public int? ExistingAccountId { get; set; }
     }
+
+    public class QuickCrawlRequest
+    {
+        public string TaxCode { get; set; } = string.Empty;
+    }
 }

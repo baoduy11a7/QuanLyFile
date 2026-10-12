@@ -13,7 +13,7 @@
         <a asp-action="Lookup" class="btn btn-outline-primary btn-sm fw-semibold">
             <i class="bi bi-search me-1"></i> Tra cứu & Cào MST
         </a>
-        @if (User.IsInRole("Admin"))
+        @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
         {
             <a asp-action="Create" class="btn btn-primary btn-sm fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> Thêm Tài khoản thuế mới
