@@ -44,9 +44,15 @@ namespace InvoiceManager.Services
 
             // 2. Table Headers
             int startRow = 7;
+            bool isBanRa = title.Contains("BÁN RA", StringComparison.OrdinalIgnoreCase)
+                || (invoices.Any() && invoices.All(i => i.InvoiceType == "BanRa"));
+
+            string partnerTaxCodeHeader = isBanRa ? "MST Người mua" : "MST Người bán";
+            string partnerNameHeader = isBanRa ? "Tên người mua" : "Tên người bán";
+
             string[] headers = new[]
             {
-                "STT", "Ký hiệu HĐ", "Số hóa đơn", "Ngày lập", "MST Người bán", "Tên người bán", 
+                "STT", "Ký hiệu HĐ", "Số hóa đơn", "Ngày lập", partnerTaxCodeHeader, partnerNameHeader, 
                 "STT Dòng", "Tên hàng hóa / Dịch vụ", "ĐVT", "Số lượng", "Đơn giá (VND)", 
                 "Tiền chưa thuế (VND)", "Thuế suất (%)", "Tiền thuế GTGT (VND)", "Tổng cộng (VND)", "Trạng thái HĐ"
             };
@@ -95,8 +101,16 @@ namespace InvoiceManager.Services
                     ws.Cell(currentRow, 2).Value = inv.InvoiceSymbol;
                     ws.Cell(currentRow, 3).Value = inv.InvoiceNumber;
                     ws.Cell(currentRow, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                    ws.Cell(currentRow, 5).Value = inv.SellerTaxCode;
-                    ws.Cell(currentRow, 6).Value = inv.SellerName;
+
+                    string rowPartnerTaxCode = isBanRa || inv.InvoiceType == "BanRa"
+                        ? (!string.IsNullOrEmpty(inv.BuyerTaxCode) ? inv.BuyerTaxCode : (inv.SellerTaxCode ?? ""))
+                        : (!string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : (inv.BuyerTaxCode ?? ""));
+                    string rowPartnerName = isBanRa || inv.InvoiceType == "BanRa"
+                        ? (!string.IsNullOrEmpty(inv.BuyerName) ? inv.BuyerName : (inv.SellerName ?? ""))
+                        : (!string.IsNullOrEmpty(inv.SellerName) ? inv.SellerName : (inv.BuyerName ?? ""));
+
+                    ws.Cell(currentRow, 5).Value = rowPartnerTaxCode;
+                    ws.Cell(currentRow, 6).Value = rowPartnerName;
                     ws.Cell(currentRow, 7).Value = d.LineNumber;
                     ws.Cell(currentRow, 8).Value = d.ItemName;
                     ws.Cell(currentRow, 9).Value = d.Unit ?? "";
@@ -191,9 +205,15 @@ namespace InvoiceManager.Services
 
             // 2. Table Headers
             int startRow = 7;
+            bool isBanRa = title.Contains("BÁN RA", StringComparison.OrdinalIgnoreCase)
+                || (invoices.Any() && invoices.All(i => i.InvoiceType == "BanRa"));
+
+            string partnerTaxCodeHeader = isBanRa ? "MST Người mua" : "MST Người bán";
+            string partnerNameHeader = isBanRa ? "Tên người mua" : "Tên người bán";
+
             string[] headers = new[]
             {
-                "STT", "Ký hiệu", "Số HĐ", "Ngày lập", "MST Người bán", "Tên người bán", 
+                "STT", "Ký hiệu", "Số HĐ", "Ngày lập", partnerTaxCodeHeader, partnerNameHeader, 
                 "Tiền chưa thuế (VND)", "Tiền thuế GTGT (VND)", "Tổng tiền thanh toán (VND)", 
                 "Có mã CQT", "Trạng thái", "Chứng từ kế toán"
             };
@@ -222,8 +242,16 @@ namespace InvoiceManager.Services
                 ws.Cell(currentRow, 2).Value = inv.InvoiceSymbol;
                 ws.Cell(currentRow, 3).Value = inv.InvoiceNumber;
                 ws.Cell(currentRow, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                ws.Cell(currentRow, 5).Value = inv.SellerTaxCode;
-                ws.Cell(currentRow, 6).Value = inv.SellerName;
+
+                string rowPartnerTaxCode = isBanRa || inv.InvoiceType == "BanRa"
+                    ? (!string.IsNullOrEmpty(inv.BuyerTaxCode) ? inv.BuyerTaxCode : (inv.SellerTaxCode ?? ""))
+                    : (!string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : (inv.BuyerTaxCode ?? ""));
+                string rowPartnerName = isBanRa || inv.InvoiceType == "BanRa"
+                    ? (!string.IsNullOrEmpty(inv.BuyerName) ? inv.BuyerName : (inv.SellerName ?? ""))
+                    : (!string.IsNullOrEmpty(inv.SellerName) ? inv.SellerName : (inv.BuyerName ?? ""));
+
+                ws.Cell(currentRow, 5).Value = rowPartnerTaxCode;
+                ws.Cell(currentRow, 6).Value = rowPartnerName;
 
                 ws.Cell(currentRow, 7).Value = inv.AmountBeforeTax;
                 ws.Cell(currentRow, 7).Style.NumberFormat.Format = "#,##0";
@@ -286,11 +314,18 @@ namespace InvoiceManager.Services
             using var zipStream = new MemoryStream();
             using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
             {
+                var entryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var inv in invoices)
                 {
                     // 1. Gói file HTML thể hiện chuẩn
                     var htmlContent = GenerateInvoiceHtml(inv);
                     var htmlEntryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.html";
+                    if (entryNames.Contains(htmlEntryName))
+                    {
+                        htmlEntryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.Id}.html";
+                    }
+                    entryNames.Add(htmlEntryName);
+
                     var htmlEntry = archive.CreateEntry(htmlEntryName);
                     using (var entryStream = htmlEntry.Open())
                     using (var writer = new StreamWriter(entryStream, Encoding.UTF8))
@@ -302,6 +337,12 @@ namespace InvoiceManager.Services
                     if (!string.IsNullOrEmpty(inv.RawXmlPath) && File.Exists(inv.RawXmlPath))
                     {
                         var xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.xml";
+                        if (entryNames.Contains(xmlEntryName))
+                        {
+                            xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.Id}.xml";
+                        }
+                        entryNames.Add(xmlEntryName);
+
                         var xmlEntry = archive.CreateEntry(xmlEntryName);
                         using var fs = File.OpenRead(inv.RawXmlPath);
                         using var entryStream = xmlEntry.Open();
@@ -318,12 +359,19 @@ namespace InvoiceManager.Services
             using var zipStream = new MemoryStream();
             using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
             {
+                var entryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var inv in invoices)
                 {
                     try
                     {
                         byte[] pdfBytes = await GenerateInvoicePdfAsync(inv);
                         var entryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}.pdf";
+                        if (entryNames.Contains(entryName))
+                        {
+                            entryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}_{inv.Id}.pdf";
+                        }
+                        entryNames.Add(entryName);
+
                         var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
                         using var entryStream = entry.Open();
                         await entryStream.WriteAsync(pdfBytes, 0, pdfBytes.Length);

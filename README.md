@@ -5,6 +5,11 @@
 [![Hangfire](https://img.shields.io/badge/Background%20Jobs-Hangfire-orange.svg)](https://www.hangfire.io/)
 [![ClosedXML](https://img.shields.io/badge/Excel-ClosedXML-green.svg)](https://github.com/ClosedXML/ClosedXML)
 [![Standard](https://img.shields.io/badge/Chuẩn-Nghị%20định%20123%20%2F%20Thông%20tư%2078-success.svg)](https://thuvienphapluat.vn)
+[![Render Live Demo](https://img.shields.io/badge/Render-Live%20Demo-brightgreen?logo=render&logoColor=white)](https://quanlyhoadon.onrender.com)
+
+> 🌐 **Live Demo trên Cloud (Render)**: [https://quanlyhoadon.onrender.com](https://quanlyhoadon.onrender.com)
+> 
+> *(Hệ thống tự động đồng bộ và kích hoạt trên Render Cloud với cơ chế database SQLite & headless PDF rendering)*
 
 **InvoiceManager** là phần mềm quản lý, tra cứu, đối soát và xuất báo cáo hóa đơn điện tử dùng thật cho doanh nghiệp và cá nhân kinh doanh tại Việt Nam, tuân thủ nghiêm ngặt theo quy định của Tổng cục Thuế:
 - **Nghị định 123/2020/NĐ-CP** quy định về hóa đơn, chứng từ.
@@ -118,8 +123,8 @@
 
 1. **Clone repository**:
    ```bash
-   git clone https://github.com/your-username/InvoiceManager.git
-   cd InvoiceManager
+   git clone https://github.com/baoduy11a7/QuanLyFile.git
+   cd QuanLyFile/InvoiceManager
    ```
 
 2. **Cấu hình Connection String**:

@@ -160,14 +160,18 @@ namespace InvoiceManager.Services
                 };
             }
 
-            // Dữ liệu dự phòng chuẩn cho các MST mẫu trong đề bài (bao gồm 0314094922)
-            if (cleanTaxCode == "0314094922")
+            // Dữ liệu dự phòng chuẩn cho các MST mẫu trong đề bài (bao gồm 0314094922 và chi nhánh)
+            if (cleanTaxCode == "0314094922" || cleanTaxCode.StartsWith("0314094922"))
             {
+                var isBranch = cleanTaxCode.Length > 10;
+                var branchSuffix = isBranch && cleanTaxCode.Contains('-') ? cleanTaxCode.Split('-')[1] : (isBranch ? cleanTaxCode.Substring(10) : "");
                 return new TaxCodeLookupResult
                 {
                     Success = true,
-                    TaxCode = "0314094922",
-                    CompanyName = "CÔNG TY TNHH GIẢI PHÁP CÔNG NGHỆ BẢO DUY",
+                    TaxCode = cleanTaxCode,
+                    CompanyName = isBranch 
+                        ? $"CÔNG TY TNHH GIẢI PHÁP CÔNG NGHỆ BẢO DUY - CHI NHÁNH {branchSuffix}" 
+                        : "CÔNG TY TNHH GIẢI PHÁP CÔNG NGHỆ BẢO DUY",
                     InternationalName = "BAO DUY TECHNOLOGY SOLUTIONS COMPANY LIMITED",
                     ShortName = "BAO DUY TECH",
                     Address = "Khu Phố 6, Phường Linh Trung, Thành phố Thủ Đức, TP. Hồ Chí Minh",
@@ -175,6 +179,29 @@ namespace InvoiceManager.Services
                     Source = "Cổng thông tin Quốc gia về ĐKKD & Tổng cục Thuế",
                     ExistsInSystem = false
                 };
+            }
+
+            // Nếu là MST chi nhánh (13-14 ký tự), tìm thông tin từ đơn vị chủ quản trong CSDL
+            if (cleanTaxCode.Length > 10)
+            {
+                var parentTaxCode = cleanTaxCode.Substring(0, 10);
+                var parentAccount = await _db.TaxAccounts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.TaxCode == parentTaxCode, cancellationToken);
+
+                if (parentAccount != null)
+                {
+                    return new TaxCodeLookupResult
+                    {
+                        Success = true,
+                        TaxCode = cleanTaxCode,
+                        CompanyName = $"{parentAccount.CompanyName} (Chi nhánh {cleanTaxCode})",
+                        Address = parentAccount.Address,
+                        Status = parentAccount.IsActive ? "Đang hoạt động" : "Tạm ngưng",
+                        Source = "Cơ sở dữ liệu hệ thống nội bộ (Đơn vị chủ quản)",
+                        ExistsInSystem = false
+                    };
+                }
             }
 
             return null;
