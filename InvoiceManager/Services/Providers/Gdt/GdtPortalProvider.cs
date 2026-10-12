@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -63,8 +64,100 @@ namespace InvoiceManager.Services.Providers.Gdt
             }
         }
 
+        private async Task<string?> RunHeadlessAgentAsync(string args, CancellationToken ct)
+        {
+            try
+            {
+                var scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "tools", "gdt_agent.js");
+                if (!File.Exists(scriptPath))
+                {
+                    scriptPath = Path.Combine(AppContext.BaseDirectory, "tools", "gdt_agent.js");
+                }
+                if (!File.Exists(scriptPath))
+                {
+                    scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "gdt_agent.js");
+                }
+                if (!File.Exists(scriptPath))
+                {
+                    var parentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName;
+                    if (!string.IsNullOrEmpty(parentDir))
+                    {
+                        scriptPath = Path.Combine(parentDir, "tools", "gdt_agent.js");
+                    }
+                }
+
+                if (!File.Exists(scriptPath))
+                {
+                    _logger.LogWarning("Không tìm thấy gdt_agent.js tại: {Path}", scriptPath);
+                    return null;
+                }
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "node",
+                    Arguments = $"\"{scriptPath}\" {args}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8
+                };
+
+                using var process = Process.Start(psi);
+                if (process == null) return null;
+
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+
+                await process.WaitForExitAsync(ct);
+                var output = await stdoutTask;
+                return output?.Trim();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi chạy headless Chrome agent: {Args}", args);
+                return null;
+            }
+        }
+
         public async Task<CaptchaChallenge?> GetCaptchaAsync(CancellationToken ct = default)
         {
+            // 1. Thử lấy Captcha qua Headless Chrome Agent (đồng bộ chuẩn session browser)
+            try
+            {
+                var agentOutput = await RunHeadlessAgentAsync("get-captcha", ct);
+                if (!string.IsNullOrEmpty(agentOutput))
+                {
+                    using var doc = JsonDocument.Parse(agentOutput);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("success", out var succ) && succ.GetBoolean())
+                    {
+                        string key = root.TryGetProperty("key", out var kp) ? kp.GetString() ?? "" : "";
+                        string content = root.TryGetProperty("content", out var cp) ? cp.GetString() ?? "" : "";
+                        if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(content))
+                        {
+                            bool isSvg = content.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase);
+                            string formatted = isSvg
+                                ? "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(content))
+                                : (content.StartsWith("data:image", StringComparison.OrdinalIgnoreCase) ? content : "data:image/png;base64," + content);
+
+                            return new CaptchaChallenge
+                            {
+                                Key = key,
+                                ImageBase64 = formatted,
+                                IsSvg = isSvg,
+                                SvgContent = isSvg ? content : null
+                            };
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi lấy captcha qua Headless Agent, chuyển sang HttpClient.");
+            }
+
+            // 2. Fallback sang HttpClient truyền thống
             try
             {
                 var client = CreateClient();
@@ -93,7 +186,6 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                 if (string.IsNullOrEmpty(rawImage))
                 {
-                    // Trường hợp trả trực tiếp image bytes
                     var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/svg+xml";
                     var bytes = await response.Content.ReadAsByteArrayAsync(ct);
                     var b64 = Convert.ToBase64String(bytes);
@@ -105,7 +197,6 @@ namespace InvoiceManager.Services.Providers.Gdt
                     };
                 }
 
-                // Nếu là chuỗi SVG hoặc Base64
                 bool isSvg = rawImage.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase);
                 string formattedBase64;
                 if (isSvg)
@@ -145,6 +236,43 @@ namespace InvoiceManager.Services.Providers.Gdt
 
             try
             {
+                // 1. Thử đăng nhập qua Headless Chrome Agent (để vượt qua lớp bảo mật F5 WAF của Cổng Thuế)
+                var safeUser = cred.Username.Trim().Replace("\"", "\\\"");
+                var safePass = cred.Password.Replace("\"", "\\\"");
+                var safeCaptcha = (cred.CaptchaCode?.Trim() ?? string.Empty).Replace("\"", "\\\"");
+                var safeKey = (cred.CaptchaKey ?? string.Empty).Replace("\"", "\\\"");
+
+                var agentArgs = $"login --username \"{safeUser}\" --password \"{safePass}\" --captcha \"{safeCaptcha}\" --key \"{safeKey}\"";
+                var agentOutput = await RunHeadlessAgentAsync(agentArgs, ct);
+                if (!string.IsNullOrEmpty(agentOutput))
+                {
+                    try
+                    {
+                        using var agentDoc = JsonDocument.Parse(agentOutput);
+                        var agentRoot = agentDoc.RootElement;
+                        if (agentRoot.TryGetProperty("success", out var successProp) && successProp.GetBoolean())
+                        {
+                            string? token = agentRoot.TryGetProperty("token", out var tokProp) ? tokProp.GetString() : null;
+                            if (!string.IsNullOrEmpty(token))
+                            {
+                                _logger.LogInformation("Đăng nhập Cổng Thuế thành công qua Headless Chrome Agent cho MST: {Mst}", cred.Username);
+                                return LoginResult.Ok(token, DateTime.UtcNow.AddHours(4));
+                            }
+                        }
+                        else
+                        {
+                            string msg = agentRoot.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "Đăng nhập không thành công" : "Đăng nhập không thành công";
+                            _logger.LogWarning("Headless Chrome Agent trả về lỗi: {Msg}", msg);
+                            return LoginResult.Fail(msg, true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Không thể phân tích phản hồi từ Headless Chrome Agent: {Output}", agentOutput);
+                    }
+                }
+
+                // 2. Fallback sang HttpClient truyền thống nếu Headless Agent không chạy được
                 await ApplyRateLimitAsync(ct);
                 var client = CreateClient();
 
@@ -152,7 +280,7 @@ namespace InvoiceManager.Services.Providers.Gdt
                 {
                     username = cred.Username.Trim(),
                     password = cred.Password,
-                    cpassword = cred.CaptchaCode?.Trim() ?? string.Empty,
+                    cvalue = cred.CaptchaCode?.Trim() ?? string.Empty,
                     ckey = cred.CaptchaKey ?? string.Empty
                 };
 
@@ -189,7 +317,7 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                     if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
                     {
-                        return LoginResult.Fail($"Cổng thuế từ chối xác thực (401/403): {errorMsg}{tip}", true);
+                        return LoginResult.Fail($"Cổng thuế từ chối xác thực ({response.StatusCode}): {errorMsg}{tip}", true);
                     }
 
                     return LoginResult.Fail($"Lỗi từ Cổng thuế ({response.StatusCode}): {errorMsg}{tip}", true);
@@ -197,18 +325,18 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                 using var doc = JsonDocument.Parse(responseBody);
                 var root = doc.RootElement;
-                string? token = null;
+                string? tokenDirect = null;
 
-                if (root.TryGetProperty("token", out var tokenProp)) token = tokenProp.GetString();
-                else if (root.TryGetProperty("access_token", out var accTokenProp)) token = accTokenProp.GetString();
-                else if (root.TryGetProperty("jwt", out var jwtProp)) token = jwtProp.GetString();
+                if (root.TryGetProperty("token", out var tokenProp)) tokenDirect = tokenProp.GetString();
+                else if (root.TryGetProperty("access_token", out var accTokenProp)) tokenDirect = accTokenProp.GetString();
+                else if (root.TryGetProperty("jwt", out var jwtProp)) tokenDirect = jwtProp.GetString();
 
-                if (string.IsNullOrEmpty(token))
+                if (string.IsNullOrEmpty(tokenDirect))
                 {
                     return LoginResult.Fail("Đăng nhập thành công nhưng không nhận được mã xác thực (Token).");
                 }
 
-                return LoginResult.Ok(token, DateTime.UtcNow.AddHours(4));
+                return LoginResult.Ok(tokenDirect, DateTime.UtcNow.AddHours(4));
             }
             catch (Exception ex)
             {
@@ -281,7 +409,38 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                         if (!response.IsSuccessStatusCode)
                         {
-                            _logger.LogWarning("Truy vấn Cổng Thuế trả về mã {StatusCode} cho endpoint {Query}", response.StatusCode, query);
+                            _logger.LogWarning("Truy vấn trực tiếp Cổng Thuế trả về mã {StatusCode}, thử lấy qua Headless Chrome Agent...", response.StatusCode);
+                            var searchArg = $"tdlap=ge={fromStr}T00:00:00;tdlap=le={toStr}T23:59:59";
+                            var agentFetchArgs = $"fetch-invoices --token \"{token}\" --endpoint \"/{baseEndpoint}\" --search \"{searchArg}\"";
+                            var agentFetchOut = await RunHeadlessAgentAsync(agentFetchArgs, ct);
+                            var agentInvoices = new List<RemoteInvoice>();
+                            if (!string.IsNullOrEmpty(agentFetchOut))
+                            {
+                                try
+                                {
+                                    using var fetchDoc = JsonDocument.Parse(agentFetchOut);
+                                    if (fetchDoc.RootElement.TryGetProperty("datas", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                                    {
+                                        foreach (var item in arr.EnumerateArray())
+                                        {
+                                            var remote = ParseInvoiceItem(item, invType, req.TaxCode);
+                                            if (remote != null)
+                                            {
+                                                agentInvoices.Add(remote);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Lỗi phân tích hóa đơn từ Headless Chrome Agent");
+                                }
+                            }
+
+                            foreach (var remote in agentInvoices)
+                            {
+                                yield return remote;
+                            }
                             break;
                         }
 
