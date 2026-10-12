@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Đồng Bộ Hóa Đơn Điện Tử (GDT Sync Helper)",
+  "version": "1.0.0",
+  "description": "Tiện ích đồng bộ hóa đơn từ Cổng Tổng cục Thuế (hoadondientu.gdt.gov.vn) vào Phần mềm Quản Lý Hóa Đơn an toàn, không bị tường lửa chặn.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://hoadondientu.gdt.gov.vn/*",
+    "http://localhost:*/*",
+    "https://*.onrender.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Đồng Bộ Hóa Đơn Điện Tử"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://hoadondientu.gdt.gov.vn/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

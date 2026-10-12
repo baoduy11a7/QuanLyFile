@@ -134,6 +134,17 @@ builder.Services.AddScoped<InvoiceAutoSyncJob>();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<ICredentialProtector, CredentialProtector>();
 
+// CORS cho phép Chrome Extension đồng bộ hóa đơn trực tiếp
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowExtension", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // Cấu hình Cổng Tổng cục Thuế & IHttpClientFactory kèm Polly Retry Policy
 builder.Services.Configure<GdtPortalOptions>(builder.Configuration.GetSection(GdtPortalOptions.SectionName));
 builder.Services.AddHttpClient(GdtPortalProvider.ClientName)
@@ -227,6 +238,7 @@ if (!isRender)
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseCors("AllowExtension");
 
 app.UseSession();
 app.UseAuthentication();
