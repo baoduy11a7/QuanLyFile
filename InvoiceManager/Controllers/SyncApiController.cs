@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 namespace InvoiceManager.Controllers
 {
     [ApiController]
+    [Route("api/sync")]
     [Route("api/[controller]")]
     [EnableCors("AllowExtension")]
     public class SyncApiController : ControllerBase

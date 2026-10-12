@@ -9,6 +9,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btnStartSync = document.getElementById("btnStartSync");
     const btnCopyToken = document.getElementById("btnCopyToken");
     const badgeGdtStatus = document.getElementById("badgeGdtStatus");
+    const btnRefreshTab = document.getElementById("btnRefreshTab");
+    const btnToggleManualToken = document.getElementById("btnToggleManualToken");
+    const manualTokenBox = document.getElementById("manualTokenBox");
+    const manualTokenInput = document.getElementById("manualTokenInput");
+    const btnSaveManualToken = document.getElementById("btnSaveManualToken");
     const progressBox = document.getElementById("progressBox");
     const progressBar = document.getElementById("progressBar");
     const progressText = document.getElementById("progressText");
@@ -16,6 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const logBox = document.getElementById("logBox");
 
     let currentToken = null;
+    const JWT_REGEX = /eyJh[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/;
 
     // 1. Khởi tạo ngày tháng mặc định (30 ngày gần nhất)
     const today = new Date();
@@ -30,6 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (data.taxCode) syncMstInput.value = data.taxCode;
         if (data.gdtToken) {
             currentToken = data.gdtToken;
+            manualTokenInput.value = data.gdtToken;
             updateGdtStatus(true, data.taxCode);
         } else {
             detectTokenFromTab();
@@ -40,49 +47,89 @@ document.addEventListener("DOMContentLoaded", async () => {
         chrome.storage.local.set({ serverUrl: serverUrlInput.value.trim().replace(/\/+$/, "") });
     });
 
-    // 3. Tự động kiểm tra Token từ tab đang mở
+    // 3. Quét Token từ Tab Cổng Thuế
     async function detectTokenFromTab() {
+        badgeGdtStatus.className = "status-badge badge-warning";
+        badgeGdtStatus.innerText = "Đang quét tab...";
+
         try {
             const tabs = await chrome.tabs.query({ url: "*://hoadondientu.gdt.gov.vn/*" });
-            if (tabs && tabs.length > 0) {
-                chrome.scripting.executeScript({
-                    target: { tabId: tabs[0].id },
-                    func: () => {
-                        let token = null;
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const k = localStorage.key(i);
-                            const v = localStorage.getItem(k);
-                            if (v && (k.toLowerCase().includes("token") || k.toLowerCase().includes("jwt") || v.startsWith("eyJh"))) {
-                                token = v; break;
-                            }
-                        }
-                        if (!token) {
-                            for (let i = 0; i < sessionStorage.length; i++) {
-                                const k = sessionStorage.key(i);
-                                const v = sessionStorage.getItem(k);
-                                if (v && (k.toLowerCase().includes("token") || k.toLowerCase().includes("jwt") || v.startsWith("eyJh"))) {
-                                    token = v; break;
-                                }
-                            }
-                        }
-                        return token;
-                    }
-                }, (results) => {
-                    if (results && results[0] && results[0].result) {
-                        let tok = results[0].result;
-                        if (tok.startsWith('"') && tok.endsWith('"')) tok = tok.slice(1, -1);
-                        currentToken = tok;
-                        chrome.storage.local.set({ gdtToken: tok });
-                        updateGdtStatus(true);
+            if (!tabs || tabs.length === 0) {
+                // Kiểm tra tab đang mở bất kỳ
+                chrome.storage.local.get(["gdtToken", "taxCode"], (d) => {
+                    if (d.gdtToken) {
+                        currentToken = d.gdtToken;
+                        updateGdtStatus(true, d.taxCode);
                     } else {
                         updateGdtStatus(false);
                     }
                 });
-            } else {
-                updateGdtStatus(false);
+                return;
             }
+
+            const targetTab = tabs[0];
+            const injectionResults = await chrome.scripting.executeScript({
+                target: { tabId: targetTab.id },
+                func: () => {
+                    const regex = /eyJh[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/;
+                    let foundToken = null;
+
+                    // Quét sessionStorage
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const val = sessionStorage.getItem(sessionStorage.key(i));
+                        const m = (val || "").match(regex);
+                        if (m) { foundToken = m[0]; break; }
+                    }
+
+                    // Quét localStorage
+                    if (!foundToken) {
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const val = localStorage.getItem(localStorage.key(i));
+                            const m = (val || "").match(regex);
+                            if (m) { foundToken = m[0]; break; }
+                        }
+                    }
+
+                    // Tìm MST
+                    let mst = "";
+                    const text = document.body ? document.body.innerText : "";
+                    const mstMatch = text.match(/(?:MST|Mã số thuế)[:\s]+([0-9]{10}(?:-[0-9]{3})?)/i);
+                    if (mstMatch) mst = mstMatch[1];
+
+                    return { token: foundToken, mst: mst };
+                }
+            });
+
+            if (injectionResults && injectionResults[0] && injectionResults[0].result) {
+                const { token, mst } = injectionResults[0].result;
+                if (token) {
+                    currentToken = token;
+                    manualTokenInput.value = token;
+                    if (mst && !syncMstInput.value) syncMstInput.value = mst;
+                    chrome.storage.local.set({ gdtToken: token, taxCode: mst || undefined });
+                    updateGdtStatus(true, mst);
+                    return;
+                }
+            }
+
+            chrome.storage.local.get(["gdtToken", "taxCode"], (d) => {
+                if (d.gdtToken) {
+                    currentToken = d.gdtToken;
+                    updateGdtStatus(true, d.taxCode);
+                } else {
+                    updateGdtStatus(false);
+                }
+            });
         } catch (e) {
-            updateGdtStatus(false);
+            console.error(e);
+            chrome.storage.local.get(["gdtToken", "taxCode"], (d) => {
+                if (d.gdtToken) {
+                    currentToken = d.gdtToken;
+                    updateGdtStatus(true, d.taxCode);
+                } else {
+                    updateGdtStatus(false);
+                }
+            });
         }
     }
 
@@ -95,6 +142,27 @@ document.addEventListener("DOMContentLoaded", async () => {
             badgeGdtStatus.innerText = "🔴 Chưa đăng nhập Cổng Thuế";
         }
     }
+
+    btnRefreshTab.addEventListener("click", detectTokenFromTab);
+
+    // Toggle nhập Token thủ công
+    btnToggleManualToken.addEventListener("click", () => {
+        manualTokenBox.style.display = manualTokenBox.style.display === "block" ? "none" : "block";
+    });
+
+    btnSaveManualToken.addEventListener("click", () => {
+        const val = manualTokenInput.value.trim();
+        const m = val.match(JWT_REGEX);
+        if (m) {
+            currentToken = m[0];
+            chrome.storage.local.set({ gdtToken: currentToken });
+            updateGdtStatus(true);
+            alert("Đã lưu Token thành công!");
+            manualTokenBox.style.display = "none";
+        } else {
+            alert("Mã Token không hợp lệ. Chuỗi Token thường bắt đầu bằng 'eyJh...'.");
+        }
+    });
 
     function appendLog(msg, type = "info") {
         const time = new Date().toLocaleTimeString();
@@ -111,7 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (text) progressText.innerText = text;
     }
 
-    // 4. Kiểm tra kết nối máy chủ phần mềm
+    // 4. Kiểm tra kết nối máy chủ phần mềm (Hỗ trợ cả /api/sync và /api/SyncApi)
     btnTestConn.addEventListener("click", async () => {
         const url = (serverUrlInput.value || "").trim().replace(/\/+$/, "");
         if (!url) {
@@ -121,7 +189,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         connResult.innerHTML = "<span>Đang kết nối...</span>";
         try {
-            const res = await fetch(`${url}/api/sync/companies`);
+            // Thử cả 2 đường dẫn để tương thích 100%
+            let res;
+            try {
+                res = await fetch(`${url}/api/SyncApi/companies`);
+                if (!res.ok) res = await fetch(`${url}/api/sync/companies`);
+            } catch (err1) {
+                res = await fetch(`${url}/api/sync/companies`);
+            }
+
+            if (!res.ok) {
+                throw new Error(`Mã phản hồi HTTP ${res.status}`);
+            }
+
             const data = await res.json();
             if (data.success) {
                 connResult.innerHTML = `<span style='color:green;'>✅ Kết nối tốt! (${data.companies.length} công ty trên hệ thống)</span>`;
@@ -129,17 +209,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                     syncMstInput.value = data.companies[0].taxCode;
                 }
             } else {
-                connResult.innerHTML = `<span style='color:red;'>❌ Máy chủ phản hồi lỗi: ${data.message}</span>`;
+                connResult.innerHTML = `<span style='color:red;'>❌ Máy chủ phản hồi: ${data.message}</span>`;
             }
         } catch (err) {
-            connResult.innerHTML = `<span style='color:red;'>❌ Không thể kết nối tới ${url}.</span>`;
+            connResult.innerHTML = `<span style='color:red;'>❌ Không thể kết nối tới ${url} (${err.message}).</span>`;
         }
     });
 
     // 5. Sao chép Token
     btnCopyToken.addEventListener("click", () => {
         if (!currentToken) {
-            alert("Chưa phát hiện Token. Vui lòng mở trang hoadondientu.gdt.gov.vn và đăng nhập trước!");
+            alert("Chưa phát hiện Token. Vui lòng mở trang hoadondientu.gdt.gov.vn và đăng nhập trước, hoặc bấm 'Dán Token thủ công'!");
             return;
         }
         navigator.clipboard.writeText(currentToken);
@@ -163,7 +243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
         if (!currentToken) {
-            alert("Chưa có phiên làm việc Cổng Thuế! Hãy mở tab hoadondientu.gdt.gov.vn và đăng nhập tài khoản trước.");
+            alert("Chưa có phiên Cổng Thuế! Hãy mở tab hoadondientu.gdt.gov.vn và đăng nhập, hoặc bấm 'Dán Token thủ công'.");
             return;
         }
 
@@ -174,7 +254,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         appendLog(`Bắt đầu đồng bộ hóa đơn cho MST: ${taxCode}...`, "info");
 
         try {
-            // Định dạng ngày query Cổng Thuế: dd/MM/yyyy
             const [fY, fM, fD] = fromDate.split("-");
             const [tY, tM, tD] = toDate.split("-");
             const fromFormatted = `${fD}/${fM}/${fY}`;
@@ -198,8 +277,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (!gdtRes.ok) {
                 if (gdtRes.status === 401 || gdtRes.status === 403) {
-                    appendLog("Phiên đăng nhập Cổng Thuế đã hết hạn! Vui lòng F5 tab Cổng Thuế và đăng nhập lại.", "error");
-                    alert("Phiên đăng nhập Cổng Thuế đã hết hạn. Hãy tải lại trang Cổng Thuế và đăng nhập lại.");
+                    appendLog("Phiên Cổng Thuế đã hết hạn! Vui lòng F5 tab Cổng Thuế để đăng nhập lại.", "error");
+                    alert("Phiên Cổng Thuế đã hết hạn. Hãy tải lại trang Cổng Thuế và đăng nhập lại.");
                 } else {
                     appendLog(`Lỗi từ Cổng Thuế (HTTP ${gdtRes.status}).`, "error");
                 }
@@ -218,7 +297,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
-            // Chuẩn hóa dữ liệu sang model của InvoiceManager
             const mappedInvoices = rawItems.map(item => ({
                 providerKey: item.id || `${item.nbmst}_${item.khhdon}_${item.shdon}`,
                 invoiceSymbol: item.khhdon || "",
@@ -240,15 +318,39 @@ document.addEventListener("DOMContentLoaded", async () => {
             setProgress(65, "Đang đẩy dữ liệu về phần mềm...");
             appendLog(`Đang gửi ${mappedInvoices.length} hóa đơn về máy chủ ${targetServer}...`, "info");
 
-            const pushRes = await fetch(`${targetServer}/api/sync/push-invoices`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    taxCode: taxCode,
-                    invoiceType: invoiceType,
-                    invoices: mappedInvoices
-                })
-            });
+            let pushRes;
+            try {
+                pushRes = await fetch(`${targetServer}/api/SyncApi/push-invoices`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        taxCode: taxCode,
+                        invoiceType: invoiceType,
+                        invoices: mappedInvoices
+                    })
+                });
+                if (!pushRes.ok) {
+                    pushRes = await fetch(`${targetServer}/api/sync/push-invoices`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            taxCode: taxCode,
+                            invoiceType: invoiceType,
+                            invoices: mappedInvoices
+                        })
+                    });
+                }
+            } catch (errP) {
+                pushRes = await fetch(`${targetServer}/api/sync/push-invoices`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        taxCode: taxCode,
+                        invoiceType: invoiceType,
+                        invoices: mappedInvoices
+                    })
+                });
+            }
 
             const pushResult = await pushRes.json();
 

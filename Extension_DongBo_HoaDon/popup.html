@@ -50,6 +50,12 @@
             color: #1e3a8a;
         }
 
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         .status-badge {
             font-size: 11px;
             padding: 3px 8px;
@@ -60,6 +66,16 @@
         .badge-success { background: #dcfce7; color: #15803d; }
         .badge-warning { background: #fef3c7; color: #b45309; }
         .badge-danger { background: #fee2e2; color: #b91c1c; }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .btn-icon:hover { background: #e2e8f0; }
 
         .card {
             background: var(--card-bg);
@@ -98,7 +114,7 @@
             color: #334155;
         }
 
-        input[type="text"], input[type="date"], select {
+        input[type="text"], input[type="date"], select, textarea {
             width: 100%;
             padding: 7px 10px;
             border: 1px solid var(--border);
@@ -110,7 +126,7 @@
             transition: border-color 0.2s;
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
         }
@@ -202,7 +218,13 @@
             color: var(--primary);
             text-decoration: underline;
             cursor: pointer;
-            float: right;
+        }
+
+        .manual-token-box {
+            display: none;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border);
         }
     </style>
 </head>
@@ -211,7 +233,10 @@
         <div class="header-title">
             <span>⚡ GDT Sync Helper</span>
         </div>
-        <span id="badgeGdtStatus" class="status-badge badge-warning">Đang kiểm tra...</span>
+        <div class="status-container">
+            <span id="badgeGdtStatus" class="status-badge badge-warning">Đang kiểm tra...</span>
+            <button id="btnRefreshTab" class="btn-icon" title="Quét lại tab Cổng Thuế">🔄</button>
+        </div>
     </div>
 
     <!-- CẤU HÌNH MÁY CHỦ -->
@@ -251,6 +276,14 @@
             <div class="form-group">
                 <label for="toDate">Đến ngày:</label>
                 <input type="date" id="toDate">
+            </div>
+        </div>
+
+        <div style="margin-top: 8px;">
+            <span class="token-link" id="btnToggleManualToken">✏️ Dán Token thủ công (nếu cần)</span>
+            <div class="manual-token-box" id="manualTokenBox">
+                <textarea id="manualTokenInput" rows="2" placeholder="Dán mã Bearer Token (eyJh...) vào đây"></textarea>
+                <button type="button" class="btn btn-secondary" id="btnSaveManualToken" style="padding: 4px 8px; font-size: 11px; margin-top: 4px;">Lưu Token</button>
             </div>
         </div>
     </div>
