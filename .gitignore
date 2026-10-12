@@ -44,3 +44,7 @@ bld/
 ## OS generated files
 .DS_Store
 Thumbs.db
+
+## Cloudflare binary
+tools/*.exe
+tools/*.log
