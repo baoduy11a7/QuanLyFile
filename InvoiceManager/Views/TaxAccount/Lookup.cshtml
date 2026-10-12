@@ -133,6 +133,17 @@
                             <div class="d-flex gap-2 flex-wrap">
                                 @if (Model.ExistsInSystem && Model.ExistingAccountId.HasValue)
                                 {
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <form asp-action="UpdateFromTaxCode" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="taxCode" value="@Model.TaxCode" />
+                                            <button type="submit" class="btn btn-warning text-dark fw-bold px-3 shadow-sm" title="Ghi đè tên công ty và địa chỉ mới nhất cào từ Cổng Thuế vào hệ thống">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Cập nhật thông tin mới vào hệ thống
+                                            </button>
+                                        </form>
+                                    }
+
                                     <form asp-action="Switch" method="post" class="m-0">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@Model.ExistingAccountId.Value" />

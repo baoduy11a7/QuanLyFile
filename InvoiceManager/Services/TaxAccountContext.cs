@@ -83,13 +83,21 @@ namespace InvoiceManager.Services
             var context = HttpContext;
             if (context != null)
             {
-                context.Session.SetInt32(SessionKeyCurrentTaxAccountId, taxAccountId);
-                context.Response.Cookies.Append(CookieKeyCurrentTaxAccountId, taxAccountId.ToString(), new CookieOptions
+                if (taxAccountId <= 0)
                 {
-                    HttpOnly = true,
-                    SameSite = SameSiteMode.Lax,
-                    Expires = DateTimeOffset.UtcNow.AddDays(30)
-                });
+                    context.Session.Remove(SessionKeyCurrentTaxAccountId);
+                    context.Response.Cookies.Delete(CookieKeyCurrentTaxAccountId);
+                }
+                else
+                {
+                    context.Session.SetInt32(SessionKeyCurrentTaxAccountId, taxAccountId);
+                    context.Response.Cookies.Append(CookieKeyCurrentTaxAccountId, taxAccountId.ToString(), new CookieOptions
+                    {
+                        HttpOnly = true,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = DateTimeOffset.UtcNow.AddDays(30)
+                    });
+                }
             }
 
             return Task.CompletedTask;

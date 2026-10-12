@@ -120,13 +120,6 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var totalCount = await _db.TaxAccounts.CountAsync();
-            if (totalCount <= 1)
-            {
-                TempData["ErrorMessage"] = "Không thể xóa tài khoản thuế duy nhất còn lại trên hệ thống.";
-                return RedirectToAction(nameof(Index));
-            }
-
             try
             {
                 // 1. Dọn dẹp các dữ liệu phụ thuộc
@@ -169,7 +162,7 @@ namespace InvoiceManager.Controllers
                 _db.TaxAccounts.Remove(account);
                 await _db.SaveChangesAsync();
 
-                // 3. Nếu đang kích hoạt tài khoản này, tự động chuyển sang tài khoản khác
+                // 3. Nếu đang kích hoạt tài khoản này, tự động chuyển sang tài khoản khác hoặc xóa session
                 var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
                 if (currentId == id)
                 {
@@ -177,6 +170,10 @@ namespace InvoiceManager.Controllers
                     if (nextAccount != null)
                     {
                         await _taxAccountContext.SetCurrentTaxAccountAsync(nextAccount.Id);
+                    }
+                    else
+                    {
+                        await _taxAccountContext.SetCurrentTaxAccountAsync(0);
                     }
                 }
 
@@ -276,6 +273,37 @@ namespace InvoiceManager.Controllers
 
             await _auditLog.LogActionAsync("Thêm nhanh từ Cổng Thuế", $"MST: {account.TaxCode}", account.CompanyName, account.Id);
             TempData["SuccessMessage"] = $"Đã thêm thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode}) từ Cổng Thuế!";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateFromTaxCode(string taxCode)
+        {
+            var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
+            if (!lookup.Success)
+            {
+                TempData["ErrorMessage"] = lookup.Message ?? "Không thể cào thông tin từ mã số thuế này.";
+                return RedirectToAction(nameof(Lookup), new { taxCode });
+            }
+
+            var cleanTaxCode = lookup.TaxCode!.Trim();
+            var existingAccount = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
+            if (existingAccount == null)
+            {
+                TempData["ErrorMessage"] = $"Không tìm thấy tài khoản thuế {cleanTaxCode} trong hệ thống để cập nhật.";
+                return RedirectToAction(nameof(Lookup), new { taxCode });
+            }
+
+            var oldName = existingAccount.CompanyName;
+            existingAccount.CompanyName = lookup.CompanyName?.Trim() ?? existingAccount.CompanyName;
+            existingAccount.Address = lookup.Address?.Trim() ?? existingAccount.Address;
+
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync("Cập nhật lại từ Cổng Thuế", $"MST: {existingAccount.TaxCode}", $"Đổi từ '{oldName}' thành '{existingAccount.CompanyName}'", existingAccount.Id);
+            TempData["SuccessMessage"] = $"Đã cập nhật lại thông tin doanh nghiệp '{existingAccount.CompanyName}' (MST: {existingAccount.TaxCode}) thành công từ Cổng Thuế!";
             return RedirectToAction(nameof(Index));
         }
     }
