@@ -9,7 +9,7 @@ namespace InvoiceManager.Models.ViewModels
         public string InvoiceType { get; set; } = "MuaVao"; // MuaVao / BanRa
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
-        public string QuickDateRange { get; set; } = "thisMonth"; // today, thisMonth, lastMonth, thisQuarter, thisYear, custom
+        public string? QuickDateRange { get; set; } // today, thisMonth, lastMonth, thisQuarter, thisYear, custom
         public string? Keyword { get; set; }
         public string? SellerTaxCode { get; set; }
         public string? SellerName { get; set; }

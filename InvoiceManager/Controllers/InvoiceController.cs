@@ -429,7 +429,52 @@ namespace InvoiceManager.Controllers
         private void SetupDateRange(InvoiceFilterViewModel filter)
         {
             var now = DateTime.Now;
-            if (!string.IsNullOrEmpty(filter.QuickDateRange))
+
+            // 1. ƯU TIÊN HÀNG ĐẦU: Nếu người dùng đã chọn Từ ngày hoặc Đến ngày (Custom Date Range)
+            if (filter.FromDate.HasValue || filter.ToDate.HasValue)
+            {
+                // Kiểm tra xem khoảng ngày người dùng chọn có khớp với mốc nhanh nào không để tô màu nút
+                if (filter.FromDate.HasValue && filter.ToDate.HasValue)
+                {
+                    var f = filter.FromDate.Value.Date;
+                    var t = filter.ToDate.Value.Date;
+
+                    if (f == now.Date && t == now.Date)
+                    {
+                        filter.QuickDateRange = "today";
+                    }
+                    else if (f == new DateTime(now.Year, now.Month, 1) && t == new DateTime(now.Year, now.Month, 1).AddMonths(1).AddDays(-1))
+                    {
+                        filter.QuickDateRange = "thisMonth";
+                    }
+                    else if (f == new DateTime(now.AddMonths(-1).Year, now.AddMonths(-1).Month, 1) && t == new DateTime(now.Year, now.Month, 1).AddDays(-1))
+                    {
+                        filter.QuickDateRange = "lastMonth";
+                    }
+                    else if (f == new DateTime(now.Year, ((now.Month - 1) / 3) * 3 + 1, 1) && t == new DateTime(now.Year, ((now.Month - 1) / 3) * 3 + 1, 1).AddMonths(3).AddDays(-1))
+                    {
+                        filter.QuickDateRange = "thisQuarter";
+                    }
+                    else if (f == new DateTime(now.Year, 1, 1) && t == new DateTime(now.Year, 12, 31))
+                    {
+                        filter.QuickDateRange = "thisYear";
+                    }
+                    else
+                    {
+                        filter.QuickDateRange = "custom";
+                    }
+                }
+                else
+                {
+                    filter.QuickDateRange = "custom";
+                }
+
+                // Tuyệt đối giữ nguyên khoảng ngày người dùng đã chọn, không ghi đè!
+                return;
+            }
+
+            // 2. Nếu người dùng chọn mốc thời gian nhanh (Hôm nay, Tháng này, Tháng trước, Quý này, Năm nay)
+            if (!string.IsNullOrEmpty(filter.QuickDateRange) && filter.QuickDateRange != "custom")
             {
                 switch (filter.QuickDateRange)
                 {
@@ -455,18 +500,16 @@ namespace InvoiceManager.Controllers
                         filter.FromDate = new DateTime(now.Year, 1, 1);
                         filter.ToDate = new DateTime(now.Year, 12, 31);
                         break;
-                    case "custom":
-                        // Giữ nguyên FromDate & ToDate người dùng nhập
-                        break;
                     default:
+                        filter.QuickDateRange = "thisMonth";
                         filter.FromDate = new DateTime(now.Year, now.Month, 1);
                         filter.ToDate = filter.FromDate.Value.AddMonths(1).AddDays(-1);
                         break;
                 }
             }
-            else if (!filter.FromDate.HasValue && !filter.ToDate.HasValue)
+            else
             {
-                // Mặc định tháng hiện tại
+                // Mặc định tháng hiện tại khi mới truy cập trang
                 filter.QuickDateRange = "thisMonth";
                 filter.FromDate = new DateTime(now.Year, now.Month, 1);
                 filter.ToDate = filter.FromDate.Value.AddMonths(1).AddDays(-1);

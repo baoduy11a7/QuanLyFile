@@ -249,9 +249,9 @@
 
                     <!-- Custom Date Range -->
                     <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
-                        <input type="date" name="FromDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày lập" />
+                        <input type="date" name="FromDate" id="inputFromDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày lập" />
                         <span class="text-muted">-</span>
-                        <input type="date" name="ToDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày lập" />
+                        <input type="date" name="ToDate" id="inputToDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày lập" />
                     </div>
 
                     <!-- Keyword Search Input -->
@@ -559,6 +559,7 @@
     <div class="offcanvas-body p-3">
         <form id="drawerFilterForm" asp-controller="Invoice" asp-action="Index" method="get">
             <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+            <input type="hidden" name="QuickDateRange" value="custom" />
             <input type="hidden" name="SortBy" value="@filter.SortBy" />
             <input type="hidden" name="Page" value="1" />
 
@@ -865,6 +866,52 @@
             if (day.length < 2) day = '0' + day;
             return [year, month, day].join('-');
         }
+
+        // Tự động xử lý khi người dùng chọn/chỉnh ngày tháng năm thủ công
+        var dateFilterTimeout = null;
+        $('#filterForm #inputFromDate, #filterForm #inputToDate').on('change input', function() {
+            // Đặt trạng thái về 'custom' để không bị ghi đè bởi mốc mặc định
+            $('#inputQuickDateRange').val('custom');
+            // Cập nhật giao diện: bỏ active các nút chọn nhanh
+            $('.btn-group-responsive button').removeClass('btn-secondary').addClass('btn-outline-secondary');
+
+            var fromVal = $('#inputFromDate').val();
+            var toVal = $('#inputToDate').val();
+            if (fromVal && toVal) {
+                clearTimeout(dateFilterTimeout);
+                // Trì hoãn 700ms để người dùng kịp thao tác chọn tiếp ngày còn lại
+                dateFilterTimeout = setTimeout(function() {
+                    $('#inputPage').val(1);
+                    $('#filterForm').submit();
+                }, 700);
+            }
+        });
+
+        // Hỗ trợ phím Enter trên ô ngày
+        $('#filterForm #inputFromDate, #filterForm #inputToDate').on('keypress', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                clearTimeout(dateFilterTimeout);
+                $('#inputQuickDateRange').val('custom');
+                $('#inputPage').val(1);
+                $('#filterForm').submit();
+            }
+        });
+
+        // Khi người dùng bấm nút Tìm kiếm
+        $('#filterForm').on('submit', function() {
+            clearTimeout(dateFilterTimeout);
+            var fromVal = $('#inputFromDate').val();
+            var toVal = $('#inputToDate').val();
+            if (fromVal || toVal) {
+                var now = new Date();
+                var thisMonthFrom = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                var thisMonthTo = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+                if (fromVal !== thisMonthFrom || toVal !== thisMonthTo) {
+                    $('#inputQuickDateRange').val('custom');
+                }
+            }
+        });
 
         function quickFilterTaxType(type) {
             if (type === 'all') {
