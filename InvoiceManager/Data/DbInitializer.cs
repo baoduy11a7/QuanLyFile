@@ -15,13 +15,13 @@ namespace InvoiceManager.Data
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager)
         {
-            if (context.Database.IsSqlite())
+            if (context.Database.IsSqlServer())
             {
-                await context.Database.EnsureCreatedAsync();
+                await context.Database.MigrateAsync();
             }
             else
             {
-                await context.Database.MigrateAsync();
+                await context.Database.EnsureCreatedAsync();
             }
 
             // 1. Seed Roles

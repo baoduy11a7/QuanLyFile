@@ -9,7 +9,5 @@ services:
     envVars:
       - key: RENDER
         value: "true"
-      - key: UseSqlite
-        value: "true"
       - key: ASPNETCORE_ENVIRONMENT
         value: Production

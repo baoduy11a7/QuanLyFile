@@ -35,17 +35,34 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// 2. Database & Entity Framework Core (Hỗ trợ cả SQL Server và SQLite tự động khi deploy Render)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+// 2. Database & Entity Framework Core (Hỗ trợ PostgreSQL Cloud vĩnh viễn, SQL Server, và SQLite)
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
 var isRender = string.Equals(Environment.GetEnvironmentVariable("RENDER"), "true", StringComparison.OrdinalIgnoreCase);
 
-var useSqlite = builder.Configuration.GetValue<bool>("UseSqlite")
+var isPostgres = !string.IsNullOrWhiteSpace(connectionString) &&
+    (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+     || connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+     || (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) && connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase)));
+
+var useSqlite = !isPostgres && (
+    builder.Configuration.GetValue<bool>("UseSqlite")
     || (isRender && (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("localhost", StringComparison.OrdinalIgnoreCase)))
     || string.IsNullOrWhiteSpace(connectionString)
     || connectionString.Contains(".db", StringComparison.OrdinalIgnoreCase)
-    || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase);
+    || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase));
 
-if (useSqlite)
+if (isPostgres)
+{
+    var pgConn = ProgramHelper.ParsePostgresConnectionString(connectionString!);
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseNpgsql(pgConn));
+}
+else if (useSqlite)
 {
     var appDataDir = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
     Directory.CreateDirectory(appDataDir);
@@ -139,7 +156,7 @@ builder.Services.AddSingleton<IRemoteJobTracker, RemoteJobTracker>();
 builder.Services.AddScoped<RemoteFetchJob>();
 
 // 6. Hangfire Background Jobs
-if (useSqlite)
+if (isPostgres || useSqlite)
 {
     builder.Services.AddHangfire(configuration => configuration
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -242,5 +259,34 @@ public class HangfireAuthorizationFilter : IDashboardAuthorizationFilter
     {
         var httpContext = context.GetHttpContext();
         return httpContext.User.Identity?.IsAuthenticated == true && httpContext.User.IsInRole("Admin");
+    }
+}
+
+public static partial class ProgramHelper
+{
+    public static string ParsePostgresConnectionString(string rawConn)
+    {
+        if (string.IsNullOrWhiteSpace(rawConn)) return rawConn;
+
+        if (rawConn.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            rawConn.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(rawConn);
+                var userInfo = uri.UserInfo.Split(':');
+                var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+                var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+                var port = uri.Port > 0 ? uri.Port : 5432;
+                var db = uri.AbsolutePath.TrimStart('/');
+
+                return $"Host={uri.Host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Require;Trust Server Certificate=true;";
+            }
+            catch
+            {
+                return rawConn;
+            }
+        }
+        return rawConn;
     }
 }
