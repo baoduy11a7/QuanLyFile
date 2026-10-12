@@ -165,22 +165,34 @@ namespace InvoiceManager.Services.Providers.Gdt
                 if (!response.IsSuccessStatusCode)
                 {
                     string errorMsg = "Đăng nhập Cổng Thuế không thành công.";
-                    try
+                    if (responseBody.Contains("Request Rejected", StringComparison.OrdinalIgnoreCase))
                     {
-                        using var errDoc = JsonDocument.Parse(responseBody);
-                        if (errDoc.RootElement.TryGetProperty("message", out var msgProp))
-                        {
-                            errorMsg = msgProp.GetString() ?? errorMsg;
-                        }
+                        errorMsg = "Tường lửa an ninh (F5 WAF) của Cổng Thuế đã chặn yêu cầu do nghi ngờ truy cập bất thường.";
                     }
-                    catch { }
+                    else
+                    {
+                        try
+                        {
+                            using var errDoc = JsonDocument.Parse(responseBody);
+                            if (errDoc.RootElement.TryGetProperty("message", out var msgProp))
+                            {
+                                errorMsg = msgProp.GetString() ?? errorMsg;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    bool isRenderEnv = string.Equals(Environment.GetEnvironmentVariable("RENDER"), "true", StringComparison.OrdinalIgnoreCase);
+                    string tip = isRenderEnv
+                        ? " [Lưu ý: Máy chủ Render đặt tại Singapore bị Cổng Thuế Việt Nam chặn IP nước ngoài. Vui lòng thao tác trên máy cá nhân Localhost hoặc sử dụng chức năng nạp file XML/Excel]."
+                        : " [Gợi ý: Vui lòng kiểm tra lại mật khẩu Cổng Thuế hoặc bấm đổi mã Captcha mới nếu thao tác quá 60 giây].";
 
                     if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
                     {
-                        return LoginResult.Fail($"Cổng thuế từ chối xác thực (401/403): {errorMsg}", true);
+                        return LoginResult.Fail($"Cổng thuế từ chối xác thực (401/403): {errorMsg}{tip}", true);
                     }
 
-                    return LoginResult.Fail($"Lỗi từ Cổng thuế ({response.StatusCode}): {errorMsg}", true);
+                    return LoginResult.Fail($"Lỗi từ Cổng thuế ({response.StatusCode}): {errorMsg}{tip}", true);
                 }
 
                 using var doc = JsonDocument.Parse(responseBody);
