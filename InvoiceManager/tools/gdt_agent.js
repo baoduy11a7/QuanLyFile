@@ -7,37 +7,91 @@ function getBrowserPath() {
   if (custom && fs.existsSync(custom)) return custom;
 
   const candidates = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
   ];
 
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  throw new Error('Khong tim thay Google Chrome hoac Microsoft Edge tren may tinh.');
+  throw new Error('Không tìm thấy trình duyệt Google Chrome hoặc Chromium trên hệ thống.');
 }
 
-async function getCaptcha() {
+async function createBrowserAndPage() {
   const browserPath = getBrowserPath();
   const browser = await puppeteer.launch({
     executablePath: browserPath,
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
   });
 
-  try {
-    const page = await browser.newPage();
-    await page.goto('https://hoadondientu.gdt.gov.vn', { waitUntil: 'networkidle2', timeout: 30000 });
+  const page = await browser.newPage();
 
-    const result = await page.evaluate(async () => {
-      const res = await fetch('/api/captcha');
-      if (!res.ok) {
-        return { success: false, message: `Loi HTTP ${res.status} khi lay captcha` };
+  // Thiết lập User-Agent chuẩn desktop để tránh bị tường lửa chặn
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  await page.setViewport({ width: 1280, height: 800 });
+
+  // Chặn nạp các tài nguyên nặng (hình ảnh, css, fonts, media và các bundle chunk Next.js)
+  // Máy chủ Cổng Thuế hoadondientu.gdt.gov.vn thường nghẽn khi tải hàng chục file chunk .js,
+  // dẫn tới lỗi Navigation timeout (networkidle2/load).
+  // Vì ta chỉ cần ngữ cảnh origin + cookie để gọi API fetch(), việc bỏ qua các file này giúp tải trang trong ~300ms.
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    try {
+      const rt = req.resourceType();
+      const url = req.url();
+      if (['image', 'stylesheet', 'font', 'media'].includes(rt) || url.includes('/_next/')) {
+        req.abort();
+      } else {
+        req.continue();
       }
-      const data = await res.json();
-      return { success: true, key: data.key, content: data.content };
+    } catch (_) {
+      try { req.continue(); } catch (_) {}
+    }
+  });
+
+  // Điều hướng với domcontentloaded và thời gian timeout 60s
+  await page.goto('https://hoadondientu.gdt.gov.vn', {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000
+  });
+
+  return { browser, page };
+}
+
+async function getCaptcha() {
+  const { browser, page } = await createBrowserAndPage();
+
+  try {
+    const result = await page.evaluate(async () => {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 20000);
+
+      try {
+        const res = await fetch('/api/captcha', { signal: controller.signal });
+        clearTimeout(tid);
+
+        if (!res.ok) {
+          return { success: false, message: `Lỗi HTTP ${res.status} khi lấy mã captcha từ Cổng Thuế` };
+        }
+        const data = await res.json();
+        return { success: true, key: data.key, content: data.content };
+      } catch (err) {
+        clearTimeout(tid);
+        return { success: false, message: `Lỗi kết nối khi lấy captcha: ${err.message}` };
+      }
     });
 
     console.log(JSON.stringify(result));
@@ -47,18 +101,13 @@ async function getCaptcha() {
 }
 
 async function login(username, password, captcha, key) {
-  const browserPath = getBrowserPath();
-  const browser = await puppeteer.launch({
-    executablePath: browserPath,
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  const { browser, page } = await createBrowserAndPage();
 
   try {
-    const page = await browser.newPage();
-    await page.goto('https://hoadondientu.gdt.gov.vn', { waitUntil: 'networkidle2', timeout: 30000 });
-
     const result = await page.evaluate(async (u, p, c, k) => {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 25000);
+
       try {
         const res = await fetch('/api/security-taxpayer/authenticate', {
           method: 'POST',
@@ -73,8 +122,10 @@ async function login(username, password, captcha, key) {
             password: p,
             cvalue: c,
             ckey: k
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(tid);
 
         const text = await res.text();
         let json = null;
@@ -85,13 +136,14 @@ async function login(username, password, captcha, key) {
           if (token) {
             return { success: true, token };
           }
-          return { success: false, message: 'Dang nhap thanh cong nhung khong tim thay token' };
+          return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token từ Cổng Thuế' };
         }
 
-        const msg = json?.message || (text.includes('Request Rejected') ? 'Yeu cau bi Tuong lua chan' : text) || `Loi HTTP ${res.status}`;
+        const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
         return { success: false, status: res.status, message: msg };
       } catch (err) {
-        return { success: false, message: err.message };
+        clearTimeout(tid);
+        return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
       }
     }, username, password, captcha, key);
 
@@ -102,17 +154,9 @@ async function login(username, password, captcha, key) {
 }
 
 async function fetchInvoices(token, endpoint, searchParam) {
-  const browserPath = getBrowserPath();
-  const browser = await puppeteer.launch({
-    executablePath: browserPath,
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  const { browser, page } = await createBrowserAndPage();
 
   try {
-    const page = await browser.newPage();
-    await page.goto('https://hoadondientu.gdt.gov.vn', { waitUntil: 'networkidle2', timeout: 30000 });
-
     const result = await page.evaluate(async (tok, ep, search) => {
       let allInvoices = [];
       let state = null;
@@ -126,29 +170,39 @@ async function fetchInvoices(token, endpoint, searchParam) {
           url += `&state=${encodeURIComponent(state)}`;
         }
 
-        const res = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${tok}`,
-            'request-id': crypto.randomUUID(),
-            'End-Point': '/tra-cuu/tra-cuu-hoa-don',
-            'Action': ''
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 30000);
+
+        try {
+          const res = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${tok}`,
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/tra-cuu/tra-cuu-hoa-don',
+              'Action': ''
+            },
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+
+          if (!res.ok) {
+            break;
           }
-        });
 
-        if (!res.ok) {
+          const json = await res.json();
+          const items = json.datas || json.data || (Array.isArray(json) ? json : []);
+          if (items && items.length > 0) {
+            allInvoices.push(...items);
+          }
+
+          if (json.state && json.state !== state && items.length > 0) {
+            state = json.state;
+          } else {
+            hasMore = false;
+          }
+        } catch (_) {
+          clearTimeout(tid);
           break;
-        }
-
-        const json = await res.json();
-        const items = json.datas || json.data || (Array.isArray(json) ? json : []);
-        if (items && items.length > 0) {
-          allInvoices.push(...items);
-        }
-
-        if (json.state && json.state !== state && items.length > 0) {
-          state = json.state;
-        } else {
-          hasMore = false;
         }
       }
 
@@ -191,9 +245,13 @@ async function fetchInvoices(token, endpoint, searchParam) {
 
       await fetchInvoices(tok, ep, search);
     } else {
-      console.log(JSON.stringify({ success: false, message: 'Unknown command' }));
+      console.log(JSON.stringify({ success: false, message: 'Lệnh không hợp lệ' }));
     }
   } catch (err) {
-    console.log(JSON.stringify({ success: false, message: err.message }));
+    let msg = err.message || 'Lỗi không xác định khi giao tiếp với trình duyệt';
+    if (msg.includes('Navigation timeout')) {
+      msg = 'Cổng Thuế phản hồi quá lâu (Navigation Timeout). Vui lòng thử lại sau ít phút.';
+    }
+    console.log(JSON.stringify({ success: false, message: msg }));
   }
 })();

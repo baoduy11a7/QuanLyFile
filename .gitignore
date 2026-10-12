@@ -48,3 +48,7 @@ Thumbs.db
 ## Cloudflare binary
 tools/*.exe
 tools/*.log
+
+## Node
+node_modules/
+
