@@ -13,13 +13,18 @@ RUN dotnet publish "InvoiceManager.csproj" -c Release -o /app/publish /p:UseAppH
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-# Cài đặt thư viện fontconfig, fonts cho PDF, Chromium và Node.js để Headless Agent vượt F5 WAF trên Linux
+# Cài đặt curl, ca-certificates, fontconfig, fonts và Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
     libfontconfig1 \
     fonts-dejavu-core \
     chromium \
-    nodejs \
-    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt Node.js 22 LTS chính thức từ NodeSource để tương thích chuẩn với puppeteer-core 25
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 ENV CHROME_PATH=/usr/bin/chromium

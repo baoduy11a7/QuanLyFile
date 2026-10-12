@@ -111,6 +111,19 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                 await process.WaitForExitAsync(ct);
                 var output = await stdoutTask;
+                var stderr = await stderrTask;
+
+                if (!string.IsNullOrEmpty(stderr))
+                {
+                    _logger.LogWarning("Headless Agent stderr: {Error}", stderr);
+                }
+
+                if (process.ExitCode != 0 || string.IsNullOrEmpty(output))
+                {
+                    _logger.LogWarning("Headless Chrome Agent kết thúc với mã lỗi {Code}. Output: {Out}. Stderr: {Err}", process.ExitCode, output, stderr);
+                    return null;
+                }
+
                 return output?.Trim();
             }
             catch (Exception ex)
