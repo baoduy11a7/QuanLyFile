@@ -50,38 +50,63 @@ namespace InvoiceManager.Controllers
             // Thiết lập khoảng ngày mặc định nếu chưa chọn
             SetupDateRange(filter);
 
-            // Query gốc được cô lập chặt chẽ theo TaxAccountId của phiên làm việc
-            var query = _db.Invoices
-                .Include(i => i.Details)
+            // Query cơ sở theo TaxAccountId, InvoiceType, Ngày và Keyword để tính số liệu tổng hợp ổn định cho toàn bộ kỳ lọc
+            var baseQuery = _db.Invoices
                 .Where(i => i.TaxAccountId == taxAccountId.Value);
 
             // 1. Lọc theo Loại hóa đơn (Mua vào / Bán ra)
             if (!string.IsNullOrEmpty(filter.InvoiceType))
             {
-                query = query.Where(i => i.InvoiceType == filter.InvoiceType);
+                baseQuery = baseQuery.Where(i => i.InvoiceType == filter.InvoiceType);
             }
 
             // 2. Lọc theo Ngày lập
             if (filter.FromDate.HasValue)
             {
                 var from = filter.FromDate.Value.Date;
-                query = query.Where(i => i.IssueDate >= from);
+                baseQuery = baseQuery.Where(i => i.IssueDate >= from);
             }
             if (filter.ToDate.HasValue)
             {
                 var to = filter.ToDate.Value.Date.AddDays(1).AddTicks(-1);
-                query = query.Where(i => i.IssueDate <= to);
+                baseQuery = baseQuery.Where(i => i.IssueDate <= to);
             }
 
             // 3. Tìm kiếm từ khóa (Ký hiệu, Số HĐ, MST người bán, Tên người bán)
             if (!string.IsNullOrWhiteSpace(filter.Keyword))
             {
                 var kw = filter.Keyword.Trim();
-                query = query.Where(i => i.InvoiceSymbol.Contains(kw) 
+                baseQuery = baseQuery.Where(i => i.InvoiceSymbol.Contains(kw) 
                                       || i.InvoiceNumber.Contains(kw) 
                                       || i.SellerTaxCode.Contains(kw) 
                                       || i.SellerName.Contains(kw));
             }
+
+            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu của kỳ lọc (Tương thích 100% cả SQL Server và SQLite)
+            var stats = await baseQuery
+                .Select(i => new
+                {
+                    i.AmountBeforeTax,
+                    i.TaxAmount,
+                    i.TotalAmount,
+                    i.HasTaxCode,
+                    i.IsCashRegister
+                })
+                .ToListAsync();
+
+            var summary = new InvoiceSummaryViewModel
+            {
+                TotalCount = stats.Count,
+                WithTaxCodeCount = stats.Count(i => i.HasTaxCode && !i.IsCashRegister),
+                WithoutTaxCodeCount = stats.Count(i => !i.HasTaxCode && !i.IsCashRegister),
+                CashRegisterCount = stats.Count(i => i.IsCashRegister),
+                TotalAmountBeforeTax = stats.Sum(i => i.AmountBeforeTax),
+                TotalTaxAmount = stats.Sum(i => i.TaxAmount),
+                TotalAmount = stats.Sum(i => i.TotalAmount)
+            };
+
+            // Query chi tiết áp dụng thêm các tiêu chí lọc danh sách (CQT, MTT, Trạng thái, Bộ lọc chuyên sâu...)
+            IQueryable<Invoice> query = baseQuery.Include(i => i.Details);
 
             // 4. Lọc theo MST người bán cụ thể
             if (!string.IsNullOrWhiteSpace(filter.SellerTaxCode))
@@ -198,29 +223,6 @@ namespace InvoiceManager.Controllers
                 query = query.Where(i => i.IsReconciled == filter.IsReconciled.Value);
             }
 
-            // Tính toán tổng hợp số liệu trực tiếp trên tập dữ liệu đã lọc (Tương thích 100% cả SQL Server và SQLite)
-            var stats = await query
-                .Select(i => new
-                {
-                    i.AmountBeforeTax,
-                    i.TaxAmount,
-                    i.TotalAmount,
-                    i.HasTaxCode,
-                    i.IsCashRegister
-                })
-                .ToListAsync();
-
-            var summary = new InvoiceSummaryViewModel
-            {
-                TotalCount = stats.Count,
-                WithTaxCodeCount = stats.Count(i => i.HasTaxCode && !i.IsCashRegister),
-                WithoutTaxCodeCount = stats.Count(i => !i.HasTaxCode && !i.IsCashRegister),
-                CashRegisterCount = stats.Count(i => i.IsCashRegister),
-                TotalAmountBeforeTax = stats.Sum(i => i.AmountBeforeTax),
-                TotalTaxAmount = stats.Sum(i => i.TaxAmount),
-                TotalAmount = stats.Sum(i => i.TotalAmount)
-            };
-
             // Lấy thời điểm đồng bộ gần nhất
             var lastSync = await _db.SyncLogs
                 .Where(s => s.TaxAccountId == taxAccountId.Value)
@@ -229,18 +231,23 @@ namespace InvoiceManager.Controllers
                 .FirstOrDefaultAsync();
             summary.LastSyncedAt = lastSync;
 
-            // Sắp xếp
+            // Sắp xếp linh hoạt theo ngày hoặc theo các chỉ số tài chính (Chưa thuế, Tiền thuế GTGT, Tổng thanh toán)
             query = filter.SortBy switch
             {
                 "DateAsc" => query.OrderBy(i => i.IssueDate),
-                "AmountDesc" => query.OrderByDescending(i => i.TotalAmount),
-                "AmountAsc" => query.OrderBy(i => i.TotalAmount),
+                "AmountBeforeTaxDesc" => query.OrderByDescending(i => i.AmountBeforeTax),
+                "AmountBeforeTaxAsc" => query.OrderBy(i => i.AmountBeforeTax),
+                "TaxAmountDesc" => query.OrderByDescending(i => i.TaxAmount),
+                "TaxAmountAsc" => query.OrderBy(i => i.TaxAmount),
+                "TotalAmountDesc" or "AmountDesc" => query.OrderByDescending(i => i.TotalAmount),
+                "TotalAmountAsc" or "AmountAsc" => query.OrderBy(i => i.TotalAmount),
                 "NumberAsc" => query.OrderBy(i => i.InvoiceNumber),
+                "NumberDesc" => query.OrderByDescending(i => i.InvoiceNumber),
                 _ => query.OrderByDescending(i => i.IssueDate)
             };
 
-            // Phân trang
-            int totalItems = summary.TotalCount;
+            // Phân trang trên tập dữ liệu đã áp dụng bộ lọc nhánh
+            int totalItems = await query.CountAsync();
             int page = filter.Page > 0 ? filter.Page : 1;
             int pageSize = filter.PageSize > 0 ? filter.PageSize : 15;
             int totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);

@@ -26,27 +26,26 @@
             <div class="summary-hub-card h-100">
                 <!-- Top: Header + Hero Count + Sync Status -->
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                    <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-3 cursor-pointer p-1 rounded @(!filter.HasTaxCode.HasValue && !filter.IsCashRegister.HasValue ? "bg-primary-subtle text-primary border border-primary-subtle" : "")" onclick="quickFilterTaxType('all')" role="button" title="Nhấp để hiển thị toàn bộ hóa đơn">
                         <div class="hub-icon-badge bg-primary-subtle text-primary">
                             <i class="bi bi-receipt-cutoff"></i>
                         </div>
                         <div>
                             <div class="hub-title">Tổng số hóa đơn</div>
                             <div class="d-flex align-items-baseline gap-2">
-                                <span class="hub-hero-value cursor-pointer" onclick="quickFilterTaxType('all')" title="Xem tất cả hóa đơn">
+                                <span class="hub-hero-value">
                                     @summary.TotalCount.ToString("N0")
                                 </span>
                                 <span class="hub-subtext">hóa đơn trong kỳ lọc</span>
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- Bottom: 3 Phân loại hóa đơn tương tác -->
                 <div class="hub-breakdown-grid">
                     <!-- Có mã CQT -->
-                    <div class="mini-stat-item has-tax-code @(filter.HasTaxCode == true && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('with_tax_code')" role="button" title="Lọc hóa đơn có mã CQT">
+                    <div class="mini-stat-item has-tax-code @(filter.HasTaxCode == true && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('with_tax_code')" role="button" title="Nhấp để xem danh sách hóa đơn Có mã CQT">
                         <div class="mini-stat-header">
                             <i class="bi bi-patch-check-fill text-success"></i>
                             <span>Có mã CQT</span>
@@ -56,7 +55,7 @@
                     </div>
 
                     <!-- Không mã CQT -->
-                    <div class="mini-stat-item no-tax-code @(filter.HasTaxCode == false ? "active" : "")" onclick="quickFilterTaxType('without_tax_code')" role="button" title="Lọc hóa đơn không mã CQT">
+                    <div class="mini-stat-item no-tax-code @(filter.HasTaxCode == false && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('without_tax_code')" role="button" title="Nhấp để xem danh sách hóa đơn Không mã CQT">
                         <div class="mini-stat-header">
                             <i class="bi bi-shield-x text-secondary"></i>
                             <span>Không mã CQT</span>
@@ -66,7 +65,7 @@
                     </div>
 
                     <!-- Máy tính tiền -->
-                    <div class="mini-stat-item cash-register @(filter.IsCashRegister == true ? "active" : "")" onclick="quickFilterTaxType('cash_register')" role="button" title="Lọc hóa đơn từ Máy tính tiền">
+                    <div class="mini-stat-item cash-register @(filter.IsCashRegister == true ? "active" : "")" onclick="quickFilterTaxType('cash_register')" role="button" title="Nhấp để xem danh sách hóa đơn từ Máy tính tiền">
                         <div class="mini-stat-header">
                             <i class="bi bi-calculator-fill text-warning"></i>
                             <span>Máy tính tiền</span>
@@ -78,12 +77,12 @@
             </div>
         </div>
 
-        <!-- Khối 2: Tổng hợp Dòng tiền & Nghĩa vụ Thuế (Financial Highlights) -->
+        <!-- Khối 2: Tổng hợp Dòng tiền & Nghĩa vụ Thuế (Financial Highlights - Tương tác sắp xếp danh sách) -->
         <div class="col-12 col-xl-7">
             <div class="row g-2 h-100">
                 <!-- Chưa thuế -->
                 <div class="col-12 col-sm-4">
-                    <div class="financial-card h-100">
+                    <div class="financial-card h-100 cursor-pointer @(filter.SortBy == "AmountBeforeTaxDesc" || filter.SortBy == "AmountBeforeTaxAsc" ? "border-primary shadow-sm ring-active" : "")" onclick="quickSortFinancial('AmountBeforeTax')" role="button" title="Nhấp để sắp xếp danh sách theo Tiền chưa thuế">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="financial-label">Chưa thuế</span>
                             <div class="financial-icon-badge bg-light text-secondary border">
@@ -93,15 +92,20 @@
                         <div class="financial-value text-dark">
                             @summary.TotalAmountBeforeTax.ToString("N0") <span class="currency">đ</span>
                         </div>
-                        <div class="financial-subtext text-muted">
-                            <i class="bi bi-receipt me-1 text-muted"></i>Tổng tiền hàng
+                        <div class="financial-subtext text-muted d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-receipt me-1 text-muted"></i>Tổng tiền hàng</span>
+                            @if (filter.SortBy == "AmountBeforeTaxDesc") {
+                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
+                            } else if (filter.SortBy == "AmountBeforeTaxAsc") {
+                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
+                            }
                         </div>
                     </div>
                 </div>
 
                 <!-- Tiền thuế GTGT -->
                 <div class="col-12 col-sm-4">
-                    <div class="financial-card h-100">
+                    <div class="financial-card h-100 cursor-pointer @(filter.SortBy == "TaxAmountDesc" || filter.SortBy == "TaxAmountAsc" ? "border-danger shadow-sm ring-active" : "")" onclick="quickSortFinancial('TaxAmount')" role="button" title="Nhấp để sắp xếp danh sách theo Tiền thuế GTGT">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="financial-label">Tiền thuế GTGT</span>
                             <div class="financial-icon-badge bg-danger-subtle text-danger border border-danger-subtle">
@@ -111,15 +115,20 @@
                         <div class="financial-value text-danger">
                             @summary.TotalTaxAmount.ToString("N0") <span class="currency">đ</span>
                         </div>
-                        <div class="financial-subtext text-muted">
-                            <i class="bi bi-shield-check me-1 text-success"></i>Thuế GTGT khấu trừ
+                        <div class="financial-subtext text-muted d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-shield-check me-1 text-success"></i>Thuế GTGT khấu trừ</span>
+                            @if (filter.SortBy == "TaxAmountDesc") {
+                                <span class="badge bg-danger text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
+                            } else if (filter.SortBy == "TaxAmountAsc") {
+                                <span class="badge bg-danger text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
+                            }
                         </div>
                     </div>
                 </div>
 
                 <!-- Tổng thanh toán (Hero Card) -->
                 <div class="col-12 col-sm-4">
-                    <div class="financial-card hero-card h-100">
+                    <div class="financial-card hero-card h-100 cursor-pointer @(filter.SortBy == "TotalAmountDesc" || filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountDesc" || filter.SortBy == "AmountAsc" ? "border-primary shadow-sm ring-active" : "")" onclick="quickSortFinancial('TotalAmount')" role="button" title="Nhấp để sắp xếp danh sách theo Tổng thanh toán">
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <span class="financial-label text-primary fw-bold">Tổng thanh toán</span>
                             <div class="financial-icon-badge bg-primary text-white shadow-sm">
@@ -129,8 +138,13 @@
                         <div class="financial-value text-primary">
                             @summary.TotalAmount.ToString("N0") <span class="currency text-primary">đ</span>
                         </div>
-                        <div class="financial-subtext text-primary" style="font-weight: 500;">
-                            <i class="bi bi-check2-circle me-1 text-primary"></i>Tổng tiền đã gồm thuế
+                        <div class="financial-subtext text-primary d-flex justify-content-between align-items-center" style="font-weight: 500;">
+                            <span><i class="bi bi-check2-circle me-1 text-primary"></i>Tổng tiền đã gồm thuế</span>
+                            @if (filter.SortBy == "TotalAmountDesc" || filter.SortBy == "AmountDesc") {
+                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
+                            } else if (filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountAsc") {
+                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
+                            }
                         </div>
                     </div>
                 </div>
@@ -157,6 +171,7 @@
                 <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
                 <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
                 <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
+                <input type="hidden" name="HasTaxCode" id="inputHasTaxCode" value="@(filter.HasTaxCode.HasValue ? filter.HasTaxCode.Value.ToString().ToLower() : "")" />
                 <input type="hidden" name="IsCashRegister" id="inputIsCashRegister" value="@(filter.IsCashRegister.HasValue ? filter.IsCashRegister.Value.ToString().ToLower() : "")" />
 
                 <!-- Row 1: Tab Loại HĐ & Quick Actions -->
@@ -330,7 +345,7 @@
     </form>
 
     <!-- 3. Bảng Danh Sách Hóa Đơn Điện Tử (Bám sát layout tham khảo) -->
-    <div class="table-responsive table-invoice">
+    <div class="table-responsive table-invoice" id="invoiceTable">
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
@@ -342,9 +357,15 @@
                     <th style="width: 100px;">Số HĐ</th>
                     <th style="width: 110px;">Ngày lập</th>
                     <th>Thông tin người bán</th>
-                    <th class="text-end" style="width: 130px;">Chưa thuế</th>
-                    <th class="text-end" style="width: 120px;">Tiền thuế</th>
-                    <th class="text-end" style="width: 140px;">Thanh toán</th>
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("AmountBeforeTax") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 130px;" onclick="quickSortFinancial('AmountBeforeTax')" title="Nhấp để sắp xếp theo Chưa thuế">
+                        Chưa thuế @(filter.SortBy == "AmountBeforeTaxDesc" ? "↓" : filter.SortBy == "AmountBeforeTaxAsc" ? "↑" : "")
+                    </th>
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TaxAmount") == true ? "bg-danger-subtle text-danger border-bottom border-danger" : "")" style="width: 120px;" onclick="quickSortFinancial('TaxAmount')" title="Nhấp để sắp xếp theo Tiền thuế GTGT">
+                        Tiền thuế @(filter.SortBy == "TaxAmountDesc" ? "↓" : filter.SortBy == "TaxAmountAsc" ? "↑" : "")
+                    </th>
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TotalAmount") == true || filter.SortBy?.StartsWith("Amount") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 140px;" onclick="quickSortFinancial('TotalAmount')" title="Nhấp để sắp xếp theo Tổng thanh toán">
+                        Thanh toán @(filter.SortBy == "TotalAmountDesc" || filter.SortBy == "AmountDesc" ? "↓" : filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountAsc" ? "↑" : "")
+                    </th>
                     <th class="text-center" style="width: 120px;">Trạng thái</th>
                     <th class="text-center" style="width: 110px;">Ghi sổ</th>
                     <th class="text-center" style="width: 120px;">Thao tác</th>
@@ -914,22 +935,61 @@
         });
 
         function quickFilterTaxType(type) {
+            var curHasTaxCode = $('#inputHasTaxCode').val();
+            var curIsCashRegister = $('#inputIsCashRegister').val();
+
+            // Toggle logic: nếu nhấp lại vào đúng khối đang active thì hủy lọc (xem tất cả)
+            if (type === 'with_tax_code' && curHasTaxCode === 'true' && curIsCashRegister === 'false') {
+                type = 'all';
+            } else if (type === 'without_tax_code' && curHasTaxCode === 'false' && curIsCashRegister === 'false') {
+                type = 'all';
+            } else if (type === 'cash_register' && curIsCashRegister === 'true') {
+                type = 'all';
+            }
+
             if (type === 'all') {
-                $('select[name="HasTaxCode"]').val('');
+                $('#inputHasTaxCode').val('');
                 $('#inputIsCashRegister').val('');
             } else if (type === 'with_tax_code') {
-                $('select[name="HasTaxCode"]').val('true');
-                $('#inputIsCashRegister').val('');
+                $('#inputHasTaxCode').val('true');
+                $('#inputIsCashRegister').val('false');
             } else if (type === 'without_tax_code') {
-                $('select[name="HasTaxCode"]').val('false');
-                $('#inputIsCashRegister').val('');
+                $('#inputHasTaxCode').val('false');
+                $('#inputIsCashRegister').val('false');
             } else if (type === 'cash_register') {
-                $('select[name="HasTaxCode"]').val('');
+                $('#inputHasTaxCode').val('');
                 $('#inputIsCashRegister').val('true');
             }
             $('#inputPage').val(1);
             $('#filterForm').submit();
         }
+
+        // Sắp xếp danh sách nhanh khi nhấp vào các khối tài chính hoặc tiêu đề cột
+        function quickSortFinancial(field) {
+            var curSort = $('#inputSortBy').val() || '';
+            var nextSort = field + 'Desc';
+
+            if (curSort === field + 'Desc') {
+                nextSort = field + 'Asc';
+            } else if (curSort === field + 'Asc') {
+                nextSort = 'DateDesc'; // Nhấp lần 3 sẽ hoàn nguyên về mặc định theo ngày
+            }
+
+            $('#inputSortBy').val(nextSort);
+            $('#inputPage').val(1);
+            $('#filterForm').submit();
+        }
+
+        // Tự động cuộn mượt đến bảng khi có hành động lọc hoặc sắp xếp
+        $(document).ready(function() {
+            var params = new URLSearchParams(window.location.search);
+            if (params.has('HasTaxCode') || params.has('IsCashRegister') || (params.has('SortBy') && params.get('SortBy') !== 'DateDesc')) {
+                var tbl = document.getElementById('invoiceTable');
+                if (tbl) {
+                    tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        });
 
         function switchInvoiceType(type) {
             $('#inputInvoiceType').val(type);
