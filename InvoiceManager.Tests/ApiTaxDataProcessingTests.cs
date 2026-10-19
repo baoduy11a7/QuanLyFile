@@ -198,5 +198,104 @@ namespace InvoiceManager.Tests
             Assert.True(parseResult.Success, parseResult.ErrorMessage);
             Assert.Contains("&", parseResult.SellerName);
         }
+
+        [Fact]
+        public async Task GdtPortalProvider_ParsesJsonWithNumberShdonAndNormalizes_Success()
+        {
+            var jsonResponse = @"{
+                ""datas"": [
+                    {
+                        ""id"": ""rec-001"",
+                        ""nbmst"": ""0314094922"",
+                        ""nbten"": ""CÔNG TY TNHH BẢO DUY"",
+                        ""nmdmst"": ""0100109106"",
+                        ""nmten"": ""TẬP ĐOÀN VIỄN THÔNG"",
+                        ""khhdon"": ""1C24TXX"",
+                        ""shdon"": 12345,
+                        ""tdlap"": ""2025-02-15T08:30:00"",
+                        ""tgtcthue"": 10000000,
+                        ""tgtthue"": 1000000,
+                        ""tgtttbso"": 11000000,
+                        ""mcqt"": 105,
+                        ""ttxly"": 1
+                    },
+                    {
+                        ""id"": ""rec-002"",
+                        ""nbmst"": ""0100109106"",
+                        ""nbten"": ""TẬP ĐOÀN VIỄN THÔNG"",
+                        ""nmdmst"": ""0314094922"",
+                        ""nmten"": ""CÔNG TY TNHH BẢO DUY"",
+                        ""khhdon"": ""2C24TBB"",
+                        ""shdon"": ""6789"",
+                        ""tdlap"": ""2025-02-16T10:15:00"",
+                        ""tgtcthue"": ""5000000"",
+                        ""tgtthue"": ""500000"",
+                        ""tgtttbso"": ""5500000"",
+                        ""mcqt"": ""105"",
+                        ""ttxly"": ""1""
+                    }
+                ],
+                ""state"": null
+            }";
+
+            var handlerMock = new Mock<System.Net.Http.HttpMessageHandler>();
+            handlerMock
+                .Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<System.Threading.CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = System.Net.HttpStatusCode.OK,
+                    Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+                });
+
+            var httpClient = new HttpClient(handlerMock.Object);
+            var factoryMock = new Mock<IHttpClientFactory>();
+            factoryMock.Setup(f => f.CreateClient(InvoiceManager.Services.Providers.Gdt.GdtPortalProvider.ClientName)).Returns(httpClient);
+
+            var optionsMock = new Mock<Microsoft.Extensions.Options.IOptions<InvoiceManager.Services.Providers.Gdt.GdtPortalOptions>>();
+            optionsMock.Setup(o => o.Value).Returns(new InvoiceManager.Services.Providers.Gdt.GdtPortalOptions
+            {
+                BaseUrl = "https://hoadondientu.gdt.gov.vn",
+                PurchaseQueryEndpoint = "/api/query/invoices/purchase",
+                SoldQueryEndpoint = "/api/query/invoices/sold"
+            });
+
+            var loggerMock = new Mock<Microsoft.Extensions.Logging.ILogger<InvoiceManager.Services.Providers.Gdt.GdtPortalProvider>>();
+            var provider = new InvoiceManager.Services.Providers.Gdt.GdtPortalProvider(factoryMock.Object, optionsMock.Object, loggerMock.Object);
+
+            var req = new FetchRequest
+            {
+                TaxCode = "0314094922",
+                FromDate = new DateTime(2025, 2, 1),
+                ToDate = new DateTime(2025, 2, 28),
+                InvoiceType = "MuaVao"
+            };
+
+            var invoices = new List<RemoteInvoice>();
+            await foreach (var inv in provider.FetchInvoicesAsync(req, "Bearer test-jwt-token"))
+            {
+                invoices.Add(inv);
+            }
+
+            // Kiểm tra: Cả 2 hóa đơn (1 số nguyên, 1 chuỗi) đều phải được parse thành công, không bị null/0 hóa đơn!
+            Assert.Equal(2, invoices.Count);
+
+            var inv1 = invoices[0];
+            Assert.Equal("1C24TXX", inv1.InvoiceSymbol);
+            Assert.Equal("0012345", inv1.InvoiceNumber);
+            Assert.Equal("12345", inv1.RawInvoiceNumber);
+            Assert.Equal(10000000m, inv1.AmountBeforeTax);
+            Assert.Equal(11000000m, inv1.TotalAmount);
+
+            var inv2 = invoices[1];
+            Assert.Equal("2C24TBB", inv2.InvoiceSymbol);
+            Assert.Equal("0006789", inv2.InvoiceNumber);
+            Assert.Equal("6789", inv2.RawInvoiceNumber);
+            Assert.Equal(5000000m, inv2.AmountBeforeTax);
+            Assert.Equal(5500000m, inv2.TotalAmount);
+        }
     }
 }

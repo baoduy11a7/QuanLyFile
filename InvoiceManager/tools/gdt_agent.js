@@ -186,7 +186,8 @@ async function fetchInvoices(token, endpoint, searchParam) {
           clearTimeout(tid);
 
           if (!res.ok) {
-            break;
+            const errTxt = await res.text().catch(() => '');
+            return { success: false, status: res.status, message: `Cổng Thuế trả về HTTP ${res.status}: ${errTxt}` };
           }
 
           const json = await res.json();
@@ -200,9 +201,9 @@ async function fetchInvoices(token, endpoint, searchParam) {
           } else {
             hasMore = false;
           }
-        } catch (_) {
+        } catch (e) {
           clearTimeout(tid);
-          break;
+          return { success: false, message: `Lỗi kết nối: ${e.message}` };
         }
       }
 

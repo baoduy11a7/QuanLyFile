@@ -76,6 +76,28 @@ namespace InvoiceManager.Controllers
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> ExcelSmartPro(InvoiceFilterViewModel filter)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
+
+            var invoices = await GetFilteredInvoicesQuery(filter, taxAccountId.Value).ToListAsync();
+
+            string title = $"SỔ KẾ TOÁN SMART PRO (KTSC) - HÓA ĐƠN {(filter.InvoiceType == "BanRa" ? "BÁN RA" : "MUA VÀO")}";
+            var fileBytes = await _exportService.ExportSmartProExcelAsync(invoices, taxAccount, title);
+
+            await _auditLog.LogActionAsync(
+                "Xuất Excel Smart Pro (KTSC)", 
+                $"{invoices.Count} hóa đơn", 
+                $"Loại: {filter.InvoiceType}, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                taxAccountId.Value);
+
+            string fileName = $"Smart_KTSC_{filter.InvoiceType}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BatchZip(InvoiceFilterViewModel filter, [FromForm] int[]? selectedIds)

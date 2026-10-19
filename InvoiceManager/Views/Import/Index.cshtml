@@ -221,7 +221,7 @@
                                     </div>
 
                                     <!-- Mã Captcha -->
-                                    <div class="col-md-12">
+                                    <div class="col-md-12" id="groupPageCaptcha">
                                         <label class="form-label fw-bold">5. Mã xác thực (Captcha Cổng Thuế):</label>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <div id="pageCaptchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center shadow-sm" style="min-width: 160px; height: 50px;">
@@ -237,6 +237,20 @@
                                             <span class="text-muted small ms-2" id="pageCaptchaHint">
                                                 (Nhập các ký tự nhìn thấy trong hình captcha)
                                             </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Tùy chọn Dán Bearer Token trực tiếp -->
+                                    <div class="col-md-12">
+                                        <div class="card bg-primary bg-opacity-10 border border-primary-subtle p-3 rounded-3">
+                                            <div class="d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="$('#boxDirectBearerToken').toggleClass('d-none');">
+                                                <span class="fw-bold text-primary"><i class="bi bi-shield-lock-fill me-1"></i> Tùy chọn 2: Dán trực tiếp Bearer Token (Khuyên dùng - Không cần Mật khẩu & Captcha)</span>
+                                                <span class="badge bg-primary text-white">Chống khóa tài khoản</span>
+                                            </div>
+                                            <div id="boxDirectBearerToken" class="mt-2 d-none">
+                                                <p class="text-muted small mb-2">Nếu tài khoản thuế bị tạm khóa đăng nhập hoặc gặp lỗi Captcha, bạn chỉ cần mở tab <code>hoadondientu.gdt.gov.vn</code> đã đăng nhập, lấy chuỗi Token (hoặc dùng nút sao chép Token của Extension NIBot) và dán vào đây:</p>
+                                                <textarea id="pageRemoteBearerToken" class="form-control font-monospace small" rows="2" placeholder="Dán Bearer Token (bắt đầu bằng eyJh...)..."></textarea>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -266,6 +280,7 @@
                                     <div class="col-12">
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <span class="small text-muted fw-semibold"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Chọn nhanh:</span>
+                                            <button type="button" class="btn btn-outline-danger btn-sm quick-date fw-bold" data-type="allTime"><i class="bi bi-fire text-danger me-1"></i>⭐ TẤT CẢ TỪ TRƯỚC ĐẾN NAY (Từ 2022)</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="thisMonth">Tháng này</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="lastMonth">Tháng trước</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="thisQuarter">Quý này</button>
@@ -595,6 +610,9 @@
                 } else if (type === 'thisYear') {
                     fromDate = new Date(now.getFullYear(), 0, 1);
                     toDate = now;
+                } else if (type === 'allTime') {
+                    fromDate = new Date(2022, 0, 1);
+                    toDate = now;
                 }
 
                 if (fromDate && toDate) {
@@ -687,6 +705,18 @@
             loadPageSavedConnection();
         });
 
+        $('#pageRemoteBearerToken').on('input', function () {
+            const val = $(this).val().trim();
+            if (val.length > 20) {
+                $('#pageRemotePassword').prop('required', false);
+                $('#pageRemoteCaptchaCode').prop('required', false);
+                $('#groupPageCaptcha').slideUp();
+            } else {
+                $('#pageRemotePassword').prop('required', true);
+                $('#groupPageCaptcha').slideDown();
+            }
+        });
+
         // Bắt đầu lấy dữ liệu API Thuế
         $('#pageFormRemoteFetch').on('submit', async function (e) {
             e.preventDefault();
@@ -694,11 +724,13 @@
             const alertBox = $('#pageRemoteSetupAlert');
             alertBox.addClass('d-none').text('');
 
+            const bearerToken = ($('#pageRemoteBearerToken').val() || '').trim();
             const payload = {
                 providerName: $('#pageRemoteProvider').val(),
                 taxCode: $('#pageRemoteTaxCode').val(),
                 username: $('#pageRemoteUsername').val(),
                 password: $('#pageRemotePassword').val(),
+                bearerToken: bearerToken,
                 captchaKey: $('#pageRemoteCaptchaKey').val(),
                 captchaCode: $('#pageRemoteCaptchaCode').val(),
                 invoiceType: $('#pageRemoteInvoiceType').val(),

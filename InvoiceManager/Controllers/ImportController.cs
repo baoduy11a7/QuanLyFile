@@ -301,31 +301,36 @@ namespace InvoiceManager.Controllers
             }
 
             var passwordToUse = model.Password;
+            bool hasToken = !string.IsNullOrWhiteSpace(model.BearerToken);
 
-            // Nếu mật khẩu để trống, kiểm tra xem có mật khẩu đã lưu không
-            if (string.IsNullOrWhiteSpace(passwordToUse))
+            if (!hasToken)
             {
-                var savedConn = await _db.RemoteConnections
-                    .FirstOrDefaultAsync(r => r.TaxAccountId == currentAccount.Id && r.ProviderName == model.ProviderName);
-
-                if (savedConn != null && savedConn.RememberPassword && !string.IsNullOrEmpty(savedConn.EncryptedPassword))
+                // Nếu mật khẩu để trống, kiểm tra xem có mật khẩu đã lưu không
+                if (string.IsNullOrWhiteSpace(passwordToUse))
                 {
-                    passwordToUse = _credentialProtector.Unprotect(savedConn.EncryptedPassword) ?? string.Empty;
-                }
-            }
+                    var savedConn = await _db.RemoteConnections
+                        .FirstOrDefaultAsync(r => r.TaxAccountId == currentAccount.Id && r.ProviderName == model.ProviderName);
 
-            if (string.IsNullOrWhiteSpace(passwordToUse))
-            {
-                return Json(new { success = false, message = "Vui lòng nhập mật khẩu Cổng thuế." });
+                    if (savedConn != null && savedConn.RememberPassword && !string.IsNullOrEmpty(savedConn.EncryptedPassword))
+                    {
+                        passwordToUse = _credentialProtector.Unprotect(savedConn.EncryptedPassword) ?? string.Empty;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(passwordToUse))
+                {
+                    return Json(new { success = false, message = "Vui lòng nhập mật khẩu Cổng thuế hoặc dán Bearer Token." });
+                }
             }
 
             var cred = new ProviderCredentials
             {
                 TaxCode = currentAccount.TaxCode,
-                Username = model.Username.Trim(),
-                Password = passwordToUse,
+                Username = !string.IsNullOrWhiteSpace(model.Username) ? model.Username.Trim() : currentAccount.TaxCode,
+                Password = passwordToUse ?? string.Empty,
                 CaptchaKey = model.CaptchaKey,
-                CaptchaCode = model.CaptchaCode
+                CaptchaCode = model.CaptchaCode,
+                BearerToken = model.BearerToken?.Trim()
             };
 
             var req = new FetchRequest

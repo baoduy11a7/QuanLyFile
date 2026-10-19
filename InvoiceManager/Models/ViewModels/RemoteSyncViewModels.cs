@@ -15,9 +15,10 @@ namespace InvoiceManager.Models.ViewModels
         [Required(ErrorMessage = "Vui lòng nhập tên đăng nhập cổng thuế.")]
         public string Username { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Vui lòng nhập mật khẩu cổng thuế.")]
         [DataType(DataType.Password)]
-        public string Password { get; set; } = string.Empty;
+        public string? Password { get; set; }
+
+        public string? BearerToken { get; set; }
 
         public string? CaptchaKey { get; set; }
 

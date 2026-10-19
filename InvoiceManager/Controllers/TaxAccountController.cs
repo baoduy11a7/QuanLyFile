@@ -36,7 +36,39 @@ namespace InvoiceManager.Controllers
             var accounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
             var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             ViewBag.CurrentTaxAccountId = currentId;
-            return View(accounts);
+
+            var accountIds = accounts.Select(a => a.Id).ToList();
+
+            var invoiceCounts = await _db.Invoices
+                .AsNoTracking()
+                .Where(i => accountIds.Contains(i.TaxAccountId))
+                .GroupBy(i => new { i.TaxAccountId, i.InvoiceType })
+                .Select(g => new
+                {
+                    g.Key.TaxAccountId,
+                    g.Key.InvoiceType,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            var viewModels = accounts.Select(a => new TaxAccountListItemViewModel
+            {
+                Id = a.Id,
+                TaxCode = a.TaxCode,
+                CompanyName = a.CompanyName,
+                Address = a.Address,
+                Email = a.Email,
+                PhoneNumber = a.PhoneNumber,
+                Representative = a.Representative,
+                IsActive = a.IsActive,
+                CreatedAt = a.CreatedAt,
+                AccountingSoftware = "SMART PRO",
+                PurchaseInvoiceCount = invoiceCounts.FirstOrDefault(x => x.TaxAccountId == a.Id && x.InvoiceType == "MuaVao")?.Count ?? 0,
+                SoldInvoiceCount = invoiceCounts.FirstOrDefault(x => x.TaxAccountId == a.Id && x.InvoiceType == "BanRa")?.Count ?? 0,
+                IsCurrent = a.Id == currentId
+            }).ToList();
+
+            return View(viewModels);
         }
 
         [HttpPost]

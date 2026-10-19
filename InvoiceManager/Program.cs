@@ -145,11 +145,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Cấu hình Cổng Tổng cục Thuế & IHttpClientFactory kèm Polly Retry Policy
+// Cấu hình Cổng Tổng cục Thuế & IHttpClientFactory (Tối ưu phản hồi nhanh, không retry trễ trên mã 500)
 builder.Services.Configure<GdtPortalOptions>(builder.Configuration.GetSection(GdtPortalOptions.SectionName));
-builder.Services.AddHttpClient(GdtPortalProvider.ClientName)
-    .AddTransientHttpErrorPolicy(policy => policy.WaitAndRetryAsync(3, retryAttempt =>
-        TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
+builder.Services.AddHttpClient(GdtPortalProvider.ClientName);
 
 // Tra cứu thông tin doanh nghiệp từ Mã số thuế
 builder.Services.AddHttpClient(TaxCodeLookupService.ClientName)

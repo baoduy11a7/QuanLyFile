@@ -92,15 +92,36 @@ namespace InvoiceManager.Controllers
                 var sellerMst = (item.SellerTaxCode ?? string.Empty).Trim();
 
                 // Kiểm tra chống trùng lặp theo quy chuẩn Idempotent
-                bool exists = await _db.Invoices.AnyAsync(i =>
+                var existing = await _db.Invoices.Include(i => i.Details).FirstOrDefaultAsync(i =>
                     i.TaxAccountId == taxAccount.Id &&
                     i.InvoiceType == invoiceType &&
                     i.SellerTaxCode == sellerMst &&
                     i.InvoiceSymbol == cleanSymbol &&
                     i.InvoiceNumber == cleanNumber);
 
-                if (exists)
+                if (existing != null)
                 {
+                    // Nếu hóa đơn đã có nhưng chưa có dòng chi tiết hàng hóa, cập nhật bổ sung chi tiết
+                    if (!existing.Details.Any() && item.Details != null && item.Details.Any())
+                    {
+                        foreach (var d in item.Details)
+                        {
+                            existing.Details.Add(new InvoiceDetail
+                            {
+                                InvoiceId = existing.Id,
+                                LineNumber = d.LineNumber,
+                                ItemCode = d.ItemCode,
+                                ItemName = !string.IsNullOrWhiteSpace(d.ItemName) ? d.ItemName.Trim() : "Hàng hóa/dịch vụ",
+                                Unit = d.Unit,
+                                Quantity = d.Quantity > 0 ? d.Quantity : 1,
+                                UnitPrice = d.UnitPrice,
+                                AmountBeforeTax = d.AmountBeforeTax,
+                                TaxRate = d.TaxRate,
+                                TaxAmount = d.TaxAmount,
+                                TotalAmount = d.TotalAmount > 0 ? d.TotalAmount : (d.AmountBeforeTax + d.TaxAmount)
+                            });
+                        }
+                    }
                     duplicateCount++;
                     continue;
                 }
@@ -134,11 +155,32 @@ namespace InvoiceManager.Controllers
                     ImportedAt = DateTime.Now
                 };
 
+                // Bổ sung chi tiết từng mặt hàng
+                if (item.Details != null && item.Details.Any())
+                {
+                    foreach (var d in item.Details)
+                    {
+                        newInvoice.Details.Add(new InvoiceDetail
+                        {
+                            LineNumber = d.LineNumber,
+                            ItemCode = d.ItemCode,
+                            ItemName = !string.IsNullOrWhiteSpace(d.ItemName) ? d.ItemName.Trim() : "Hàng hóa/dịch vụ",
+                            Unit = d.Unit,
+                            Quantity = d.Quantity > 0 ? d.Quantity : 1,
+                            UnitPrice = d.UnitPrice,
+                            AmountBeforeTax = d.AmountBeforeTax,
+                            TaxRate = d.TaxRate,
+                            TaxAmount = d.TaxAmount,
+                            TotalAmount = d.TotalAmount > 0 ? d.TotalAmount : (d.AmountBeforeTax + d.TaxAmount)
+                        });
+                    }
+                }
+
                 _db.Invoices.Add(newInvoice);
                 insertedCount++;
             }
 
-            if (insertedCount > 0)
+            if (insertedCount > 0 || duplicateCount > 0)
             {
                 await _db.SaveChangesAsync();
             }
@@ -151,7 +193,7 @@ namespace InvoiceManager.Controllers
                 Status = "Thành công",
                 NewInvoiceCount = insertedCount,
                 SyncType = "Chrome Extension (GDT)",
-                ErrorMessage = $"Đã nhận {request.Invoices.Count} HĐ ({insertedCount} mới, {duplicateCount} đã tồn tại)."
+                ErrorMessage = $"Đã nhận {request.Invoices.Count} HĐ ({insertedCount} mới, {duplicateCount} đã tồn tại/cập nhật)."
             });
             await _db.SaveChangesAsync();
 
@@ -190,5 +232,21 @@ namespace InvoiceManager.Controllers
         public decimal TotalAmount { get; set; }
         public string? CqtCode { get; set; }
         public string? Status { get; set; }
+        public string? RawXml { get; set; }
+        public List<ExtensionInvoiceDetailItem>? Details { get; set; }
+    }
+
+    public class ExtensionInvoiceDetailItem
+    {
+        public int LineNumber { get; set; } = 1;
+        public string? ItemCode { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string? Unit { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitPrice { get; set; } = 0;
+        public decimal AmountBeforeTax { get; set; } = 0;
+        public decimal TaxRate { get; set; } = 10;
+        public decimal TaxAmount { get; set; } = 0;
+        public decimal TotalAmount { get; set; } = 0;
     }
 }

@@ -3,18 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đồng Bộ Hóa Đơn Điện Tử</title>
+    <title>NIBot - Đồng bộ Hóa đơn từ hoadondientu.gdt.gov.vn</title>
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --success: #10b981;
-            --danger: #ef4444;
-            --bg: #f8fafc;
+            --primary-navy: #172554;
+            --primary-blue: #2563eb;
+            --btn-blue: #1d4ed8;
+            --btn-orange: #ea580c;
+            --btn-purple: #7e22ce;
+            --bg-page: #f8fafc;
             --card-bg: #ffffff;
             --text-main: #0f172a;
             --text-muted: #64748b;
-            --border: #e2e8f0;
+            --border: #cbd5e1;
+            --badge-green: #dcfce7;
+            --text-green: #15803d;
         }
 
         * {
@@ -24,289 +27,422 @@
         }
 
         body {
-            width: 390px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg);
+            width: 780px;
+            min-height: 550px;
+            max-height: 590px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background-color: var(--bg-page);
             color: var(--text-main);
-            padding: 14px;
-            font-size: 13px;
+            font-size: 12.5px;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        .header {
+        /* Top Bar */
+        .top-navbar {
+            background-color: var(--primary-navy);
+            color: #ffffff;
+            padding: 8px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 10px;
-            margin-bottom: 12px;
         }
 
-        .header-title {
+        .top-brand {
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-weight: 700;
-            font-size: 15px;
-            color: #1e3a8a;
         }
 
-        .status-container {
+        .top-breadcrumb {
+            background: #ffffff;
+            border-bottom: 1px solid var(--border);
+            padding: 6px 16px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #b91c1c;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
         }
 
-        .status-badge {
-            font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 999px;
-            font-weight: 600;
+        .top-breadcrumb span.sep { color: #94a3b8; }
+        .top-breadcrumb span.active { color: #dc2626; }
+
+        /* Main Container 2 Columns */
+        .main-container {
+            display: grid;
+            grid-template-columns: 290px 1fr;
+            gap: 12px;
+            padding: 12px 16px;
+            flex: 1;
+            overflow: hidden;
         }
 
-        .badge-success { background: #dcfce7; color: #15803d; }
-        .badge-warning { background: #fef3c7; color: #b45309; }
-        .badge-danger { background: #fee2e2; color: #b91c1c; }
-
-        .btn-icon {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 13px;
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-        .btn-icon:hover { background: #e2e8f0; }
-
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 10px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .card-title {
-            font-weight: 600;
-            font-size: 12px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .form-group {
-            margin-bottom: 8px;
-        }
-
-        .form-group:last-child {
-            margin-bottom: 0;
-        }
-
-        label {
-            display: block;
-            font-weight: 600;
-            font-size: 12px;
-            margin-bottom: 4px;
-            color: #334155;
-        }
-
-        input[type="text"], input[type="date"], select, textarea {
-            width: 100%;
-            padding: 7px 10px;
+        /* Left Column Controls */
+        .left-col {
+            background: #ffffff;
             border: 1px solid var(--border);
             border-radius: 6px;
-            font-size: 12.5px;
-            color: var(--text-main);
-            background: #fff;
-            outline: none;
-            transition: border-color 0.2s;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
 
-        input:focus, select:focus, textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #1e3a8a;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+            margin-bottom: 4px;
         }
 
-        .row-2 {
+        .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
 
-        .btn {
-            display: inline-flex;
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        input[type="text"], input[type="date"], select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 12px;
+            outline: none;
+            background: #ffffff;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+            margin-top: 2px;
+        }
+
+        .checkbox-group input {
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
+        }
+
+        /* Action Buttons */
+        .btn-action {
+            display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-            width: 100%;
-            padding: 9px 12px;
+            padding: 8px 12px;
             border: none;
-            border-radius: 7px;
-            font-weight: 600;
-            font-size: 13px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #ffffff;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: opacity 0.2s, transform 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
-        .btn-primary {
-            background: var(--primary);
-            color: white;
+        .btn-action:hover { opacity: 0.92; }
+        .btn-action:active { transform: scale(0.99); }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-blue { background-color: #2563eb; }
+        .btn-orange { background-color: #ea580c; }
+        .btn-purple { background-color: #9333ea; }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-small:hover { background: #e2e8f0; }
+
+        /* Right Column Results */
+        .right-col {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+            height: 100%;
         }
 
-        .btn-primary:hover {
-            background: var(--primary-dark);
+        /* Status Summary Box */
+        .status-box {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 12px;
+            line-height: 1.6;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
 
-        .btn-secondary {
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge-ready { background: #e0e7ff; color: #3730a3; }
+        .badge-done { background: #dcfce7; color: #166534; }
+        .badge-working { background: #fef08a; color: #854d0e; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+
+        /* Live Results Table */
+        .table-container {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow-y: auto;
+            max-height: 310px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11.5px;
+            text-align: left;
+        }
+
+        th {
             background: #f1f5f9;
             color: #475569;
-            border: 1px solid var(--border);
+            font-weight: 700;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            font-size: 11px;
         }
 
-        .btn-secondary:hover {
+        td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+        }
+
+        tr:hover td { background-color: #f8fafc; }
+
+        .type-muavao { color: #2563eb; font-weight: 700; }
+        .type-banra { color: #dc2626; font-weight: 700; }
+        .result-ok { color: #16a34a; font-weight: 700; }
+        .result-dup { color: #d97706; font-weight: 600; }
+        .result-err { color: #dc2626; font-weight: 700; }
+
+        .progress-bar-wrap {
+            height: 4px;
             background: #e2e8f0;
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .progress-box {
-            display: none;
-            margin-top: 10px;
-        }
-
-        .progress-bar-bg {
-            background: #e2e8f0;
-            border-radius: 999px;
-            height: 8px;
+            border-radius: 2px;
             overflow: hidden;
-            margin-bottom: 6px;
+            display: none;
+            margin-top: 4px;
         }
 
-        .progress-bar-fill {
-            background: var(--success);
+        .progress-bar-inner {
             height: 100%;
             width: 0%;
-            transition: width 0.3s;
-        }
-
-        .log-box {
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 8px 10px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 11px;
-            max-height: 110px;
-            overflow-y: auto;
-            line-height: 1.4;
-            margin-top: 8px;
-        }
-
-        .log-success { color: #4ade80; }
-        .log-error { color: #f87171; }
-        .log-info { color: #60a5fa; }
-
-        .token-link {
-            font-size: 11px;
-            color: var(--primary);
-            text-decoration: underline;
-            cursor: pointer;
-        }
-
-        .manual-token-box {
-            display: none;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed var(--border);
+            background: #2563eb;
+            transition: width 0.2s;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-title">
-            <span>⚡ GDT Sync Helper</span>
+
+    <!-- Header -->
+    <div class="top-navbar">
+        <div class="top-brand">
+            <span>⚡ NIBot</span>
+            <span style="font-size: 12px; font-weight: 500; color: #cbd5e1;">| Đồng bộ Hóa đơn từ hoadondientu.gdt.gov.vn</span>
         </div>
-        <div class="status-container">
-            <span id="badgeGdtStatus" class="status-badge badge-warning">Đang kiểm tra...</span>
-            <button id="btnRefreshTab" class="btn-icon" title="Quét lại tab Cổng Thuế">🔄</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="gdtHeaderStatus" class="status-badge badge-working">Đang kiểm tra Cổng Thuế...</span>
+            <button id="btnRefreshTab" class="btn-small" title="Quét lại phiên Cổng Thuế">🔄</button>
         </div>
     </div>
 
-    <!-- CẤU HÌNH MÁY CHỦ -->
-    <div class="card">
-        <div class="card-title">
-            <span>Máy chủ Phần mềm</span>
-            <span class="token-link" id="btnTestConn">Kiểm tra kết nối</span>
-        </div>
-        <div class="form-group">
-            <input type="text" id="serverUrl" placeholder="Ví dụ: https://quanlihoadondientu.onrender.com">
-        </div>
-        <div id="connResult" style="font-size: 11px; margin-top: 4px; color: var(--text-muted);"></div>
+    <!-- Breadcrumb -->
+    <div class="top-breadcrumb">
+        <span>QUẢN LÝ HĐ</span>
+        <span class="sep">&gt;</span>
+        <span id="labelCurrentMst">MST DOANH NGHIỆP</span>
+        <span class="sep">&gt;</span>
+        <span class="active">ĐỒNG BỘ</span>
     </div>
 
-    <!-- TÙY CHỌN ĐỒNG BỘ -->
-    <div class="card">
-        <div class="card-title">Thiết lập lấy hóa đơn</div>
-        
-        <div class="form-group">
-            <label for="syncMst">Mã số thuế doanh nghiệp:</label>
-            <input type="text" id="syncMst" placeholder="Nhập MST (Ví dụ: 0314094922)">
-        </div>
+    <!-- Main Body -->
+    <div class="main-container">
 
-        <div class="form-group">
-            <label for="syncType">Loại hóa đơn:</label>
-            <select id="syncType">
-                <option value="MuaVao" selected>Hóa đơn Mua vào</option>
-                <option value="BanRa">Hóa đơn Bán ra</option>
-            </select>
-        </div>
+        <!-- CỘT TRÁI: THIẾT LẬP VÀ ĐIỀU KHIỂN -->
+        <div class="left-col">
+            <div class="section-title">Khoảng thời gian đồng bộ</div>
 
-        <div class="row-2">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="periodSelect">Khoảng thời gian:</label>
+                    <select id="periodSelect">
+                        <option value="ALL_TIME" style="font-weight: 700; color: #dc2626;">⭐ TẤT CẢ TỪ TRƯỚC ĐẾN NAY (Từ 2022 đến nay)</option>
+                        <option value="Q1" selected>Quý 1</option>
+                        <option value="Q2">Quý 2</option>
+                        <option value="Q3">Quý 3</option>
+                        <option value="Q4">Quý 4</option>
+                        <option value="M1">Tháng 1</option>
+                        <option value="M2">Tháng 2</option>
+                        <option value="M3">Tháng 3</option>
+                        <option value="M4">Tháng 4</option>
+                        <option value="M5">Tháng 5</option>
+                        <option value="M6">Tháng 6</option>
+                        <option value="M7">Tháng 7</option>
+                        <option value="M8">Tháng 8</option>
+                        <option value="M9">Tháng 9</option>
+                        <option value="M10">Tháng 10</option>
+                        <option value="M11">Tháng 11</option>
+                        <option value="M12">Tháng 12</option>
+                        <option value="YEAR">Cả năm</option>
+                        <option value="CUSTOM">Tùy chỉnh...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="yearInput">Năm:</label>
+                    <input type="text" id="yearInput" value="2023">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="fromDate">Từ ngày:</label>
+                    <input type="date" id="fromDate" value="2023-01-01">
+                </div>
+                <div class="form-group">
+                    <label for="toDate">Đến ngày:</label>
+                    <input type="date" id="toDate" value="2023-03-31">
+                </div>
+            </div>
+
+            <label class="checkbox-group" title="Tải toàn bộ chi tiết mặt hàng, số lượng, đơn giá từ file XML gốc">
+                <input type="checkbox" id="chkSyncXml" checked>
+                <span>Đồng bộ luôn XML (Lấy chi tiết mặt hàng)</span>
+            </label>
+
+            <div class="section-title" style="margin-top: 4px;">Cấu hình kết nối</div>
+
             <div class="form-group">
-                <label for="fromDate">Từ ngày:</label>
-                <input type="date" id="fromDate">
+                <label for="syncMst">MST Doanh nghiệp:</label>
+                <input type="text" id="syncMst" placeholder="Nhập MST (vd: 0307938981)">
             </div>
+
             <div class="form-group">
-                <label for="toDate">Đến ngày:</label>
-                <input type="date" id="toDate">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label for="serverUrl">Máy chủ Phần mềm:</label>
+                    <span id="btnTestConn" style="color: var(--primary-blue); font-size: 11px; cursor: pointer; text-decoration: underline;">Kiểm tra</span>
+                </div>
+                <input type="text" id="serverUrl" placeholder="http://localhost:5249" value="http://localhost:5249">
+                <div id="connResult" style="font-size: 10.5px; color: var(--text-muted); margin-top: 2px;"></div>
+            </div>
+
+            <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 8px;">
+                <button type="button" class="btn-action btn-blue" id="btnSyncIn">
+                    <span>⚡ Đồng bộ HĐĐT ĐẦU VÀO</span>
+                </button>
+
+                <button type="button" class="btn-action btn-orange" id="btnSyncOut">
+                    <span>⚡ Đồng bộ HĐĐT ĐẦU RA</span>
+                </button>
+
+                <button type="button" class="btn-action btn-purple" id="btnSyncBoth">
+                    <span>⚡ Đồng bộ HĐĐT VÀO/RA</span>
+                </button>
+
+                <button type="button" class="btn-action" id="btnSyncAllGov" style="background-color: #dc2626; border: 1px solid #b91c1c; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);">
+                    <span>🔥 TẢI TẤT CẢ HÓA ĐƠN TRÊN GOV (VÀO & RA)</span>
+                </button>
+            </div>
+
+            <div class="progress-bar-wrap" id="progressBarWrap">
+                <div class="progress-bar-inner" id="progressBarInner"></div>
             </div>
         </div>
 
-        <div style="margin-top: 8px;">
-            <span class="token-link" id="btnToggleManualToken">✏️ Dán Token thủ công (nếu cần)</span>
-            <div class="manual-token-box" id="manualTokenBox">
-                <textarea id="manualTokenInput" rows="2" placeholder="Dán mã Bearer Token (eyJh...) vào đây"></textarea>
-                <button type="button" class="btn btn-secondary" id="btnSaveManualToken" style="padding: 4px 8px; font-size: 11px; margin-top: 4px;">Lưu Token</button>
+        <!-- CỘT PHẢI: BÁO CÁO TIẾN TRÌNH VÀ BẢNG THỜI GIAN THỰC -->
+        <div class="right-col">
+
+            <!-- Hộp trạng thái tiến độ giống hệt Hình 1 & 2 -->
+            <div class="status-box" id="statusSummaryBox">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <div>Trạng thái: <span id="syncStatusBadge" class="status-badge badge-ready">Sẵn sàng</span></div>
+                    <div id="processTimerText" style="font-size: 11px; color: #64748b; font-weight: 600;"></div>
+                </div>
+
+                <div id="step1Text">1. Chứng thực tài khoản: <span style="color:#16a34a; font-weight:700;">Đang kiểm tra...</span></div>
+                <div id="step2Text">2. Khoảng thời gian: <span id="summaryPeriodText">01/01/2023 - 31/03/2023</span></div>
+                <div id="step3Text" style="color: #64748b;">3. Tiến độ đồng bộ: Chưa chạy</div>
             </div>
-        </div>
-    </div>
 
-    <!-- NÚT BẮT ĐẦU -->
-    <button class="btn btn-primary" id="btnStartSync">
-        <span>🚀 Bắt đầu quét & Đẩy về Phần mềm</span>
-    </button>
+            <!-- Bảng danh sách kết quả trực tiếp -->
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 85px;">Loại HĐ</th>
+                            <th style="width: 85px;">Ngày lập</th>
+                            <th style="width: 60px;">Mẫu số</th>
+                            <th style="width: 75px;">Ký hiệu</th>
+                            <th style="width: 75px;">Số HĐ</th>
+                            <th style="width: 75px;">Đồng bộ</th>
+                            <th style="width: 65px;">Kết quả</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 25px 0;">
+                                Chưa có dữ liệu đồng bộ. Vui lòng bấm một trong 3 nút đồng bộ bên trái.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-    <button class="btn btn-secondary" id="btnCopyToken" style="margin-top: 6px;">
-        <span>📋 Sao chép Token đăng nhập</span>
-    </button>
+        </div>
 
-    <!-- TIẾN TRÌNH & NHẬT KÝ -->
-    <div class="progress-box" id="progressBox">
-        <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="progressBar"></div>
-        </div>
-        <div style="font-size: 11.5px; font-weight: 600; display: flex; justify-content: space-between;">
-            <span id="progressText">Đang xử lý...</span>
-            <span id="progressPercent">0%</span>
-        </div>
-        <div class="log-box" id="logBox"></div>
     </div>
 
     <script src="popup.js"></script>

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -41,16 +42,25 @@ namespace InvoiceManager.Services.Providers.Gdt
         private HttpClient CreateClient(string? bearerToken = null)
         {
             var client = _httpClientFactory.CreateClient(ClientName);
-            client.BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/'));
+            var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
+            client.BaseAddress = new Uri(baseUrl);
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             client.DefaultRequestHeaders.Add("User-Agent", _options.UserAgent);
             client.DefaultRequestHeaders.Add("Referer", "https://hoadondientu.gdt.gov.vn/");
             client.DefaultRequestHeaders.Add("Origin", "https://hoadondientu.gdt.gov.vn");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
+            client.DefaultRequestHeaders.TryAddWithoutValidation("End-Point", "/tra-cuu/tra-cuu-hoa-don");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Action", "");
 
-            if (!string.IsNullOrEmpty(bearerToken))
+            if (!string.IsNullOrWhiteSpace(bearerToken))
             {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+                var cleanToken = bearerToken.Trim();
+                if (cleanToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanToken = cleanToken.Substring(7).Trim();
+                }
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cleanToken);
             }
 
             return client;
@@ -242,9 +252,15 @@ namespace InvoiceManager.Services.Providers.Gdt
 
         public async Task<LoginResult> LoginAsync(ProviderCredentials cred, CancellationToken ct = default)
         {
+            if (!string.IsNullOrWhiteSpace(cred.BearerToken))
+            {
+                _logger.LogInformation("Sử dụng Bearer Token trực tiếp từ phiên đăng nhập Cổng Thuế.");
+                return LoginResult.Ok(cred.BearerToken.Trim(), DateTime.UtcNow.AddHours(4));
+            }
+
             if (string.IsNullOrWhiteSpace(cred.Username) || string.IsNullOrWhiteSpace(cred.Password))
             {
-                return LoginResult.Fail("Vui lòng cung cấp đầy đủ tên đăng nhập và mật khẩu.");
+                return LoginResult.Fail("Vui lòng cung cấp đầy đủ tên đăng nhập và mật khẩu hoặc Bearer Token.");
             }
 
             try
@@ -399,8 +415,8 @@ namespace InvoiceManager.Services.Providers.Gdt
 
                         // Cấu trúc URL query chuẩn của Cổng Thuế
                         // tdlap=ge=dd/MM/yyyyT00:00:00;tdlap=le=dd/MM/yyyyT23:59:59
-                        var fromStr = chunk.Start.ToString("dd/MM/yyyy");
-                        var toStr = chunk.End.ToString("dd/MM/yyyy");
+                        var fromStr = chunk.Start.ToString("dd'/'MM'/'yyyy", CultureInfo.InvariantCulture);
+                        var toStr = chunk.End.ToString("dd'/'MM'/'yyyy", CultureInfo.InvariantCulture);
                         var query = $"{baseEndpoint}?sort=tdlap:desc&size={_options.PageSize}";
                         query += $"&search=tdlap=ge={fromStr}T00:00:00;tdlap=le={toStr}T23:59:59";
 
@@ -409,24 +425,32 @@ namespace InvoiceManager.Services.Providers.Gdt
                             query += $"&state={Uri.EscapeDataString(state)}";
                         }
 
+                        _logger.LogInformation("Quét hóa đơn Cổng Thuế ({Type}): {From} -> {To} | Trang {Page} | State: {State}",
+                            invType, fromStr, toStr, page, state ?? "INIT");
+
                         HttpResponseMessage response;
                         try
                         {
+                            client.DefaultRequestHeaders.Remove("request-id");
+                            client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
                             response = await client.GetAsync(query, ct);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Lỗi khi truy vấn hóa đơn từ Cổng Thuế đoạn ngày {From} - {To}", fromStr, toStr);
+                            _logger.LogWarning(ex, "Lỗi kết nối khi truy vấn hóa đơn từ Cổng Thuế đoạn ngày {From} - {To}", fromStr, toStr);
                             break;
                         }
 
                         if (!response.IsSuccessStatusCode)
                         {
-                            _logger.LogWarning("Truy vấn trực tiếp Cổng Thuế trả về mã {StatusCode}, thử lấy qua Headless Chrome Agent...", response.StatusCode);
+                            var errBody = await response.Content.ReadAsStringAsync(ct);
+                            _logger.LogWarning("Truy vấn trực tiếp Cổng Thuế trả về mã {StatusCode} (URL: {Query}). Body: {ErrBody}. Thử lấy qua Headless Chrome Agent...", response.StatusCode, query, errBody);
+                            
                             var searchArg = $"tdlap=ge={fromStr}T00:00:00;tdlap=le={toStr}T23:59:59";
                             var agentFetchArgs = $"fetch-invoices --token \"{token}\" --endpoint \"/{baseEndpoint}\" --search \"{searchArg}\"";
                             var agentFetchOut = await RunHeadlessAgentAsync(agentFetchArgs, ct);
                             var agentInvoices = new List<RemoteInvoice>();
+
                             if (!string.IsNullOrEmpty(agentFetchOut))
                             {
                                 try
@@ -434,14 +458,22 @@ namespace InvoiceManager.Services.Providers.Gdt
                                     using var fetchDoc = JsonDocument.Parse(agentFetchOut);
                                     if (fetchDoc.RootElement.TryGetProperty("datas", out var arr) && arr.ValueKind == JsonValueKind.Array)
                                     {
+                                        int rawAgentCount = 0;
                                         foreach (var item in arr.EnumerateArray())
                                         {
+                                            rawAgentCount++;
                                             var remote = ParseInvoiceItem(item, invType, req.TaxCode);
                                             if (remote != null)
                                             {
                                                 agentInvoices.Add(remote);
                                             }
                                         }
+                                        _logger.LogInformation("Headless Chrome Agent trả về {RawCount} bản ghi thô (Parse thành công: {SuccessCount})",
+                                            rawAgentCount, agentInvoices.Count);
+                                    }
+                                    else if (fetchDoc.RootElement.TryGetProperty("message", out var agentErrMsg))
+                                    {
+                                        _logger.LogWarning("Headless Chrome Agent trả về lỗi: {Msg}", agentErrMsg.GetString());
                                     }
                                 }
                                 catch (Exception ex)
@@ -475,25 +507,31 @@ namespace InvoiceManager.Services.Providers.Gdt
                             itemsArray = root;
                         }
 
-                        int itemCount = 0;
+                        int totalRawItems = 0;
+                        int parsedItemCount = 0;
+
                         if (itemsArray.ValueKind == JsonValueKind.Array)
                         {
                             foreach (var item in itemsArray.EnumerateArray())
                             {
+                                totalRawItems++;
                                 var remote = ParseInvoiceItem(item, invType, req.TaxCode);
                                 if (remote != null)
                                 {
-                                    itemCount++;
+                                    parsedItemCount++;
                                     yield return remote;
                                 }
                             }
                         }
 
+                        _logger.LogInformation("Cổng Thuế trả về {RawCount} bản ghi JSON thô (Bóc tách thành công: {SuccessCount}) cho chu kỳ {From} - {To}",
+                            totalRawItems, parsedItemCount, fromStr, toStr);
+
                         // Kiểm tra phân trang qua cursor "state"
                         if (root.TryGetProperty("state", out var nextStateProp) && nextStateProp.ValueKind == JsonValueKind.String)
                         {
                             var nextState = nextStateProp.GetString();
-                            if (!string.IsNullOrEmpty(nextState) && nextState != state && itemCount > 0)
+                            if (!string.IsNullOrEmpty(nextState) && nextState != state && totalRawItems > 0)
                             {
                                 state = nextState;
                                 page++;
@@ -512,56 +550,118 @@ namespace InvoiceManager.Services.Providers.Gdt
             }
         }
 
+        private static string GetJsonStringValue(JsonElement item, string prop)
+        {
+            if (!item.TryGetProperty(prop, out var p)) return string.Empty;
+            switch (p.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return p.GetString()?.Trim() ?? string.Empty;
+                case JsonValueKind.Number:
+                    return p.GetRawText().Trim();
+                case JsonValueKind.True:
+                    return "true";
+                case JsonValueKind.False:
+                    return "false";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        private static decimal GetJsonDecimalValue(JsonElement item, string prop)
+        {
+            if (!item.TryGetProperty(prop, out var p)) return 0;
+            if (p.ValueKind == JsonValueKind.Number)
+            {
+                return p.TryGetDecimal(out var d) ? d : 0;
+            }
+            if (p.ValueKind == JsonValueKind.String)
+            {
+                var s = p.GetString();
+                if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) return d;
+                if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.CurrentCulture, out d)) return d;
+            }
+            return 0;
+        }
+
         private RemoteInvoice? ParseInvoiceItem(JsonElement item, string defaultType, string currentTaxCode)
         {
             try
             {
-                string GetString(string prop) => item.TryGetProperty(prop, out var p) ? p.GetString() ?? string.Empty : string.Empty;
-                decimal GetDecimal(string prop)
-                {
-                    if (!item.TryGetProperty(prop, out var p)) return 0;
-                    if (p.ValueKind == JsonValueKind.Number) return p.GetDecimal();
-                    if (decimal.TryParse(p.GetString(), out var val)) return val;
-                    return 0;
-                }
-
-                var symbol = GetString("khhdon");
-                var number = GetString("shdon");
-                if (string.IsNullOrEmpty(symbol) || string.IsNullOrEmpty(number)) return null;
+                var symbol = GetJsonStringValue(item, "khhdon");
+                var rawNumber = GetJsonStringValue(item, "shdon");
+                if (string.IsNullOrEmpty(symbol) || string.IsNullOrEmpty(rawNumber)) return null;
 
                 DateTime issueDate = DateTime.Now;
-                var dateStr = GetString("tdlap");
-                if (DateTime.TryParse(dateStr, out var d)) issueDate = d;
+                var dateStr = GetJsonStringValue(item, "tdlap");
+                if (!string.IsNullOrEmpty(dateStr))
+                {
+                    if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) issueDate = d;
+                    else if (DateTime.TryParse(dateStr, out d)) issueDate = d;
+                }
 
-                var id = GetString("id");
-                var sellerMst = GetString("nbmst");
-                var sellerName = GetString("nbten");
-                var buyerMst = GetString("nmdmst");
-                var buyerName = GetString("nmten");
+                var id = GetJsonStringValue(item, "id");
+                var sellerMst = GetJsonStringValue(item, "nbmst");
+                var sellerName = GetJsonStringValue(item, "nbten");
+                var sellerAddress = GetJsonStringValue(item, "nbdchi");
+                var buyerMst = GetJsonStringValue(item, "nmdmst");
+                var buyerName = GetJsonStringValue(item, "nmten");
+                var buyerAddress = GetJsonStringValue(item, "nmdchi");
+
+                // Chuẩn hóa số hóa đơn 7 chữ số nhưng vẫn bảo lưu rawNumber gốc cho việc tải XML
+                var normalizedNumber = rawNumber;
+                if (long.TryParse(rawNumber, out var numVal))
+                {
+                    normalizedNumber = numVal.ToString("D7");
+                }
+                else
+                {
+                    normalizedNumber = rawNumber.PadLeft(7, '0');
+                }
 
                 return new RemoteInvoice
                 {
-                    ProviderKey = !string.IsNullOrEmpty(id) ? id : $"{sellerMst}_{symbol}_{number}",
+                    ProviderKey = !string.IsNullOrEmpty(id) ? id : $"{sellerMst}_{symbol}_{normalizedNumber}",
                     InvoiceSymbol = symbol,
-                    InvoiceNumber = number.PadLeft(7, '0'),
+                    InvoiceNumber = normalizedNumber,
+                    RawInvoiceNumber = rawNumber,
                     IssueDate = issueDate,
                     SellerTaxCode = sellerMst,
                     SellerName = sellerName,
+                    SellerAddress = sellerAddress,
                     BuyerTaxCode = buyerMst,
                     BuyerName = buyerName,
-                    AmountBeforeTax = GetDecimal("tgtcthue"),
-                    TaxAmount = GetDecimal("tgtthue"),
-                    TotalAmount = GetDecimal("tgtttbso"),
+                    BuyerAddress = buyerAddress,
+                    AmountBeforeTax = GetJsonDecimalValue(item, "tgtcthue"),
+                    TaxAmount = GetJsonDecimalValue(item, "tgtthue"),
+                    TotalAmount = GetJsonDecimalValue(item, "tgtttbso"),
                     InvoiceType = defaultType,
-                    CqtCode = GetString("mcqt"),
-                    Status = GetString("ttxly")
+                    CqtCode = GetJsonStringValue(item, "mcqt"),
+                    Status = MapGdtStatus(GetJsonStringValue(item, "ttxly"))
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Lỗi khi parse 1 dòng hóa đơn từ response Cổng Thuế.");
+                _logger.LogWarning(ex, "Lỗi khi parse 1 dòng hóa đơn từ response Cổng Thuế: {RawItem}", item.GetRawText());
                 return null;
             }
+        }
+
+        private static string MapGdtStatus(string? ttxly)
+        {
+            return ttxly switch
+            {
+                "1" => "Mới lập",
+                "2" => "Đã gửi CQT",
+                "3" => "CQT đã tiếp nhận",
+                "4" => "Không tiếp nhận",
+                "5" => "Đã cấp mã",
+                "6" => "Từ chối cấp mã",
+                "7" => "Đã thay thế",
+                "8" => "Đã điều chỉnh",
+                "9" => "Đã bị hủy",
+                _ => string.IsNullOrWhiteSpace(ttxly) ? "Hóa đơn mới" : ttxly
+            };
         }
 
         public async Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
@@ -569,19 +669,66 @@ namespace InvoiceManager.Services.Providers.Gdt
             await ApplyRateLimitAsync(ct);
             var client = CreateClient(token);
 
-            // Cổng thuế hỗ trợ tải XML theo query nbmst, khhdon, shdon hoặc id
-            var endpoint = _options.ExportXmlEndpoint.TrimStart('/');
-            var url = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(inv.InvoiceSymbol)}&shdon={Uri.EscapeDataString(inv.InvoiceNumber)}";
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
 
-            if (!string.IsNullOrEmpty(inv.ProviderKey) && !inv.ProviderKey.Contains("_"))
+            var endpoint = _options.ExportXmlEndpoint.TrimStart('/');
+            var shdonPrimary = !string.IsNullOrEmpty(inv.RawInvoiceNumber) ? inv.RawInvoiceNumber : inv.InvoiceNumber;
+
+            // 1. Thử URL chuẩn của Cổng Thuế: nbmst, khhdon, shdon với timeout ngắn 5s
+            var url = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(inv.InvoiceSymbol)}&shdon={Uri.EscapeDataString(shdonPrimary)}";
+
+            HttpResponseMessage? response = null;
+            try
             {
-                url += $"&id={Uri.EscapeDataString(inv.ProviderKey)}";
+                client.DefaultRequestHeaders.Remove("request-id");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                response = await client.GetAsync(url, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Tải XML HĐ {Symbol}-{Number} lỗi: {Msg}", inv.InvoiceSymbol, shdonPrimary, ex.Message);
             }
 
-            var response = await client.GetAsync(url, ct);
-            response.EnsureSuccessStatusCode();
+            // Nếu gặp lỗi 500 (Internal Server Error) hoặc 400 (Bad Request), Cổng thuế không hỗ trợ file XML gốc cho HĐ này
+            // Trả về mảng rỗng ngay trong vài mili-giây để luồng chính tự động fallback sang nạp metadata trực tiếp
+            if (response == null || response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                return Array.Empty<byte>();
+            }
+
+            // 2. Chỉ khi gặp 404 và ký hiệu chưa có tiền tố mẫu số "1", thử thêm "1" một lần duy nhất
+            if (!response.IsSuccessStatusCode && response.StatusCode == HttpStatusCode.NotFound && !string.IsNullOrEmpty(inv.InvoiceSymbol) && !char.IsDigit(inv.InvoiceSymbol[0]))
+            {
+                var symbolWithMau = $"1{inv.InvoiceSymbol}";
+                var retryMauUrl = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(symbolWithMau)}&shdon={Uri.EscapeDataString(shdonPrimary)}";
+                try
+                {
+                    client.DefaultRequestHeaders.Remove("request-id");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
+                    using var cts2 = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    cts2.CancelAfter(TimeSpan.FromSeconds(3));
+                    var retryMauResp = await client.GetAsync(retryMauUrl, cts2.Token);
+                    if (retryMauResp.IsSuccessStatusCode)
+                    {
+                        response = retryMauResp;
+                    }
+                }
+                catch { }
+            }
+
+            if (response == null || !response.IsSuccessStatusCode)
+            {
+                return Array.Empty<byte>();
+            }
 
             var rawBytes = await response.Content.ReadAsByteArrayAsync(ct);
+            if (rawBytes == null || rawBytes.Length == 0)
+            {
+                return Array.Empty<byte>();
+            }
 
             // Kiểm tra xem phản hồi có phải là file ZIP không (chữ ký PK\x03\x04)
             if (rawBytes.Length > 4 && rawBytes[0] == 0x50 && rawBytes[1] == 0x4B && rawBytes[2] == 0x03 && rawBytes[3] == 0x04)

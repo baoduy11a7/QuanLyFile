@@ -235,6 +235,11 @@
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
+                                    <button type="button" class="dropdown-item py-2 fw-semibold" style="color: #0284c7;" onclick="triggerExport('ExcelSmartPro')">
+                                        <i class="bi bi-file-earmark-spreadsheet-fill me-2" style="color: #0284c7;"></i> Xuất Excel Smart Pro (Sổ KTSC 4 Sheet)
+                                    </button>
+                                </li>
+                                <li>
                                     <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelDetailed')">
                                         <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i> Xuất Excel Chi tiết (dòng hàng)
                                     </button>
@@ -430,9 +435,9 @@
                                 <strong class="text-primary">@inv.TotalAmount.ToString("N0")</strong> <span class="text-muted" style="font-size: 0.7rem;">đ</span>
                             </td>
                             <td class="text-center">
-                                @if (inv.Status == "Hóa đơn mới")
+                                @if (inv.Status == "Hóa đơn mới" || inv.Status == "Đã cấp mã" || inv.Status == "5")
                                 {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Hóa đơn mới</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-check me-1"></i>@(inv.Status == "5" ? "Đã cấp mã" : inv.Status)</span>
                                 }
                                 else if (inv.Status == "Đã điều chỉnh")
                                 {

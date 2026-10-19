@@ -9,6 +9,7 @@ namespace InvoiceManager.Services.Providers.Models
         public string Password { get; set; } = string.Empty;
         public string? CaptchaKey { get; set; }
         public string? CaptchaCode { get; set; }
+        public string? BearerToken { get; set; }
     }
 
     public class CaptchaChallenge
@@ -52,12 +53,15 @@ namespace InvoiceManager.Services.Providers.Models
     {
         public string ProviderKey { get; set; } = string.Empty; // Id hoặc khóa tải của cổng thuế
         public string InvoiceSymbol { get; set; } = string.Empty; // Ký hiệu (e.g. 1C25TKT)
-        public string InvoiceNumber { get; set; } = string.Empty; // Số HĐ (e.g. 00000501)
+        public string InvoiceNumber { get; set; } = string.Empty; // Số HĐ chuẩn hóa (e.g. 00000501)
+        public string RawInvoiceNumber { get; set; } = string.Empty; // Số HĐ gốc từ API (e.g. 501)
         public DateTime IssueDate { get; set; }
         public string SellerTaxCode { get; set; } = string.Empty;
         public string SellerName { get; set; } = string.Empty;
+        public string? SellerAddress { get; set; }
         public string BuyerTaxCode { get; set; } = string.Empty;
         public string BuyerName { get; set; } = string.Empty;
+        public string? BuyerAddress { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal AmountBeforeTax { get; set; }
         public decimal TaxAmount { get; set; }
