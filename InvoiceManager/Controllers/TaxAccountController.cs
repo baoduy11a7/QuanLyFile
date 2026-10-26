@@ -114,9 +114,17 @@ namespace InvoiceManager.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
-            var existing = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == model.TaxCode.Trim());
-            if (existing != null)
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
+
+            // Kiểm tra xem chính tài khoản hiện tại đã có công ty này chưa
+            var userAcc = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == model.TaxCode.Trim());
+
+            if (userAcc?.TaxAccount != null)
             {
+                var existing = userAcc.TaxAccount;
                 existing.IsActive = true;
                 existing.CompanyName = model.CompanyName.Trim();
                 existing.Address = model.Address.Trim();
@@ -125,19 +133,12 @@ namespace InvoiceManager.Controllers
                 if (!string.IsNullOrEmpty(model.Representative)) existing.Representative = model.Representative.Trim();
 
                 await _db.SaveChangesAsync();
-
-                var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (!string.IsNullOrEmpty(currentUserId) && !await _db.UserTaxAccounts.AnyAsync(u => u.UserId == currentUserId && u.TaxAccountId == existing.Id))
-                {
-                    _db.UserTaxAccounts.Add(new UserTaxAccount { UserId = currentUserId, TaxAccountId = existing.Id });
-                    await _db.SaveChangesAsync();
-                }
-
                 await _taxAccountContext.SetCurrentTaxAccountAsync(existing.Id);
-                TempData["SuccessMessage"] = $"Đã kích hoạt lại công ty {existing.CompanyName} (MST: {existing.TaxCode}) thành công!";
+                TempData["SuccessMessage"] = $"Đã cập nhật/kích hoạt lại công ty {existing.CompanyName} (MST: {existing.TaxCode}) thành công!";
                 return RedirectToAction(nameof(Index));
             }
 
+            // Nếu người dùng hiện tại chưa quản lý công ty này -> tạo mới riêng biệt để đảm bảo bảo mật dữ liệu độc lập
             var account = new TaxAccount
             {
                 TaxCode = model.TaxCode.Trim(),
@@ -153,12 +154,15 @@ namespace InvoiceManager.Controllers
             _db.TaxAccounts.Add(account);
             await _db.SaveChangesAsync();
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!string.IsNullOrEmpty(userId))
+            _db.UserTaxAccounts.Add(new UserTaxAccount
             {
-                _db.UserTaxAccounts.Add(new UserTaxAccount { UserId = userId, TaxAccountId = account.Id });
-                await _db.SaveChangesAsync();
-            }
+                UserId = currentUserId,
+                TaxAccountId = account.Id,
+                IsDefault = true,
+                CanManage = true,
+                AssignedAt = DateTime.Now
+            });
+            await _db.SaveChangesAsync();
 
             await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
 
@@ -169,9 +173,16 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
+            var hasAccess = await _taxAccountContext.HasAccessToTaxAccountAsync(id);
+            if (!hasAccess && !User.IsInRole("Admin"))
+            {
+                TempData["ErrorMessage"] = "Bạn không có quyền xóa doanh nghiệp này.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var account = await _db.TaxAccounts.FindAsync(id);
             if (account == null)
             {
@@ -225,7 +236,8 @@ namespace InvoiceManager.Controllers
                 var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
                 if (currentId == id)
                 {
-                    var nextAccount = await _db.TaxAccounts.FirstOrDefaultAsync();
+                    var accessible = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
+                    var nextAccount = accessible.FirstOrDefault(a => a.Id != id);
                     if (nextAccount != null)
                     {
                         await _taxAccountContext.SetCurrentTaxAccountAsync(nextAccount.Id);
@@ -311,15 +323,20 @@ namespace InvoiceManager.Controllers
             }
 
             var cleanTaxCode = lookup.TaxCode!.Trim();
-            var existing = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
-            TaxAccount account;
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
 
-            if (existing != null)
+            var userAcc = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
+
+            TaxAccount account;
+            if (userAcc?.TaxAccount != null)
             {
-                existing.IsActive = true;
-                if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) existing.CompanyName = lookup.CompanyName.Trim();
-                if (!string.IsNullOrWhiteSpace(lookup.Address)) existing.Address = lookup.Address.Trim();
-                account = existing;
+                account = userAcc.TaxAccount;
+                account.IsActive = true;
+                if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
+                if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
             }
             else
             {
@@ -332,21 +349,23 @@ namespace InvoiceManager.Controllers
                     CreatedAt = DateTime.Now
                 };
                 _db.TaxAccounts.Add(account);
+                await _db.SaveChangesAsync();
+
+                _db.UserTaxAccounts.Add(new UserTaxAccount
+                {
+                    UserId = currentUserId,
+                    TaxAccountId = account.Id,
+                    IsDefault = true,
+                    CanManage = true,
+                    AssignedAt = DateTime.Now
+                });
             }
 
             await _db.SaveChangesAsync();
-
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!string.IsNullOrEmpty(currentUserId) && !await _db.UserTaxAccounts.AnyAsync(u => u.UserId == currentUserId && u.TaxAccountId == account.Id))
-            {
-                _db.UserTaxAccounts.Add(new UserTaxAccount { UserId = currentUserId, TaxAccountId = account.Id });
-                await _db.SaveChangesAsync();
-            }
-
             await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
 
             await _auditLog.LogActionAsync("Thêm/Kích hoạt từ Cổng Thuế", $"MST: {account.TaxCode}", account.CompanyName, account.Id);
-            TempData["SuccessMessage"] = $"Đã thêm và kích hoạt thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode}) từ Cổng Thuế!";
+            TempData["SuccessMessage"] = $"Đã thêm và kích hoạt thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode}) vào tài khoản của bạn!";
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
@@ -369,27 +388,26 @@ namespace InvoiceManager.Controllers
             }
 
             var cleanTaxCode = lookup.TaxCode!.Trim();
-            var existingAccount = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
-            if (existingAccount == null)
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
+
+            var userAcc = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
+
+            if (userAcc?.TaxAccount == null)
             {
-                TempData["ErrorMessage"] = $"Không tìm thấy tài khoản thuế {cleanTaxCode} trong hệ thống để cập nhật.";
+                TempData["ErrorMessage"] = $"Bạn chưa quản lý tài khoản thuế {cleanTaxCode} trong danh sách của mình.";
                 return RedirectToAction(nameof(Lookup), new { taxCode });
             }
 
+            var existingAccount = userAcc.TaxAccount;
             var oldName = existingAccount.CompanyName;
             existingAccount.IsActive = true;
             existingAccount.CompanyName = lookup.CompanyName?.Trim() ?? existingAccount.CompanyName;
             existingAccount.Address = lookup.Address?.Trim() ?? existingAccount.Address;
 
             await _db.SaveChangesAsync();
-
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!string.IsNullOrEmpty(currentUserId) && !await _db.UserTaxAccounts.AnyAsync(u => u.UserId == currentUserId && u.TaxAccountId == existingAccount.Id))
-            {
-                _db.UserTaxAccounts.Add(new UserTaxAccount { UserId = currentUserId, TaxAccountId = existingAccount.Id });
-                await _db.SaveChangesAsync();
-            }
-
             await _taxAccountContext.SetCurrentTaxAccountAsync(existingAccount.Id);
 
             await _auditLog.LogActionAsync("Cập nhật lại từ Cổng Thuế", $"MST: {existingAccount.TaxCode}", $"Đổi từ '{oldName}' thành '{existingAccount.CompanyName}'", existingAccount.Id);
@@ -420,10 +438,20 @@ namespace InvoiceManager.Controllers
             }
 
             var cleanTaxCode = lookup.TaxCode!.Trim();
-            var account = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
-            bool isNew = false;
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Json(new { success = false, message = "Phiên làm việc hết hạn. Vui lòng đăng nhập lại." });
+            }
 
-            if (account == null)
+            var userAcc = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
+
+            bool isNew = false;
+            TaxAccount account;
+
+            if (userAcc?.TaxAccount == null)
             {
                 isNew = true;
                 account = new TaxAccount
@@ -435,29 +463,25 @@ namespace InvoiceManager.Controllers
                     CreatedAt = DateTime.Now
                 };
                 _db.TaxAccounts.Add(account);
+                await _db.SaveChangesAsync();
+
+                _db.UserTaxAccounts.Add(new UserTaxAccount
+                {
+                    UserId = currentUserId,
+                    TaxAccountId = account.Id,
+                    IsDefault = true,
+                    CanManage = true,
+                    AssignedAt = DateTime.Now
+                });
+                await _db.SaveChangesAsync();
             }
             else
             {
+                account = userAcc.TaxAccount;
                 account.IsActive = true;
                 if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
                 if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
-            }
-
-            await _db.SaveChangesAsync();
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!string.IsNullOrEmpty(userId))
-            {
-                var hasAccess = await _db.UserTaxAccounts.AnyAsync(u => u.UserId == userId && u.TaxAccountId == account.Id);
-                if (!hasAccess)
-                {
-                    _db.UserTaxAccounts.Add(new UserTaxAccount
-                    {
-                        UserId = userId,
-                        TaxAccountId = account.Id
-                    });
-                    await _db.SaveChangesAsync();
-                }
+                await _db.SaveChangesAsync();
             }
 
             await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
@@ -478,8 +502,8 @@ namespace InvoiceManager.Controllers
                 address = account.Address,
                 status = lookup.Status ?? "Đang hoạt động",
                 message = isNew
-                    ? $"Đã cào thông tin và thêm doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) vào hệ thống thành công!"
-                    : $"Đã cào thông tin và kích hoạt lại doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
+                    ? $"Đã cào thông tin và thêm doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) vào tài khoản của bạn thành công!"
+                    : $"Đã cào thông tin và cập nhật doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
             });
         }
     }

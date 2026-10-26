@@ -76,10 +76,20 @@ namespace InvoiceManager.Controllers
             }
 
             var cleanTaxCode = lookup.TaxCode!.Trim();
-            var account = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
-            bool isNew = false;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Json(new { success = false, message = "Phiên làm việc hết hạn. Vui lòng đăng nhập lại." });
+            }
 
-            if (account == null)
+            var userAcc = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .FirstOrDefaultAsync(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
+
+            bool isNew = false;
+            TaxAccount account;
+
+            if (userAcc?.TaxAccount == null)
             {
                 isNew = true;
                 account = new TaxAccount
@@ -91,29 +101,25 @@ namespace InvoiceManager.Controllers
                     CreatedAt = DateTime.Now
                 };
                 _db.TaxAccounts.Add(account);
+                await _db.SaveChangesAsync();
+
+                _db.UserTaxAccounts.Add(new UserTaxAccount
+                {
+                    UserId = userId,
+                    TaxAccountId = account.Id,
+                    IsDefault = true,
+                    CanManage = true,
+                    AssignedAt = DateTime.Now
+                });
+                await _db.SaveChangesAsync();
             }
             else
             {
+                account = userAcc.TaxAccount;
                 account.IsActive = true;
                 if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
                 if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
-            }
-
-            await _db.SaveChangesAsync();
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!string.IsNullOrEmpty(userId))
-            {
-                var hasAccess = await _db.UserTaxAccounts.AnyAsync(u => u.UserId == userId && u.TaxAccountId == account.Id);
-                if (!hasAccess)
-                {
-                    _db.UserTaxAccounts.Add(new UserTaxAccount
-                    {
-                        UserId = userId,
-                        TaxAccountId = account.Id
-                    });
-                    await _db.SaveChangesAsync();
-                }
+                await _db.SaveChangesAsync();
             }
 
             await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
@@ -269,11 +275,41 @@ namespace InvoiceManager.Controllers
                 success = true,
                 exists = true,
                 username = conn.Username,
+                rememberPassword = conn.RememberPassword,
                 hasSavedPassword = conn.RememberPassword && !string.IsNullOrEmpty(conn.EncryptedPassword),
                 lastSyncAt = conn.LastSyncAt?.ToString("dd/MM/yyyy HH:mm"),
                 lastSyncStatus = conn.LastSyncStatus,
                 lastSyncMessage = conn.LastSyncMessage
             });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetRememberPassword([FromBody] SetRememberPasswordRequest request)
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
+            }
+
+            var provider = string.IsNullOrWhiteSpace(request?.Provider) ? "Gdt" : request.Provider;
+            var conn = await _db.RemoteConnections
+                .FirstOrDefaultAsync(r => r.TaxAccountId == currentAccount.Id && r.ProviderName == provider);
+
+            if (conn != null)
+            {
+                conn.RememberPassword = request!.Remember;
+                if (!request.Remember)
+                {
+                    conn.EncryptedPassword = null;
+                }
+                conn.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+
+            return Json(new { success = true, remember = request?.Remember ?? false });
         }
 
         [HttpPost]
@@ -416,5 +452,11 @@ namespace InvoiceManager.Controllers
     public class CancelJobRequest
     {
         public string JobId { get; set; } = string.Empty;
+    }
+
+    public class SetRememberPasswordRequest
+    {
+        public string Provider { get; set; } = "Gdt";
+        public bool Remember { get; set; }
     }
 }

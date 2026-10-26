@@ -113,19 +113,12 @@ namespace InvoiceManager.Services
             }
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isAdmin = context.User.IsInRole("Admin");
-
-            if (isAdmin)
-            {
-                return await _db.TaxAccounts.Where(t => t.IsActive).OrderBy(t => t.TaxCode).ToListAsync();
-            }
-
             if (string.IsNullOrEmpty(userId))
             {
                 return new List<TaxAccount>();
             }
 
-            // User thường: chỉ lấy các tài khoản được gán
+            // Mỗi tài khoản (kể cả Admin) chỉ quản lý các công ty được phân quyền cho chính mình
             return await _db.UserTaxAccounts
                 .Where(u => u.UserId == userId && u.TaxAccount!.IsActive)
                 .Select(u => u.TaxAccount!)
@@ -139,11 +132,6 @@ namespace InvoiceManager.Services
             if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
             {
                 return true; // Cho phép chế độ xem trước nếu chưa đăng nhập
-            }
-
-            if (context.User.IsInRole("Admin"))
-            {
-                return await _db.TaxAccounts.AnyAsync(t => t.Id == taxAccountId && t.IsActive);
             }
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);

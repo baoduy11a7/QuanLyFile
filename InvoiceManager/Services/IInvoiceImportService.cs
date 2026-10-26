@@ -17,9 +17,10 @@ namespace InvoiceManager.Services
 
     public interface IInvoiceImportService
     {
-        Task<ImportBatchResult> ImportXmlAsync(Stream xmlStream, string fileName, int taxAccountId, string invoiceType, string? userId);
+        Task<ImportBatchResult> ImportXmlAsync(Stream xmlStream, string fileName, int taxAccountId, string invoiceType, string? userId, string? rawPdfPath = null, byte[]? rawPdfBytes = null);
         Task<ImportBatchResult> ImportZipAsync(Stream zipStream, int taxAccountId, string invoiceType, string? userId);
         Task<ImportBatchResult> ImportExcelAsync(Stream excelStream, string fileName, int taxAccountId, string invoiceType, string? userId);
         Task<byte[]> GenerateExcelTemplateAsync(string invoiceType);
+        Task<string> SaveRawFileAsync(Stream stream, int taxAccountId, string originalFileName);
     }
 }

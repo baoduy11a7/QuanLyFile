@@ -153,16 +153,8 @@
                     <div class="tab-pane fade show active" id="tab-remote-main" role="tabpanel">
                         <!-- VIEW 1: Form thiết lập API -->
                         <div id="pageRemoteSetupSection">
-                            <div class="alert alert-info border-info-subtle d-flex align-items-start gap-2 mb-4">
-                                <i class="bi bi-info-circle-fill text-primary fs-5 mt-1"></i>
-                                <div class="small">
-                                    <strong>Quy trình xử lý API Thuế tự động:</strong> Hệ thống kết nối API Cổng Thuế (hoadondientu.gdt.gov.vn hoặc Cổng Test), 
-                                    tự động quét và lấy toàn bộ <strong>Hóa đơn Đầu vào (Mua vào)</strong> và <strong>Hóa đơn Đầu ra (Bán ra)</strong>, bóc tách dòng hàng chi tiết, 
-                                    áp dụng thuật toán chống trùng lặp (Idempotent) và cập nhật ngay vào hệ thống thống kê cân đối thuế GTGT.
-                                </div>
-                            </div>
-
                             <form id="pageFormRemoteFetch">
+                                @Html.AntiForgeryToken()
                                 <div class="row g-3">
                                     <!-- Cổng kết nối -->
                                     <div class="col-md-6">
@@ -171,20 +163,6 @@
                                             <option value="Gdt" selected>Tổng cục Thuế (hoadondientu.gdt.gov.vn)</option>
                                             <option value="Mock">Cổng Thuế Giả Lập (Test Mode - Khuyên dùng kiểm thử nhanh)</option>
                                         </select>
-                                        <div id="pageGdtWafNotice" class="alert alert-warning small mt-2 py-2 px-3 border-warning-subtle d-flex align-items-start gap-2 mb-0">
-                                            <i class="bi bi-shield-exclamation text-warning fs-5 mt-1"></i>
-                                            <div>
-                                                <strong>Lưu ý về Tường lửa Cổng Thuế:</strong> Tường lửa của Tổng cục Thuế chặn các máy chủ đám mây (Render) để bảo vệ dữ liệu nhà nước. Không thể xóa tường lửa này.
-                                                <div class="mt-2 d-flex flex-wrap gap-2">
-                                                    <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="$('#pageRemoteProvider').val('Mock').trigger('change');">
-                                                        ⚡ Thử nghiệm API ngay tại đây (Test Mode)
-                                                    </button>
-                                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold" onclick="$('#tab-upload-main-btn').click();">
-                                                        📁 Nạp Hóa Đơn Thật (XML / ZIP / Excel)
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
 
                                     <!-- Mã số thuế -->
@@ -240,20 +218,6 @@
                                         </div>
                                     </div>
 
-                                    <!-- Tùy chọn Dán Bearer Token trực tiếp -->
-                                    <div class="col-md-12">
-                                        <div class="card bg-primary bg-opacity-10 border border-primary-subtle p-3 rounded-3">
-                                            <div class="d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="$('#boxDirectBearerToken').toggleClass('d-none');">
-                                                <span class="fw-bold text-primary"><i class="bi bi-shield-lock-fill me-1"></i> Tùy chọn 2: Dán trực tiếp Bearer Token (Khuyên dùng - Không cần Mật khẩu & Captcha)</span>
-                                                <span class="badge bg-primary text-white">Chống khóa tài khoản</span>
-                                            </div>
-                                            <div id="boxDirectBearerToken" class="mt-2 d-none">
-                                                <p class="text-muted small mb-2">Nếu tài khoản thuế bị tạm khóa đăng nhập hoặc gặp lỗi Captcha, bạn chỉ cần mở tab <code>hoadondientu.gdt.gov.vn</code> đã đăng nhập, lấy chuỗi Token (hoặc dùng nút sao chép Token của Extension NIBot) và dán vào đây:</p>
-                                                <textarea id="pageRemoteBearerToken" class="form-control font-monospace small" rows="2" placeholder="Dán Bearer Token (bắt đầu bằng eyJh...)..."></textarea>
-                                            </div>
-                                        </div>
-                                    </div>
-
                                     <!-- Phân loại hóa đơn cần lấy -->
                                     <div class="col-md-4">
                                         <label class="form-label fw-bold">6. Dữ liệu cần lấy:</label>
@@ -280,7 +244,6 @@
                                     <div class="col-12">
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <span class="small text-muted fw-semibold"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Chọn nhanh:</span>
-                                            <button type="button" class="btn btn-outline-danger btn-sm quick-date fw-bold" data-type="allTime"><i class="bi bi-fire text-danger me-1"></i>⭐ TẤT CẢ TỪ TRƯỚC ĐẾN NAY (Từ 2022)</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="thisMonth">Tháng này</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="lastMonth">Tháng trước</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm quick-date" data-type="thisQuarter">Quý này</button>
@@ -291,7 +254,7 @@
                                     <!-- Ghi nhớ mật khẩu -->
                                     <div class="col-12 mt-2">
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="pageRemoteRememberPassword" checked>
+                                            <input class="form-check-input" type="checkbox" id="pageRemoteRememberPassword">
                                             <label class="form-check-label fw-semibold" for="pageRemoteRememberPassword">
                                                 Ghi nhớ mật khẩu kết nối an toàn (mã hóa chuẩn ASP.NET Data Protection)
                                             </label>
@@ -610,9 +573,6 @@
                 } else if (type === 'thisYear') {
                     fromDate = new Date(now.getFullYear(), 0, 1);
                     toDate = now;
-                } else if (type === 'allTime') {
-                    fromDate = new Date(2022, 0, 1);
-                    toDate = now;
                 }
 
                 if (fromDate && toDate) {
@@ -681,40 +641,54 @@
                 const data = await res.json();
                 if (data.success && data.exists) {
                     if (data.username) $('#pageRemoteUsername').val(data.username);
-                    if (data.hasSavedPassword) {
+                    const remember = data.rememberPassword === true;
+                    $('#pageRemoteRememberPassword').prop('checked', remember);
+                    if (data.hasSavedPassword && remember) {
                         $('#pageSavedPasswordNotice').removeClass('d-none');
                         $('#pageRemotePassword').removeAttr('required');
-                        $('#pageRemoteRememberPassword').prop('checked', true);
                     } else {
                         $('#pageSavedPasswordNotice').addClass('d-none');
                         $('#pageRemotePassword').attr('required', 'required');
                     }
+                } else {
+                    const pref = localStorage.getItem('invoice_remember_pwd_pref');
+                    if (pref !== null) {
+                        $('#pageRemoteRememberPassword').prop('checked', pref === 'true');
+                    }
+                    $('#pageSavedPasswordNotice').addClass('d-none');
+                    $('#pageRemotePassword').attr('required', 'required');
                 }
             } catch (e) { }
         }
 
-        $('#pageBtnRefreshCaptcha').on('click', loadPageCaptcha);
-        $('#pageRemoteProvider').on('change', function () {
-            const prov = $(this).val();
-            if (prov === 'Mock') {
-                $('#pageGdtWafNotice').slideUp();
+        // Bật/tắt ghi nhớ mật khẩu và lưu trạng thái ngay lập tức
+        $('#pageRemoteRememberPassword').on('change', async function () {
+            const isChecked = $(this).is(':checked');
+            localStorage.setItem('invoice_remember_pwd_pref', isChecked);
+            const provider = $('#pageRemoteProvider').val();
+            try {
+                await fetch('/Import/SetRememberPassword', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiXsrfToken
+                    },
+                    body: JSON.stringify({ provider: provider, remember: isChecked })
+                });
+            } catch (e) { }
+
+            if (!isChecked) {
+                $('#pageSavedPasswordNotice').addClass('d-none');
+                $('#pageRemotePassword').attr('required', 'required');
             } else {
-                $('#pageGdtWafNotice').slideDown();
+                loadPageSavedConnection();
             }
-            loadPageCaptcha();
-            loadPageSavedConnection();
         });
 
-        $('#pageRemoteBearerToken').on('input', function () {
-            const val = $(this).val().trim();
-            if (val.length > 20) {
-                $('#pageRemotePassword').prop('required', false);
-                $('#pageRemoteCaptchaCode').prop('required', false);
-                $('#groupPageCaptcha').slideUp();
-            } else {
-                $('#pageRemotePassword').prop('required', true);
-                $('#groupPageCaptcha').slideDown();
-            }
+        $('#pageBtnRefreshCaptcha').on('click', loadPageCaptcha);
+        $('#pageRemoteProvider').on('change', function () {
+            loadPageCaptcha();
+            loadPageSavedConnection();
         });
 
         // Bắt đầu lấy dữ liệu API Thuế

@@ -30,7 +30,7 @@ namespace InvoiceManager.Tests
             var mockFactory = new Mock<IHttpClientFactory>();
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
 
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             var result = await service.LookupAsync("123");
 
@@ -82,7 +82,7 @@ namespace InvoiceManager.Tests
             mockFactory.Setup(f => f.CreateClient(TaxCodeLookupService.ClientName)).Returns(httpClient);
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
 
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             var result = await service.LookupAsync("0105880697");
 
@@ -124,7 +124,7 @@ namespace InvoiceManager.Tests
             mockFactory.Setup(f => f.CreateClient(TaxCodeLookupService.ClientName)).Returns(httpClient);
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
 
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             var result = await service.LookupAsync("9999999999");
 
@@ -141,7 +141,7 @@ namespace InvoiceManager.Tests
             mockFactory.Setup(f => f.CreateClient(TaxCodeLookupService.ClientName)).Returns(realHttpClient);
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
 
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             var result = await service.LookupAsync("0105880697");
 

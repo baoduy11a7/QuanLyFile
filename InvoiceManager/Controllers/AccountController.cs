@@ -113,12 +113,14 @@ namespace InvoiceManager.Controllers
 
             var roles = await _userManager.GetRolesAsync(user);
             var accessibleTaxAccounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
+            var allSystemTaxAccounts = await _db.TaxAccounts.Where(t => t.IsActive).OrderBy(t => t.TaxCode).ToListAsync();
 
             var model = new UserSettingsViewModel
             {
                 User = user,
                 Roles = roles,
                 AccessibleTaxAccounts = accessibleTaxAccounts,
+                AllSystemTaxAccounts = allSystemTaxAccounts,
                 Profile = new UpdateProfileViewModel
                 {
                     FullName = user.FullName,
@@ -130,9 +132,15 @@ namespace InvoiceManager.Controllers
             if (model.IsAdmin)
             {
                 var allUsers = await _userManager.Users.ToListAsync();
+                var userTaxMappings = await _db.UserTaxAccounts
+                    .Include(u => u.TaxAccount)
+                    .Where(u => u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .ToListAsync();
+
                 foreach (var u in allUsers)
                 {
                     var uRoles = await _userManager.GetRolesAsync(u);
+                    var userComps = userTaxMappings.Where(m => m.UserId == u.Id).ToList();
                     model.AllUsers.Add(new UserListItemViewModel
                     {
                         Id = u.Id,
@@ -142,7 +150,9 @@ namespace InvoiceManager.Controllers
                         PhoneNumber = u.PhoneNumber,
                         IsActive = u.IsActive,
                         Roles = uRoles,
-                        CreatedAt = u.CreatedAt
+                        CreatedAt = u.CreatedAt,
+                        AssignedTaxAccountIds = userComps.Select(c => c.TaxAccountId).ToList(),
+                        AssignedTaxAccountNames = userComps.Select(c => $"{c.TaxAccount!.TaxCode} - {c.TaxAccount.CompanyName}").ToList()
                     });
                 }
             }
@@ -250,18 +260,20 @@ namespace InvoiceManager.Controllers
 
                 await _userManager.AddToRoleAsync(newUser, targetRole);
 
-                // Gán quyền truy cập cho tất cả công ty hiện tại
-                var taxAccounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
-                foreach (var acc in taxAccounts)
+                // Chỉ gán các công ty được Admin tích chọn cụ thể (không auto-gán tất cả công ty)
+                if (model.SelectedTaxAccountIds != null && model.SelectedTaxAccountIds.Any())
                 {
-                    _db.UserTaxAccounts.Add(new UserTaxAccount
+                    foreach (var taxId in model.SelectedTaxAccountIds)
                     {
-                        UserId = newUser.Id,
-                        TaxAccountId = acc.Id,
-                        AssignedAt = DateTime.Now
-                    });
+                        _db.UserTaxAccounts.Add(new UserTaxAccount
+                        {
+                            UserId = newUser.Id,
+                            TaxAccountId = taxId,
+                            AssignedAt = DateTime.Now
+                        });
+                    }
+                    await _db.SaveChangesAsync();
                 }
-                await _db.SaveChangesAsync();
 
                 await _auditLog.LogActionAsync("Tạo người dùng mới", $"{newUser.UserName} ({targetRole})");
                 TempData["SuccessMessage"] = $"Tạo tài khoản {newUser.UserName} thành công!";
@@ -271,6 +283,46 @@ namespace InvoiceManager.Controllers
                 TempData["ErrorMessage"] = "Lỗi tạo tài khoản: " + string.Join(", ", result.Errors.Select(e => e.Description));
             }
 
+            return RedirectToAction(nameof(Settings));
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateUserCompanies(string userId, List<int>? selectedTaxAccountIds)
+        {
+            var targetUser = await _userManager.FindByIdAsync(userId);
+            if (targetUser == null)
+            {
+                TempData["ErrorMessage"] = "Không tìm thấy người dùng.";
+                return RedirectToAction(nameof(Settings));
+            }
+
+            // Xóa các phân quyền hiện tại của user này
+            var currentAssignments = await _db.UserTaxAccounts.Where(u => u.UserId == userId).ToListAsync();
+            _db.UserTaxAccounts.RemoveRange(currentAssignments);
+
+            // Thêm các công ty mới được chọn
+            if (selectedTaxAccountIds != null && selectedTaxAccountIds.Any())
+            {
+                foreach (var taxId in selectedTaxAccountIds)
+                {
+                    _db.UserTaxAccounts.Add(new UserTaxAccount
+                    {
+                        UserId = userId,
+                        TaxAccountId = taxId,
+                        AssignedAt = DateTime.Now
+                    });
+                }
+            }
+
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync(
+                "Phân quyền công ty cho người dùng",
+                $"{targetUser.UserName} ({selectedTaxAccountIds?.Count ?? 0} công ty)");
+
+            TempData["SuccessMessage"] = $"Cập nhật phân quyền công ty cho {targetUser.UserName} thành công!";
             return RedirectToAction(nameof(Settings));
         }
 
@@ -333,6 +385,123 @@ namespace InvoiceManager.Controllers
             else
             {
                 TempData["ErrorMessage"] = "Lỗi đặt lại mật khẩu: " + string.Join(", ", result.Errors.Select(e => e.Description));
+            }
+
+            return RedirectToAction(nameof(Settings));
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteUser(string userId)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser != null && currentUser.Id == userId)
+            {
+                TempData["ErrorMessage"] = "Bạn không thể tự xóa tài khoản của chính mình.";
+                return RedirectToAction(nameof(Settings));
+            }
+
+            var targetUser = await _userManager.FindByIdAsync(userId);
+            if (targetUser == null)
+            {
+                TempData["ErrorMessage"] = "Không tìm thấy người dùng cần xóa.";
+                return RedirectToAction(nameof(Settings));
+            }
+
+            // Bảo vệ tài khoản Admin cuối cùng
+            var isTargetAdmin = await _userManager.IsInRoleAsync(targetUser, "Admin");
+            if (isTargetAdmin)
+            {
+                var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+                if (adminUsers.Count <= 1)
+                {
+                    TempData["ErrorMessage"] = "Không thể xóa tài khoản Quản trị viên (Admin) duy nhất của hệ thống.";
+                    return RedirectToAction(nameof(Settings));
+                }
+            }
+
+            try
+            {
+                // 1. Tìm các công ty mà user này đang quản lý
+                var userTaxMappings = await _db.UserTaxAccounts
+                    .Where(u => u.UserId == userId)
+                    .ToListAsync();
+
+                // 2. Dọn dẹp các công ty riêng chỉ thuộc về user này
+                foreach (var mapping in userTaxMappings)
+                {
+                    bool hasOtherUsers = await _db.UserTaxAccounts
+                        .AnyAsync(u => u.TaxAccountId == mapping.TaxAccountId && u.UserId != userId);
+
+                    if (!hasOtherUsers)
+                    {
+                        var taxAcc = await _db.TaxAccounts.FindAsync(mapping.TaxAccountId);
+                        if (taxAcc != null)
+                        {
+                            var invoices = await _db.Invoices
+                                .Include(i => i.Details)
+                                .Where(i => i.TaxAccountId == taxAcc.Id)
+                                .ToListAsync();
+                            _db.Invoices.RemoveRange(invoices);
+
+                            var remoteConns = await _db.RemoteConnections
+                                .Where(r => r.TaxAccountId == taxAcc.Id)
+                                .ToListAsync();
+                            _db.RemoteConnections.RemoveRange(remoteConns);
+
+                            var syncLogs = await _db.SyncLogs
+                                .Where(s => s.TaxAccountId == taxAcc.Id)
+                                .ToListAsync();
+                            _db.SyncLogs.RemoveRange(syncLogs);
+
+                            var featureRequests = await _db.FeatureRequests
+                                .Where(f => f.TaxAccountId == taxAcc.Id)
+                                .ToListAsync();
+                            _db.FeatureRequests.RemoveRange(featureRequests);
+
+                            var taxAudits = await _db.AuditLogs
+                                .Where(a => a.TaxAccountId == taxAcc.Id)
+                                .ToListAsync();
+                            foreach (var ta in taxAudits)
+                            {
+                                ta.TaxAccountId = null;
+                            }
+
+                            _db.TaxAccounts.Remove(taxAcc);
+                        }
+                    }
+                }
+
+                // 3. Xóa các mapping UserTaxAccounts
+                _db.UserTaxAccounts.RemoveRange(userTaxMappings);
+
+                // 4. Gỡ liên kết UserId trong AuditLog
+                var userAuditLogs = await _db.AuditLogs
+                    .Where(a => a.UserId == userId)
+                    .ToListAsync();
+                foreach (var al in userAuditLogs)
+                {
+                    al.UserId = null;
+                }
+
+                await _db.SaveChangesAsync();
+
+                // 5. Xóa user qua UserManager
+                var result = await _userManager.DeleteAsync(targetUser);
+                if (result.Succeeded)
+                {
+                    await _auditLog.LogActionAsync("Xóa người dùng hệ thống", targetUser.UserName!);
+                    TempData["SuccessMessage"] = $"Đã xóa thành công tài khoản: {targetUser.FullName} ({targetUser.Email})!";
+                }
+                else
+                {
+                    TempData["ErrorMessage"] = "Lỗi khi xóa tài khoản: " + string.Join(", ", result.Errors.Select(e => e.Description));
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Lỗi hệ thống khi xóa tài khoản: " + ex.Message;
             }
 
             return RedirectToAction(nameof(Settings));

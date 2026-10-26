@@ -35,22 +35,7 @@
                     </div>
                 </form>
 
-                <!-- Gợi ý MST mẫu để thử nghiệm nhanh -->
-                <div class="d-flex flex-wrap align-items-center gap-2 mt-3 pt-2 border-top">
-                    <span class="small text-muted fw-semibold"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Thử nhanh:</span>
-                    <button type="button" class="btn btn-outline-primary btn-sm font-monospace sample-mst fw-bold shadow-sm" data-mst="0314094922">
-                        <i class="bi bi-star-fill text-warning me-1"></i> 0314094922 (Giải Pháp Công Nghệ)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm font-monospace sample-mst" data-mst="0105880697">
-                        0105880697 (Hà Nội Lighting)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm font-monospace sample-mst" data-mst="0100109106">
-                        0100109106 (Viettel)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm font-monospace sample-mst" data-mst="0101234567">
-                        0101234567 (An Phát)
-                    </button>
-                </div>
+
             </div>
         </div>
 
@@ -63,18 +48,18 @@
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-2">
-                                <i class="bi bi-check-circle-fill me-1"></i> @(Model.Status ?? "NNT đang hoạt động")
+                                <i class="bi bi-check-circle-fill me-1"></i> @(Model.Status ?? "Đang hoạt động")
                             </span>
                             @if (Model.ExistsInSystem)
                             {
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2">
-                                    <i class="bi bi-database-check me-1"></i> Đã có trong hệ thống
+                                    <i class="bi bi-database-check me-1"></i> Đã có trong danh sách quản lý
                                 </span>
                             }
                             else
                             {
                                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-6 px-3 py-2">
-                                    <i class="bi bi-plus-circle me-1"></i> Chưa thêm vào hệ thống
+                                    <i class="bi bi-plus-circle me-1"></i> Chưa có trong danh sách của bạn
                                 </span>
                             }
                         </div>
@@ -133,7 +118,7 @@
                             <div class="d-flex gap-2 flex-wrap">
                                 @if (Model.ExistsInSystem && Model.ExistingAccountId.HasValue)
                                 {
-                                    @if (User.IsInRole("Admin"))
+                                    @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
                                     {
                                         <form asp-action="UpdateFromTaxCode" method="post" class="m-0">
                                             @Html.AntiForgeryToken()
@@ -202,13 +187,6 @@
 @section Scripts {
     <script>
         $(document).ready(function () {
-            // Xử lý khi nhấn nút MST mẫu
-            $('.sample-mst').on('click', function () {
-                var mst = $(this).data('mst');
-                $('#taxCodeInput').val(mst);
-                $('#lookupForm').submit();
-            });
-
             $('#lookupForm').on('submit', function () {
                 $('#btnSubmitLookup').prop('disabled', true);
                 $('#lookupSpinner').removeClass('d-none');

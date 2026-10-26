@@ -109,7 +109,7 @@
                     <th class="text-end" style="width: 120px;">Tổng HĐ Mua vào</th>
                     <th class="text-end" style="width: 120px;">Tổng HĐ Bán ra</th>
                     <th class="text-end" style="width: 120px;">Tổng HĐ</th>
-                    <th class="text-center" style="width: 220px;">Thao tác</th>
+                    <th class="text-center" style="min-width: 230px; width: 240px;">Thao tác</th>
                 </tr>
             </thead>
             <tbody>
@@ -210,13 +210,10 @@
                                     </form>
                                 }
 
-                                @if (User.IsInRole("Admin"))
-                                {
-                                    <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2" title="Xóa tài khoản thuế" 
-                                            onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                }
+                                <button type="button" class="btn btn-outline-danger btn-sm px-2 fw-semibold" title="Xóa doanh nghiệp khỏi hệ thống" 
+                                        onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
+                                    <i class="bi bi-trash me-1"></i> Xóa
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -237,10 +234,8 @@
     </div>
 </div>
 
-@if (User.IsInRole("Admin"))
-{
-    <!-- Modal Xác nhận xóa Tài khoản thuế -->
-    <div class="modal fade" id="deleteTaxAccountModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+<!-- Modal Xác nhận xóa Doanh nghiệp -->
+<div class="modal fade" id="deleteTaxAccountModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow border-0">
                 <div class="modal-header bg-danger text-white py-3">
@@ -277,7 +272,6 @@
             </div>
         </div>
     </div>
-}
 
 @section Scripts {
     <script>

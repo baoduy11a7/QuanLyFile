@@ -482,9 +482,13 @@
                                     <button type="button" class="btn-action-icon" title="Xem bản thể hiện hóa đơn" onclick="openInvoiceModal(@inv.Id)">
                                         <i class="bi bi-file-earmark-text text-primary"></i>
                                     </button>
-                                    <!-- Xem XML gốc -->
-                                    <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem file XML gốc">
-                                        <i class="bi bi-file-earmark-code text-secondary"></i>
+                                    <!-- Tải XML gốc trực tiếp (.xml) -->
+                                    <a asp-action="DownloadRawXml" asp-route-id="@inv.Id" class="btn-action-icon" title="Tải file XML gốc có chữ ký số (.xml)" download>
+                                        <i class="bi bi-file-earmark-code text-success"></i>
+                                    </a>
+                                    <!-- Xem XML gốc trong tab mới -->
+                                    <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem nội dung XML gốc">
+                                        <i class="bi bi-code-slash text-secondary"></i>
                                     </a>
                                     <!-- Tải HTML mẫu trực tiếp -->
                                     <a asp-action="ViewHtml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Mở bản thể hiện ra tab mới">

@@ -14,5 +14,6 @@ namespace InvoiceManager.Services.Providers
         Task<LoginResult> LoginAsync(ProviderCredentials cred, CancellationToken ct = default);
         IAsyncEnumerable<RemoteInvoice> FetchInvoicesAsync(FetchRequest req, string token, CancellationToken ct = default);
         Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default);
+        Task<(byte[]? XmlBytes, byte[]? PdfBytes)> DownloadInvoiceFilesAsync(RemoteInvoice inv, string token, CancellationToken ct = default);
     }
 }

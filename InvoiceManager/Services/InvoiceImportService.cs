@@ -38,7 +38,7 @@ namespace InvoiceManager.Services
             _storageRoot = config.GetValue<string>("InvoiceSettings:StorageRootPath") ?? "App_Data/RawFiles";
         }
 
-        public async Task<ImportBatchResult> ImportXmlAsync(Stream xmlStream, string fileName, int taxAccountId, string invoiceType, string? userId)
+        public async Task<ImportBatchResult> ImportXmlAsync(Stream xmlStream, string fileName, int taxAccountId, string invoiceType, string? userId, string? rawPdfPath = null, byte[]? rawPdfBytes = null)
         {
             var batchResult = new ImportBatchResult { TotalFiles = 1 };
 
@@ -66,6 +66,21 @@ namespace InvoiceManager.Services
                 // 1. Lưu file XML gốc vào thư mục an toàn
                 var savedFilePath = await SaveRawFileAsync(ms, taxAccountId, fileName);
 
+                // Lưu file PDF gốc nếu được truyền vào dưới dạng mảng byte
+                if (rawPdfBytes != null && rawPdfBytes.Length > 0 && string.IsNullOrEmpty(rawPdfPath))
+                {
+                    try
+                    {
+                        var pdfName = Path.ChangeExtension(fileName, ".pdf");
+                        using var pdfMs = new MemoryStream(rawPdfBytes);
+                        rawPdfPath = await SaveRawFileAsync(pdfMs, taxAccountId, pdfName);
+                    }
+                    catch (Exception exPdf)
+                    {
+                        _logger.LogWarning(exPdf, "Không thể lưu file PDF gốc cho file XML: {FileName}", fileName);
+                    }
+                }
+
                 // 2. Kiểm tra tính idempotent (tránh trùng lặp theo khóa nghiệp vụ)
                 var existing = await _db.Invoices
                     .FirstOrDefaultAsync(i => i.TaxAccountId == taxAccountId 
@@ -76,8 +91,15 @@ namespace InvoiceManager.Services
 
                 if (existing != null)
                 {
+                    // Nếu hóa đơn đã có nhưng chưa có file PDF gốc, cập nhật ngay file PDF mới
+                    if (string.IsNullOrEmpty(existing.RawPdfPath) && !string.IsNullOrEmpty(rawPdfPath))
+                    {
+                        existing.RawPdfPath = rawPdfPath;
+                        await _db.SaveChangesAsync();
+                    }
+
                     batchResult.SkippedDuplicateCount++;
-                    batchResult.Messages.Add($"Hóa đơn {parseResult.InvoiceSymbol}-{parseResult.InvoiceNumber} của MST {parseResult.SellerTaxCode} đã tồn tại trên hệ thống. Đã bỏ qua để tránh trùng lặp.");
+                    batchResult.Messages.Add($"Hóa đơn {parseResult.InvoiceSymbol}-{parseResult.InvoiceNumber} của MST {parseResult.SellerTaxCode} đã tồn tại trên hệ thống. Đã đồng bộ bổ sung file PDF gốc (nếu có).");
                     return batchResult;
                 }
 
@@ -104,6 +126,7 @@ namespace InvoiceManager.Services
                     Status = parseResult.Status,
                     SourceProvider = parseResult.SourceProvider,
                     RawXmlPath = savedFilePath,
+                    RawPdfPath = rawPdfPath,
                     OriginalFileName = fileName,
                     ImportedAt = DateTime.Now,
                     ImportedByUserId = userId,
@@ -158,6 +181,18 @@ namespace InvoiceManager.Services
             try
             {
                 using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
+                
+                // Gom tất cả các file PDF trong zip vào dictionary theo tên file không đuôi
+                var pdfEntries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+                foreach (var entry in archive.Entries.Where(e => e.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var baseName = Path.GetFileNameWithoutExtension(entry.Name);
+                    if (!string.IsNullOrEmpty(baseName))
+                    {
+                        pdfEntries[baseName] = entry;
+                    }
+                }
+
                 var xmlEntries = archive.Entries
                     .Where(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
                     .ToList();
@@ -172,8 +207,41 @@ namespace InvoiceManager.Services
 
                 foreach (var entry in xmlEntries)
                 {
+                    byte[]? pdfBytes = null;
+                    var xmlBaseName = Path.GetFileNameWithoutExtension(entry.Name);
+
+                    // Tìm PDF tương ứng: trùng tên chính xác hoặc chứa tên
+                    if (pdfEntries.TryGetValue(xmlBaseName, out var matchedPdfEntry))
+                    {
+                        try
+                        {
+                            using var pStream = matchedPdfEntry.Open();
+                            using var pMs = new MemoryStream();
+                            await pStream.CopyToAsync(pMs);
+                            pdfBytes = pMs.ToArray();
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        var partialMatch = pdfEntries.FirstOrDefault(p =>
+                            p.Key.IndexOf(xmlBaseName, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            xmlBaseName.IndexOf(p.Key, StringComparison.OrdinalIgnoreCase) >= 0);
+                        if (partialMatch.Value != null)
+                        {
+                            try
+                            {
+                                using var pStream = partialMatch.Value.Open();
+                                using var pMs = new MemoryStream();
+                                await pStream.CopyToAsync(pMs);
+                                pdfBytes = pMs.ToArray();
+                            }
+                            catch { }
+                        }
+                    }
+
                     using var entryStream = entry.Open();
-                    var singleResult = await ImportXmlAsync(entryStream, entry.Name, taxAccountId, invoiceType, userId);
+                    var singleResult = await ImportXmlAsync(entryStream, entry.Name, taxAccountId, invoiceType, userId, null, pdfBytes);
 
                     overallResult.SuccessCount += singleResult.SuccessCount;
                     overallResult.SkippedDuplicateCount += singleResult.SkippedDuplicateCount;
@@ -887,7 +955,7 @@ namespace InvoiceManager.Services
         }
         #endregion
 
-        private async Task<string> SaveRawFileAsync(Stream stream, int taxAccountId, string originalFileName)
+        public async Task<string> SaveRawFileAsync(Stream stream, int taxAccountId, string originalFileName)
         {
             var now = DateTime.Now;
             var directory = Path.Combine(_storageRoot, taxAccountId.ToString(), now.Year.ToString(), now.Month.ToString("D2"));

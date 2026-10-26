@@ -40,7 +40,7 @@ namespace InvoiceManager.Tests
             var mockFactory = new Mock<IHttpClientFactory>();
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
 
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
             var result = await service.LookupAsync(inputMst);
 
             Assert.Equal(expectedSuccess, result.Success);
@@ -65,7 +65,7 @@ namespace InvoiceManager.Tests
 
             var mockFactory = new Mock<IHttpClientFactory>();
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             // Tra cứu chi nhánh
             var result = await service.LookupAsync("0105880697-001");

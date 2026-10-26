@@ -189,6 +189,12 @@ namespace InvoiceManager.Services.Providers.Mock
             return Task.FromResult(Encoding.UTF8.GetBytes(xml));
         }
 
+        public async Task<(byte[]? XmlBytes, byte[]? PdfBytes)> DownloadInvoiceFilesAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
+        {
+            var xml = await DownloadXmlAsync(inv, token, ct);
+            return (xml, null);
+        }
+
         private static string NumberToWords(decimal number)
         {
             if (number <= 0) return "Không đồng";

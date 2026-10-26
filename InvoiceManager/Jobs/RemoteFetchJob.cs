@@ -72,7 +72,7 @@ namespace InvoiceManager.Jobs
                 {
                     var errMsg = loginResult.ErrorMessage ?? "Đăng nhập Cổng thuế thất bại không rõ nguyên nhân.";
                     _jobTracker.FailJob(jobId, errMsg);
-                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, false, errMsg, rememberPassword ? cred.Password : null);
+                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, false, errMsg, rememberPassword ? cred.Password : null, rememberPassword);
                     await _auditLogService.LogActionAsync("RemoteSync_LoginFailed", providerName, $"Đăng nhập thất bại: {errMsg}", taxAccountId);
                     return;
                 }
@@ -81,7 +81,7 @@ namespace InvoiceManager.Jobs
                 _jobTracker.UpdateProgress(jobId, 25, "Đang quét danh sách hóa đơn theo khoảng ngày...");
 
                 // 2. Lưu / Cập nhật cấu hình RemoteConnection
-                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Đang đồng bộ...", rememberPassword ? cred.Password : null);
+                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Đang đồng bộ...", rememberPassword ? cred.Password : null, rememberPassword);
 
                 // 3. Quét danh sách hóa đơn
                 _jobTracker.AddLog(jobId, $"Bắt đầu quét hóa đơn từ ngày {req.FromDate:dd/MM/yyyy} đến {req.ToDate:dd/MM/yyyy} (Loại: {req.InvoiceType})...");
@@ -99,7 +99,7 @@ namespace InvoiceManager.Jobs
                 {
                     _jobTracker.UpdateProgress(jobId, 100, "Không có hóa đơn nào trong khoảng thời gian đã chọn.", totalFound: 0, success: 0, duplicate: 0, failed: 0);
                     _jobTracker.CompleteJob(jobId, "Không có hóa đơn mới nào được tìm thấy.");
-                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Hoàn tất: 0 hóa đơn mới.", rememberPassword ? cred.Password : null);
+                    await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Hoàn tất: 0 hóa đơn mới.", rememberPassword ? cred.Password : null, rememberPassword);
                     await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, "Không tìm thấy hóa đơn nào trong khoảng ngày đã chọn.", taxAccountId);
                     return;
                 }
@@ -162,13 +162,16 @@ namespace InvoiceManager.Jobs
                             ct.ThrowIfCancellationRequested();
 
                             byte[]? xmlBytes = null;
+                            byte[]? pdfBytes = null;
                             try
                             {
-                                xmlBytes = await provider.DownloadXmlAsync(inv, loginResult.Token, ct);
+                                var files = await provider.DownloadInvoiceFilesAsync(inv, loginResult.Token, ct);
+                                xmlBytes = files.XmlBytes;
+                                pdfBytes = files.PdfBytes;
                             }
                             catch (Exception exDl)
                             {
-                                _logger.LogWarning("Lỗi khi tải XML cho HĐ {Symbol}-{Number}: {Msg}", inv.InvoiceSymbol, inv.InvoiceNumber, exDl.Message);
+                                _logger.LogWarning("Lỗi khi tải tệp cho HĐ {Symbol}-{Number}: {Msg}", inv.InvoiceSymbol, inv.InvoiceNumber, exDl.Message);
                             }
 
                             using var scope = _scopeFactory.CreateScope();
@@ -182,7 +185,7 @@ namespace InvoiceManager.Jobs
                                 {
                                     using var xmlStream = new MemoryStream(xmlBytes);
                                     var fileName = $"Remote_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.xml";
-                                    var importResult = await scopedImport.ImportXmlAsync(xmlStream, fileName, taxAccountId, inv.InvoiceType, userId);
+                                    var importResult = await scopedImport.ImportXmlAsync(xmlStream, fileName, taxAccountId, inv.InvoiceType, userId, null, pdfBytes);
 
                                     if (importResult.SuccessCount > 0)
                                     {
@@ -191,7 +194,8 @@ namespace InvoiceManager.Jobs
                                         {
                                             successCount += importResult.SuccessCount;
                                             processed++;
-                                            _jobTracker.AddLog(jobId, $" Đã nhập thành công HĐ {inv.InvoiceSymbol}-{inv.InvoiceNumber} ({inv.SellerName}) kèm chi tiết XML.");
+                                            string pdfBadge = (pdfBytes != null && pdfBytes.Length > 0) ? " + PDF gốc Gov" : "";
+                                            _jobTracker.AddLog(jobId, $" Đã nhập thành công HĐ {inv.InvoiceSymbol}-{inv.InvoiceNumber} ({inv.SellerName}) kèm chi tiết XML{pdfBadge}.");
                                         }
                                     }
                                 }
@@ -203,14 +207,15 @@ namespace InvoiceManager.Jobs
 
                             if (!isImported)
                             {
-                                var directRes = await ImportDirectRemoteInvoiceWithDbAsync(scopedDb, inv, taxAccountId, userId);
+                                var directRes = await ImportDirectRemoteInvoiceWithDbAsync(scopedDb, inv, taxAccountId, userId, pdfBytes);
                                 lock (lockObj)
                                 {
                                     processed++;
                                     if (directRes.IsSuccess)
                                     {
                                         successCount++;
-                                        _jobTracker.AddLog(jobId, $" Đã nhập thành công HĐ {inv.InvoiceSymbol}-{inv.InvoiceNumber} ({inv.SellerName}) [Dữ liệu Cổng Thuế].");
+                                        string pdfBadge = (pdfBytes != null && pdfBytes.Length > 0) ? " [Kèm PDF gốc Gov]" : "";
+                                        _jobTracker.AddLog(jobId, $" Đã nhập thành công HĐ {inv.InvoiceSymbol}-{inv.InvoiceNumber} ({inv.SellerName}) [Dữ liệu Cổng Thuế{pdfBadge}].");
                                     }
                                     else if (directRes.IsDuplicate)
                                     {
@@ -257,7 +262,7 @@ namespace InvoiceManager.Jobs
                 _jobTracker.UpdateProgress(jobId, 100, summaryMsg, totalFound: total, success: successCount, duplicate: duplicateCount, failed: failedCount);
                 _jobTracker.CompleteJob(jobId, summaryMsg);
 
-                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, summaryMsg, rememberPassword ? cred.Password : null);
+                await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, summaryMsg, rememberPassword ? cred.Password : null, rememberPassword);
                 await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, summaryMsg, taxAccountId);
             }
             catch (OperationCanceledException)
@@ -277,7 +282,8 @@ namespace InvoiceManager.Jobs
             ApplicationDbContext db,
             RemoteInvoice inv,
             int taxAccountId,
-            string? userId)
+            string? userId,
+            byte[]? pdfBytes = null)
         {
             try
             {
@@ -296,6 +302,20 @@ namespace InvoiceManager.Jobs
 
                 if (existing != null)
                 {
+                    // Nếu đã tồn tại nhưng chưa có file PDF gốc, cập nhật ngay
+                    if (string.IsNullOrEmpty(existing.RawPdfPath) && pdfBytes != null && pdfBytes.Length > 0)
+                    {
+                        try
+                        {
+                            var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", taxAccountId.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
+                            Directory.CreateDirectory(storageRoot);
+                            var pdfPath = Path.Combine(storageRoot, $"Gov_{cleanSymbol}_{cleanNumber}_{Guid.NewGuid():N}.pdf");
+                            await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+                            existing.RawPdfPath = pdfPath;
+                            await db.SaveChangesAsync();
+                        }
+                        catch { }
+                    }
                     return (false, true, null);
                 }
 
@@ -358,15 +378,23 @@ namespace InvoiceManager.Jobs
                 try
                 {
                     var xmlContent = GenerateStandardXmlForInvoice(invoice);
-                    var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", taxAccountId.ToString());
+                    var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", taxAccountId.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
                     Directory.CreateDirectory(storageRoot);
                     var filePath = Path.Combine(storageRoot, $"GDT_{cleanSymbol}_{cleanNumber}_{DateTime.Now:yyyyMMddHHmmssfff}.xml");
                     await File.WriteAllTextAsync(filePath, xmlContent, Encoding.UTF8);
                     invoice.RawXmlPath = filePath;
+
+                    // Lưu file PDF gốc nếu có
+                    if (pdfBytes != null && pdfBytes.Length > 0)
+                    {
+                        var pdfPath = Path.Combine(storageRoot, $"Gov_{cleanSymbol}_{cleanNumber}_{Guid.NewGuid():N}.pdf");
+                        await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+                        invoice.RawPdfPath = pdfPath;
+                    }
                 }
                 catch (Exception exXml)
                 {
-                    _logger.LogWarning(exXml, "Không thể lưu file XML dự phòng cho HĐ {Symbol}-{Number}", cleanSymbol, cleanNumber);
+                    _logger.LogWarning(exXml, "Không thể lưu file XML/PDF dự phòng cho HĐ {Symbol}-{Number}", cleanSymbol, cleanNumber);
                 }
 
                 db.Invoices.Add(invoice);
@@ -457,7 +485,8 @@ namespace InvoiceManager.Jobs
             string username,
             bool isSuccess,
             string message,
-            string? clearPasswordToSave = null)
+            string? clearPasswordToSave = null,
+            bool rememberPassword = false)
         {
             try
             {
@@ -482,13 +511,14 @@ namespace InvoiceManager.Jobs
                 conn.LastSyncMessage = message;
                 conn.UpdatedAt = DateTime.UtcNow;
 
-                if (clearPasswordToSave != null)
+                if (rememberPassword && !string.IsNullOrEmpty(clearPasswordToSave))
                 {
                     conn.RememberPassword = true;
                     conn.EncryptedPassword = _credentialProtector.Protect(clearPasswordToSave);
                 }
-                else if (clearPasswordToSave == null && !conn.RememberPassword)
+                else if (!rememberPassword)
                 {
+                    conn.RememberPassword = false;
                     conn.EncryptedPassword = null;
                 }
 

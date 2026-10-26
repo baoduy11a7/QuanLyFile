@@ -347,6 +347,70 @@ namespace InvoiceManager.Controllers
             return Content(xmlContent, "application/xml; charset=utf-8");
         }
 
+        [HttpGet]
+        public async Task<IActionResult> DownloadRawXml(int id)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            var invoice = await _db.Invoices
+                .Include(i => i.Details)
+                .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
+
+            if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
+
+            await _auditLog.LogActionAsync("Tải XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
+
+            byte[] xmlBytes;
+            if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
+            {
+                xmlBytes = await System.IO.File.ReadAllBytesAsync(invoice.RawXmlPath);
+            }
+            else
+            {
+                var xmlContent = GenerateStandardXmlForInvoice(invoice);
+                xmlBytes = Encoding.UTF8.GetBytes(xmlContent);
+            }
+
+            string fileName = $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.xml";
+            return File(xmlBytes, "application/xml", fileName);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadOriginalPdf(int id, IFormFile pdfFile)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
+            var invoice = await _db.Invoices.FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId.Value);
+            if (invoice == null) return Json(new { success = false, message = "Không tìm thấy hóa đơn." });
+
+            if (pdfFile == null || pdfFile.Length == 0)
+            {
+                return Json(new { success = false, message = "Vui lòng chọn file PDF." });
+            }
+
+            var ext = Path.GetExtension(pdfFile.FileName).ToLowerInvariant();
+            if (ext != ".pdf")
+            {
+                return Json(new { success = false, message = "Chỉ chấp nhận file định dạng .pdf." });
+            }
+
+            var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", taxAccountId.Value.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
+            Directory.CreateDirectory(storageRoot);
+
+            var filePath = Path.Combine(storageRoot, $"Original_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.pdf");
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await pdfFile.CopyToAsync(stream);
+            }
+
+            invoice.RawPdfPath = filePath;
+            await _db.SaveChangesAsync();
+
+            await _auditLog.LogActionAsync("Đính kèm PDF gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", $"Lưu file {pdfFile.FileName}", taxAccountId);
+
+            return Json(new { success = true, message = "Đã lưu trữ file PDF gốc thành công." });
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleReconciliation(int id, string? refNo)

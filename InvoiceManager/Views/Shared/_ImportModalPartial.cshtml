@@ -95,20 +95,6 @@
                                             <option value="Gdt" selected>Tổng cục Thuế (hoadondientu.gdt.gov.vn)</option>
                                             <option value="Mock">Cổng Thuế Giả Lập (Test Mode - Mẫu chuẩn)</option>
                                         </select>
-                                        <div id="modalGdtWafNotice" class="alert alert-warning small mt-2 py-2 px-3 border-warning-subtle d-flex align-items-start gap-2 mb-0">
-                                            <i class="bi bi-shield-exclamation text-warning fs-5 mt-1"></i>
-                                            <div>
-                                                <strong>Lưu ý về Tường lửa Cổng Thuế:</strong> Tường lửa của Tổng cục Thuế chặn máy chủ đám mây (Render). Không thể xóa tường lửa của Nhà nước.
-                                                <div class="mt-2 d-flex flex-wrap gap-2">
-                                                    <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 fw-semibold" onclick="$('#remoteProvider').val('Mock').trigger('change');">
-                                                        ⚡ Thử nghiệm API ngay tại đây (Test Mode)
-                                                    </button>
-                                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold" onclick="$('#tab-upload-btn').click();">
-                                                        📁 Nạp Hóa Đơn Thật (XML / ZIP)
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
 
                                     <!-- Mã số thuế (Readonly từ TaxAccount hiện tại) -->
@@ -324,26 +310,60 @@
             try {
                 const res = await fetch(`/Import/GetSavedConnection?provider=${encodeURIComponent(provider)}`);
                 const data = await res.json();
+                const rememberEl = document.getElementById('remoteRememberPassword');
+                const noticeEl = document.getElementById('savedPasswordNotice');
+                const passwordEl = document.getElementById('remotePassword');
+
                 if (data.success && data.exists) {
                     if (data.username) document.getElementById('remoteUsername').value = data.username;
-                    if (data.hasSavedPassword) {
-                        document.getElementById('savedPasswordNotice').classList.remove('d-none');
-                        document.getElementById('remotePassword').removeAttribute('required');
-                        document.getElementById('remoteRememberPassword').checked = true;
+                    const remember = data.rememberPassword === true;
+                    if (rememberEl) rememberEl.checked = remember;
+                    if (data.hasSavedPassword && remember) {
+                        noticeEl?.classList.remove('d-none');
+                        passwordEl?.removeAttribute('required');
                     } else {
-                        document.getElementById('savedPasswordNotice').classList.add('d-none');
-                        document.getElementById('remotePassword').setAttribute('required', 'required');
+                        noticeEl?.classList.add('d-none');
+                        passwordEl?.setAttribute('required', 'required');
                     }
+                } else {
+                    const pref = localStorage.getItem('invoice_remember_pwd_pref');
+                    if (pref !== null && rememberEl) {
+                        rememberEl.checked = (pref === 'true');
+                    }
+                    noticeEl?.classList.add('d-none');
+                    passwordEl?.setAttribute('required', 'required');
                 }
             } catch (e) { }
         }
 
-        document.getElementById('btnRefreshCaptcha')?.addEventListener('click', loadCaptcha);
-        document.getElementById('remoteProvider')?.addEventListener('change', (e) => {
-            const notice = document.getElementById('modalGdtWafNotice');
-            if (notice) {
-                notice.style.display = e.target.value === 'Mock' ? 'none' : 'flex';
+        // Bật/tắt ghi nhớ mật khẩu và lưu trạng thái ngay lập tức
+        document.getElementById('remoteRememberPassword')?.addEventListener('change', async function () {
+            const isChecked = this.checked;
+            localStorage.setItem('invoice_remember_pwd_pref', isChecked);
+            const provider = document.getElementById('remoteProvider')?.value || 'Gdt';
+            try {
+                await fetch('/Import/SetRememberPassword', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiXsrfToken
+                    },
+                    body: JSON.stringify({ provider: provider, remember: isChecked })
+                });
+            } catch (e) { }
+
+            const noticeEl = document.getElementById('savedPasswordNotice');
+            const passwordEl = document.getElementById('remotePassword');
+            if (!isChecked) {
+                noticeEl?.classList.add('d-none');
+                passwordEl?.setAttribute('required', 'required');
+            } else {
+                loadSavedConnection();
             }
+        });
+
+        document.getElementById('btnRefreshCaptcha')?.addEventListener('click', loadCaptcha);
+        document.getElementById('remoteProvider')?.addEventListener('change', () => {
             loadCaptcha();
             loadSavedConnection();
         });

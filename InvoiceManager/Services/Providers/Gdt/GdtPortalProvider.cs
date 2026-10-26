@@ -666,6 +666,12 @@ namespace InvoiceManager.Services.Providers.Gdt
 
         public async Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
         {
+            var files = await DownloadInvoiceFilesAsync(inv, token, ct);
+            return files.XmlBytes ?? Array.Empty<byte>();
+        }
+
+        public async Task<(byte[]? XmlBytes, byte[]? PdfBytes)> DownloadInvoiceFilesAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
+        {
             await ApplyRateLimitAsync(ct);
             var client = CreateClient(token);
 
@@ -675,79 +681,164 @@ namespace InvoiceManager.Services.Providers.Gdt
             var endpoint = _options.ExportXmlEndpoint.TrimStart('/');
             var shdonPrimary = !string.IsNullOrEmpty(inv.RawInvoiceNumber) ? inv.RawInvoiceNumber : inv.InvoiceNumber;
 
-            // 1. Thử URL chuẩn của Cổng Thuế: nbmst, khhdon, shdon với timeout ngắn 5s
-            var url = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(inv.InvoiceSymbol)}&shdon={Uri.EscapeDataString(shdonPrimary)}";
+            byte[]? xmlBytes = null;
+            byte[]? pdfBytes = null;
+
+            var symbolCandidates = new List<string>();
+            var rawSym = (inv.InvoiceSymbol ?? string.Empty).Trim();
+            if (!string.IsNullOrEmpty(rawSym))
+            {
+                if (!char.IsDigit(rawSym[0]))
+                {
+                    // Trên Cổng Thuế, ký hiệu xuất file bắt buộc phải có tiền tố mẫu số (1 = HĐ GTGT, 2 = HĐ Bán hàng)
+                    symbolCandidates.Add($"1{rawSym}");
+                    symbolCandidates.Add($"2{rawSym}");
+                    symbolCandidates.Add(rawSym);
+                }
+                else
+                {
+                    symbolCandidates.Add(rawSym);
+                    if (rawSym.Length > 1) symbolCandidates.Add(rawSym.Substring(1));
+                }
+            }
+
+            var numberCandidates = new List<string>();
+            if (!string.IsNullOrEmpty(shdonPrimary))
+            {
+                if (long.TryParse(shdonPrimary, out var numVal))
+                {
+                    numberCandidates.Add(numVal.ToString());        // ví dụ 927
+                    numberCandidates.Add(numVal.ToString("D7"));      // ví dụ 0000927
+                    numberCandidates.Add(numVal.ToString("D8"));      // ví dụ 00000927
+                }
+                else
+                {
+                    numberCandidates.Add(shdonPrimary);
+                }
+            }
 
             HttpResponseMessage? response = null;
-            try
+            byte[]? rawBytes = null;
+
+            // Thử các tổ hợp ký hiệu và số hóa đơn
+            foreach (var sym in symbolCandidates)
             {
-                client.DefaultRequestHeaders.Remove("request-id");
-                client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(5));
-                response = await client.GetAsync(url, cts.Token);
+                foreach (var num in numberCandidates)
+                {
+                    var tryUrl = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(sym)}&shdon={Uri.EscapeDataString(num)}";
+                    try
+                    {
+                        client.DefaultRequestHeaders.Remove("request-id");
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
+                        using var ctsTry = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        ctsTry.CancelAfter(TimeSpan.FromSeconds(5));
+                        var resp = await client.GetAsync(tryUrl, ctsTry.Token);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            var b = await resp.Content.ReadAsByteArrayAsync(ct);
+                            if (b != null && b.Length > 0)
+                            {
+                                response = resp;
+                                rawBytes = b;
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception exTry)
+                    {
+                        _logger.LogWarning("Thử tải {Sym}-{Num} gặp ngoại lệ: {Msg}", sym, num, exTry.Message);
+                    }
+                }
+
+                if (rawBytes != null && rawBytes.Length > 0)
+                {
+                    break;
+                }
             }
-            catch (Exception ex)
+                if (rawBytes != null && rawBytes.Length > 0)
+                {
+                    // Trường hợp 1: Phản hồi trực tiếp là file PDF (chữ ký %PDF)
+                    if (rawBytes.Length > 4 && rawBytes[0] == 0x25 && rawBytes[1] == 0x50 && rawBytes[2] == 0x44 && rawBytes[3] == 0x46)
+                    {
+                        pdfBytes = rawBytes;
+                    }
+                    // Trường hợp 2: Phản hồi là file ZIP nén (chữ ký PK\x03\x04)
+                    else if (rawBytes.Length > 4 && rawBytes[0] == 0x50 && rawBytes[1] == 0x4B && rawBytes[2] == 0x03 && rawBytes[3] == 0x04)
+                    {
+                        try
+                        {
+                            using var zipMs = new MemoryStream(rawBytes);
+                            using var archive = new ZipArchive(zipMs, ZipArchiveMode.Read);
+                            foreach (var entry in archive.Entries)
+                            {
+                                if (entry.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) && xmlBytes == null)
+                                {
+                                    using var entryStream = entry.Open();
+                                    using var outMs = new MemoryStream();
+                                    await entryStream.CopyToAsync(outMs, ct);
+                                    xmlBytes = outMs.ToArray();
+                                }
+                                else if (entry.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && pdfBytes == null)
+                                {
+                                    using var entryStream = entry.Open();
+                                    using var outMs = new MemoryStream();
+                                    await entryStream.CopyToAsync(outMs, ct);
+                                    pdfBytes = outMs.ToArray();
+                                }
+                            }
+                        }
+                        catch (Exception exZip)
+                        {
+                            _logger.LogWarning(exZip, "Lỗi giải nén ZIP từ Cổng Thuế cho HĐ {Symbol}-{Number}", inv.InvoiceSymbol, shdonPrimary);
+                        }
+                    }
+                    else
+                    {
+                        // Giả định nội dung thô là XML
+                        xmlBytes = rawBytes;
+                    }
+                }
+
+            // 3. Nếu chưa tìm thấy PDF trong file ZIP, thử các endpoint PDF chuyên dụng của Cổng Thuế
+            if (pdfBytes == null)
             {
-                _logger.LogWarning("Tải XML HĐ {Symbol}-{Number} lỗi: {Msg}", inv.InvoiceSymbol, shdonPrimary, ex.Message);
+                pdfBytes = await TryFetchPdfEndpointAsync(client, inv, shdonPrimary, ct);
             }
 
-            // Nếu gặp lỗi 500 (Internal Server Error) hoặc 400 (Bad Request), Cổng thuế không hỗ trợ file XML gốc cho HĐ này
-            // Trả về mảng rỗng ngay trong vài mili-giây để luồng chính tự động fallback sang nạp metadata trực tiếp
-            if (response == null || response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.BadRequest)
-            {
-                return Array.Empty<byte>();
-            }
+            return (xmlBytes, pdfBytes);
+        }
 
-            // 2. Chỉ khi gặp 404 và ký hiệu chưa có tiền tố mẫu số "1", thử thêm "1" một lần duy nhất
-            if (!response.IsSuccessStatusCode && response.StatusCode == HttpStatusCode.NotFound && !string.IsNullOrEmpty(inv.InvoiceSymbol) && !char.IsDigit(inv.InvoiceSymbol[0]))
+        private async Task<byte[]?> TryFetchPdfEndpointAsync(HttpClient client, RemoteInvoice inv, string shdonPrimary, CancellationToken ct)
+        {
+            var pdfEndpoints = new[]
             {
-                var symbolWithMau = $"1{inv.InvoiceSymbol}";
-                var retryMauUrl = $"{endpoint}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(symbolWithMau)}&shdon={Uri.EscapeDataString(shdonPrimary)}";
+                _options.ExportPdfEndpoint?.TrimStart('/') ?? "api/query/invoices/export-pdf",
+                "api/query/invoices/pdf"
+            };
+
+            foreach (var ep in pdfEndpoints)
+            {
                 try
                 {
+                    var pdfUrl = $"{ep}?nbmst={Uri.EscapeDataString(inv.SellerTaxCode)}&khhdon={Uri.EscapeDataString(inv.InvoiceSymbol)}&shdon={Uri.EscapeDataString(shdonPrimary)}";
                     client.DefaultRequestHeaders.Remove("request-id");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("request-id", Guid.NewGuid().ToString());
-                    using var cts2 = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    cts2.CancelAfter(TimeSpan.FromSeconds(3));
-                    var retryMauResp = await client.GetAsync(retryMauUrl, cts2.Token);
-                    if (retryMauResp.IsSuccessStatusCode)
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    cts.CancelAfter(TimeSpan.FromSeconds(3));
+                    var resp = await client.GetAsync(pdfUrl, cts.Token);
+                    if (resp.IsSuccessStatusCode)
                     {
-                        response = retryMauResp;
+                        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                        if (bytes != null && bytes.Length > 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46)
+                        {
+                            return bytes;
+                        }
                     }
                 }
                 catch { }
             }
 
-            if (response == null || !response.IsSuccessStatusCode)
-            {
-                return Array.Empty<byte>();
-            }
-
-            var rawBytes = await response.Content.ReadAsByteArrayAsync(ct);
-            if (rawBytes == null || rawBytes.Length == 0)
-            {
-                return Array.Empty<byte>();
-            }
-
-            // Kiểm tra xem phản hồi có phải là file ZIP không (chữ ký PK\x03\x04)
-            if (rawBytes.Length > 4 && rawBytes[0] == 0x50 && rawBytes[1] == 0x4B && rawBytes[2] == 0x03 && rawBytes[3] == 0x04)
-            {
-                using var zipMs = new MemoryStream(rawBytes);
-                using var archive = new ZipArchive(zipMs, ZipArchiveMode.Read);
-                foreach (var entry in archive.Entries)
-                {
-                    if (entry.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-                    {
-                        using var entryStream = entry.Open();
-                        using var outMs = new MemoryStream();
-                        await entryStream.CopyToAsync(outMs, ct);
-                        return outMs.ToArray();
-                    }
-                }
-            }
-
-            return rawBytes;
+            return null;
         }
     }
 }

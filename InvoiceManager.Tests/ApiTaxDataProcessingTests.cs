@@ -111,7 +111,7 @@ namespace InvoiceManager.Tests
             mockFactory.Setup(m => m.CreateClient(It.IsAny<string>())).Returns(httpClient);
 
             var mockLogger = new Mock<ILogger<TaxCodeLookupService>>();
-            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object);
+            var service = new TaxCodeLookupService(mockFactory.Object, db, mockLogger.Object, new Mock<ITaxAccountContext>().Object);
 
             var result = await service.LookupAsync("0314094922");
 

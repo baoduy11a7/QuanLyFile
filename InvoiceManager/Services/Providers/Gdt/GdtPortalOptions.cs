@@ -10,6 +10,7 @@ namespace InvoiceManager.Services.Providers.Gdt
         public string PurchaseQueryEndpoint { get; set; } = "/api/query/invoices/purchase";
         public string SoldQueryEndpoint { get; set; } = "/api/query/invoices/sold";
         public string ExportXmlEndpoint { get; set; } = "/api/query/invoices/export-xml";
+        public string ExportPdfEndpoint { get; set; } = "/api/query/invoices/export-pdf";
         public int RateLimitDelayMs { get; set; } = 800;
         public int TimeoutSeconds { get; set; } = 30;
         public int PageSize { get; set; } = 50;

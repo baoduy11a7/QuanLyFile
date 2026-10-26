@@ -107,6 +107,9 @@ namespace InvoiceManager.Models.ViewModels
         [Required(ErrorMessage = "Vui lòng chọn vai trò")]
         [Display(Name = "Vai trò người dùng")]
         public string Role { get; set; } = "Accountant"; // Admin, Accountant, Viewer
+
+        [Display(Name = "Công ty được phân quyền")]
+        public List<int> SelectedTaxAccountIds { get; set; } = new();
     }
 
     public class UserListItemViewModel
@@ -119,6 +122,8 @@ namespace InvoiceManager.Models.ViewModels
         public bool IsActive { get; set; }
         public IList<string> Roles { get; set; } = new List<string>();
         public DateTime CreatedAt { get; set; }
+        public List<int> AssignedTaxAccountIds { get; set; } = new();
+        public List<string> AssignedTaxAccountNames { get; set; } = new();
     }
 
     public class UserSettingsViewModel
@@ -126,6 +131,7 @@ namespace InvoiceManager.Models.ViewModels
         public ApplicationUser User { get; set; } = null!;
         public IList<string> Roles { get; set; } = new List<string>();
         public List<TaxAccount> AccessibleTaxAccounts { get; set; } = new();
+        public List<TaxAccount> AllSystemTaxAccounts { get; set; } = new();
         public UpdateProfileViewModel Profile { get; set; } = new();
         public ChangePasswordViewModel ChangePassword { get; set; } = new();
         public List<UserListItemViewModel> AllUsers { get; set; } = new();

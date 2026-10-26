@@ -10,6 +10,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using InvoiceManager.Services.Providers;
+using InvoiceManager.Services.Providers.Models;
+using InvoiceManager.Services.Parsers;
+using InvoiceManager.Services.Security;
+using Microsoft.Extensions.Logging;
+using System.IO;
+using System.Text;
+
 namespace InvoiceManager.Controllers
 {
     [Authorize]
@@ -19,17 +27,29 @@ namespace InvoiceManager.Controllers
         private readonly ITaxAccountContext _taxAccountContext;
         private readonly IExportService _exportService;
         private readonly IAuditLogService _auditLog;
+        private readonly IEnumerable<IInvoiceSourceProvider> _providers;
+        private readonly ICredentialProtector _protector;
+        private readonly IInvoiceParserFactory _parserFactory;
+        private readonly ILogger<ExportController> _logger;
 
         public ExportController(
             ApplicationDbContext db,
             ITaxAccountContext taxAccountContext,
             IExportService exportService,
-            IAuditLogService auditLog)
+            IAuditLogService auditLog,
+            IEnumerable<IInvoiceSourceProvider> providers,
+            ICredentialProtector protector,
+            IInvoiceParserFactory parserFactory,
+            ILogger<ExportController> logger)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
             _exportService = exportService;
             _auditLog = auditLog;
+            _providers = providers;
+            _protector = protector;
+            _parserFactory = parserFactory;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -162,6 +182,13 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction("Index", "Invoice", filter);
             }
 
+            // Tự động tải bù file PDF gốc từ Cổng Thuế cho các hóa đơn chưa có file PDF trên máy
+            var missingPdfs = invoices.Where(i => string.IsNullOrEmpty(i.RawPdfPath) || !System.IO.File.Exists(i.RawPdfPath)).Take(15).ToList();
+            foreach (var inv in missingPdfs)
+            {
+                await TryFetchOriginalPdfFromGovAsync(inv);
+            }
+
             var zipBytes = await _exportService.ExportInvoicesPdfZipAsync(invoices);
 
             await _auditLog.LogActionAsync(
@@ -187,6 +214,13 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction("Index", "Invoice", filter);
             }
 
+            // Tự động tải bù file PDF gốc từ Cổng Thuế cho các hóa đơn chưa có file PDF trên máy
+            var missingPdfs = invoices.Where(i => string.IsNullOrEmpty(i.RawPdfPath) || !System.IO.File.Exists(i.RawPdfPath)).Take(15).ToList();
+            foreach (var inv in missingPdfs)
+            {
+                await TryFetchOriginalPdfFromGovAsync(inv);
+            }
+
             var zipBytes = await _exportService.ExportInvoicesPdfZipAsync(invoices);
             await _auditLog.LogActionAsync(
                 "Tải PDF Gốc Hàng Loạt (ZIP)", 
@@ -208,11 +242,135 @@ namespace InvoiceManager.Controllers
 
             if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
 
+            // Nếu chưa có file PDF gốc hoặc đang dùng dòng hàng tạm từ metadata, thử tải file gốc từ Cổng Thuế
+            bool hasDummyDetails = invoice.Details.Any(d => d.ItemName.StartsWith("Hàng hóa, dịch vụ theo HĐ", StringComparison.OrdinalIgnoreCase) || d.Unit == "Lô/Gói");
+            if (string.IsNullOrEmpty(invoice.RawPdfPath) || !System.IO.File.Exists(invoice.RawPdfPath) || hasDummyDetails)
+            {
+                await TryFetchOriginalPdfFromGovAsync(invoice);
+            }
+
+            // Xóa cache cũ cả trong thư mục thực thi lẫn thư mục gốc ứng dụng
+            var cacheDirs = new[]
+            {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "GeneratedPdfs"),
+                Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "GeneratedPdfs")
+            };
+            foreach (var dir in cacheDirs)
+            {
+                var cachedPdfPath = Path.Combine(dir, $"HD_{invoice.Id}_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf");
+                try { if (System.IO.File.Exists(cachedPdfPath)) System.IO.File.Delete(cachedPdfPath); } catch { }
+            }
+
             var pdfBytes = await _exportService.GenerateInvoicePdfAsync(invoice);
             await _auditLog.LogActionAsync("Tải PDF hóa đơn", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
 
             string fileName = $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf";
             return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        private async Task TryFetchOriginalPdfFromGovAsync(Invoice invoice)
+        {
+            if (invoice == null || invoice.TaxAccountId <= 0) return;
+
+            var conn = await _db.RemoteConnections
+                .FirstOrDefaultAsync(c => c.TaxAccountId == invoice.TaxAccountId && c.ProviderName == "Gdt");
+
+            if (conn == null || string.IsNullOrEmpty(conn.EncryptedPassword)) return;
+
+            try
+            {
+                var provider = _providers.FirstOrDefault(p => p.ProviderName == "Gdt");
+                if (provider == null) return;
+
+                var plainPassword = _protector.Unprotect(conn.EncryptedPassword);
+                if (string.IsNullOrEmpty(plainPassword)) return;
+
+                var loginRes = await provider.LoginAsync(new ProviderCredentials
+                {
+                    TaxCode = conn.Username,
+                    Username = conn.Username,
+                    Password = plainPassword
+                });
+                if (!loginRes.Success || string.IsNullOrEmpty(loginRes.Token)) return;
+                string token = loginRes.Token;
+
+                var remoteInv = new RemoteInvoice
+                {
+                    InvoiceSymbol = invoice.InvoiceSymbol,
+                    InvoiceNumber = invoice.InvoiceNumber,
+                    RawInvoiceNumber = invoice.InvoiceNumber,
+                    SellerTaxCode = invoice.SellerTaxCode,
+                    BuyerTaxCode = invoice.BuyerTaxCode
+                };
+
+                var files = await provider.DownloadInvoiceFilesAsync(remoteInv, token);
+                var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", invoice.TaxAccountId.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
+                Directory.CreateDirectory(storageRoot);
+
+                bool updated = false;
+                if (files.PdfBytes != null && files.PdfBytes.Length > 0)
+                {
+                    var pdfPath = Path.Combine(storageRoot, $"Gov_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.pdf");
+                    await System.IO.File.WriteAllBytesAsync(pdfPath, files.PdfBytes);
+                    invoice.RawPdfPath = pdfPath;
+                    updated = true;
+                }
+
+                if (files.XmlBytes != null && files.XmlBytes.Length > 0)
+                {
+                    var xmlPath = Path.Combine(storageRoot, $"Gov_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.xml");
+                    await System.IO.File.WriteAllBytesAsync(xmlPath, files.XmlBytes);
+                    invoice.RawXmlPath = xmlPath;
+                    updated = true;
+
+                    // Nếu hóa đơn chỉ có chi tiết tạm, cập nhật danh sách mặt hàng thật từ XML Cổng Thuế
+                    try
+                    {
+                        using var xmlMs = new MemoryStream(files.XmlBytes);
+                        var xmlString = Encoding.UTF8.GetString(files.XmlBytes);
+                        var parser = _parserFactory.GetParser(xmlString);
+                        var parsed = await parser.ParseAsync(xmlMs, $"Gov_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.xml");
+                        if (parsed.Success && parsed.Details.Any())
+                        {
+                            invoice.Details.Clear();
+                            foreach (var d in parsed.Details)
+                            {
+                                invoice.Details.Add(new InvoiceDetail
+                                {
+                                    LineNumber = d.LineNumber,
+                                    ItemCode = d.ItemCode,
+                                    ItemName = d.ItemName,
+                                    Unit = d.Unit,
+                                    Quantity = d.Quantity,
+                                    UnitPrice = d.UnitPrice,
+                                    AmountBeforeTax = d.AmountBeforeTax,
+                                    TaxRate = d.TaxRate,
+                                    TaxAmount = d.TaxAmount,
+                                    TotalAmount = d.TotalAmount
+                                });
+                            }
+                            if (!string.IsNullOrEmpty(parsed.SellerAddress)) invoice.SellerAddress = parsed.SellerAddress;
+                            if (!string.IsNullOrEmpty(parsed.BuyerAddress)) invoice.BuyerAddress = parsed.BuyerAddress;
+                            if (!string.IsNullOrEmpty(parsed.TaxAuthorityCode)) invoice.TaxAuthorityCode = parsed.TaxAuthorityCode;
+                            invoice.HasTaxCode = parsed.HasTaxCode;
+                            updated = true;
+                        }
+                    }
+                    catch (Exception exParse)
+                    {
+                        _logger.LogWarning(exParse, "Không thể parse chi tiết XML Cổng Thuế cho HĐ {Symbol}-{Number}", invoice.InvoiceSymbol, invoice.InvoiceNumber);
+                    }
+                }
+
+                if (updated)
+                {
+                    await _db.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Không thể tải trực tiếp file gốc từ Cổng Thuế cho HĐ {Symbol}-{Number}", invoice.InvoiceSymbol, invoice.InvoiceNumber);
+            }
         }
 
         private IQueryable<Invoice> GetFilteredInvoicesQuery(InvoiceFilterViewModel filter, int taxAccountId)

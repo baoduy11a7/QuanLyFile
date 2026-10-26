@@ -16,6 +16,7 @@ namespace InvoiceManager.Services
         private readonly HttpClient _httpClient;
         private readonly ApplicationDbContext _db;
         private readonly ILogger<TaxCodeLookupService> _logger;
+        private readonly ITaxAccountContext _taxAccountContext;
 
         public const string ClientName = "TaxCodeLookupClient";
         private const string BaseApiUrl = "https://api.vietqr.io/v2/business/";
@@ -23,11 +24,13 @@ namespace InvoiceManager.Services
         public TaxCodeLookupService(
             IHttpClientFactory httpClientFactory,
             ApplicationDbContext db,
-            ILogger<TaxCodeLookupService> logger)
+            ILogger<TaxCodeLookupService> logger,
+            ITaxAccountContext taxAccountContext)
         {
             _httpClient = httpClientFactory.CreateClient(ClientName);
             _db = db;
             _logger = logger;
+            _taxAccountContext = taxAccountContext;
         }
 
         public async Task<TaxCodeLookupResult> LookupAsync(string taxCode, CancellationToken cancellationToken = default)
@@ -86,11 +89,27 @@ namespace InvoiceManager.Services
                     var shortName = dataProp.TryGetProperty("shortName", out var snProp) ? snProp.GetString() : null;
                     var address = dataProp.TryGetProperty("address", out var addrProp) ? addrProp.GetString() : null;
                     var status = dataProp.TryGetProperty("status", out var stProp) ? stProp.GetString() : "Đang hoạt động";
+                    if (!string.IsNullOrWhiteSpace(status))
+                    {
+                        status = status.Trim();
+                        if (status.StartsWith("NNT ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            status = status.Substring(4).Trim();
+                        }
+                        if (status.Length > 0 && char.IsLower(status[0]))
+                        {
+                            status = char.ToUpper(status[0]) + status.Substring(1);
+                        }
+                    }
+                    else
+                    {
+                        status = "Đang hoạt động";
+                    }
 
-                    // Kiểm tra xem MST này đã có trong cơ sở dữ liệu hệ thống chưa (và đang kích hoạt)
-                    var existingAccount = await _db.TaxAccounts
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(t => (t.TaxCode == cleanTaxCode || t.TaxCode == id) && t.IsActive, cancellationToken);
+                    // Kiểm tra xem MST này đã có trong danh sách công ty mà người dùng hiện tại được phân quyền hay chưa
+                    var accessibleAccounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
+                    var existingAccount = accessibleAccounts
+                        .FirstOrDefault(t => (t.TaxCode == cleanTaxCode || t.TaxCode == id) && t.IsActive);
 
                     return new TaxCodeLookupResult
                     {
@@ -141,9 +160,9 @@ namespace InvoiceManager.Services
 
         private async Task<TaxCodeLookupResult?> GetFallbackLookupResultAsync(string cleanTaxCode, CancellationToken cancellationToken)
         {
-            var existingAccount = await _db.TaxAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode && t.IsActive, cancellationToken);
+            var accessibleAccounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
+            var list = accessibleAccounts ?? await _db.TaxAccounts.Where(t => t.IsActive).ToListAsync(cancellationToken);
+            var existingAccount = list.FirstOrDefault(t => t.TaxCode == cleanTaxCode && t.IsActive);
 
             if (existingAccount != null)
             {
@@ -185,9 +204,8 @@ namespace InvoiceManager.Services
             if (cleanTaxCode.Length > 10)
             {
                 var parentTaxCode = cleanTaxCode.Substring(0, 10);
-                var parentAccount = await _db.TaxAccounts
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(t => t.TaxCode == parentTaxCode, cancellationToken);
+                var parentAccount = accessibleAccounts
+                    .FirstOrDefault(t => t.TaxCode == parentTaxCode);
 
                 if (parentAccount != null)
                 {
