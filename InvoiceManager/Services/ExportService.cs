@@ -18,6 +18,8 @@ namespace InvoiceManager.Services
         static ExportService()
         {
             QuestPDF.Settings.License = LicenseType.Community;
+            QuestPDF.Settings.UseSystemFonts = true;
+            QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
         }
         public Task<byte[]> ExportDetailedExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, string title)
         {
@@ -1167,10 +1169,40 @@ namespace InvoiceManager.Services
             }
 
             // 3. Ưu tiên sinh PDF chuẩn Nghị định 123 bằng Microsoft Edge Headless (100% biểu mẫu Cổng Thuế từ HTML chuẩn)
-            string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
-            if (!File.Exists(edgePath))
+            // 3. Ưu tiên sinh PDF chuẩn Nghị định 123 bằng Headless Browser (Edge/Chrome/Chromium trên cả Windows và Linux Docker)
+            string? browserPath = null;
+            var envChrome = Environment.GetEnvironmentVariable("CHROME_PATH");
+            if (!string.IsNullOrEmpty(envChrome) && File.Exists(envChrome))
             {
-                edgePath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
+                browserPath = envChrome;
+            }
+            else if (File.Exists("/usr/bin/chromium"))
+            {
+                browserPath = "/usr/bin/chromium";
+            }
+            else if (File.Exists("/usr/bin/chromium-browser"))
+            {
+                browserPath = "/usr/bin/chromium-browser";
+            }
+            else if (File.Exists("/usr/bin/google-chrome"))
+            {
+                browserPath = "/usr/bin/google-chrome";
+            }
+            else if (File.Exists(@"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"))
+            {
+                browserPath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+            }
+            else if (File.Exists(@"C:\Program Files\Microsoft\Edge\Application\msedge.exe"))
+            {
+                browserPath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
+            }
+            else if (File.Exists(@"C:\Program Files\Google\Chrome\Application\chrome.exe"))
+            {
+                browserPath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
+            }
+            else if (File.Exists(@"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"))
+            {
+                browserPath = @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe";
             }
 
             var tempDir = Path.Combine(Path.GetTempPath(), "InvoicePdfGen");
@@ -1181,15 +1213,15 @@ namespace InvoiceManager.Services
 
             try
             {
-                if (File.Exists(edgePath))
+                if (!string.IsNullOrEmpty(browserPath))
                 {
                     var html = GenerateInvoiceHtml(invoice);
                     await File.WriteAllTextAsync(tempHtml, html, Encoding.UTF8);
 
                     var psi = new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = edgePath,
-                        Arguments = $"--headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf=\"{tempPdf}\" \"{tempHtml}\"",
+                        FileName = browserPath,
+                        Arguments = $"--headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage --no-pdf-header-footer --print-to-pdf=\"{tempPdf}\" \"{tempHtml}\"",
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
@@ -1210,9 +1242,9 @@ namespace InvoiceManager.Services
                     }
                 }
             }
-            catch (Exception exEdge)
+            catch (Exception exBrowser)
             {
-                System.Diagnostics.Debug.WriteLine($"Edge Headless PDF exception: {exEdge.Message}");
+                System.Diagnostics.Debug.WriteLine($"Headless Browser PDF exception: {exBrowser.Message}");
             }
             finally
             {
