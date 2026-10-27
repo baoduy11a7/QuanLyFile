@@ -325,20 +325,25 @@
                             </div>
 
                             <!-- Thao tác sau khi chạy -->
+                            <div id="pageSyncResultAlert" class="alert d-none mt-3 mb-2 shadow-sm"></div>
+
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4 pt-3 border-top">
                                 <button type="button" class="btn btn-outline-danger" id="pageBtnCancelRemoteJob">
                                     <i class="bi bi-x-circle me-1"></i> Hủy tiến trình
                                 </button>
                                 
-                                <div id="pagePostSyncActions" class="d-none d-flex gap-2 flex-wrap">
+                                <div id="pagePostSyncActions" class="d-none d-flex gap-2 flex-wrap align-items-center">
                                     <button type="button" class="btn btn-outline-secondary" onclick="resetSyncView()">
                                         <i class="bi bi-arrow-repeat me-1"></i> Lấy tiếp kỳ khác
                                     </button>
-                                    <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary fw-semibold px-3">
+                                    <a href="/Invoice" class="btn btn-primary fw-semibold px-3" id="pageBtnGoToInvoices">
                                         <i class="bi bi-receipt me-1"></i> Quản lý danh sách hóa đơn
                                     </a>
-                                    <a asp-controller="Dashboard" asp-action="Index" class="btn btn-success fw-bold px-4 shadow-sm">
-                                        <i class="bi bi-pie-chart-fill me-1"></i> Xem Dashboard Thống Kê & Cân Đối Thuế
+                                    <a href="/Invoice" class="btn btn-success fw-bold px-4 shadow-sm d-none" id="pageBtnViewFreshInvoices">
+                                        <i class="bi bi-check2-circle me-1"></i> Xem ngay hóa đơn vừa đồng bộ
+                                    </a>
+                                    <a asp-controller="Dashboard" asp-action="Index" class="btn btn-outline-success fw-semibold px-3">
+                                        <i class="bi bi-pie-chart-fill me-1"></i> Xem Dashboard Thống Kê
                                     </a>
                                 </div>
                             </div>

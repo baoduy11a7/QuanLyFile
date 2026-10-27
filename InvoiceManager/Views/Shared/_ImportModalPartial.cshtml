@@ -257,6 +257,11 @@
         const antiXsrfToken = '@GetAntiXsrfRequestToken()';
         let currentJobId = null;
         let pollTimer = null;
+        let syncedFromDate = '';
+        let syncedToDate = '';
+        let syncedInvoiceType = '';
+        let hasNewInvoicesSynced = false;
+        let countdownTimer = null;
 
         // Toggle mật khẩu
         document.getElementById('btnTogglePassword')?.addEventListener('click', function () {
@@ -383,6 +388,17 @@
             const alertBox = document.getElementById('remoteSetupAlert');
             alertBox.className = 'alert d-none';
 
+            syncedFromDate = document.getElementById('remoteFromDate').value;
+            syncedToDate = document.getElementById('remoteToDate').value;
+            syncedInvoiceType = document.getElementById('remoteInvoiceType').value;
+            hasNewInvoicesSynced = false;
+            if (countdownTimer) clearInterval(countdownTimer);
+            const resAlert = document.getElementById('syncResultAlert');
+            if (resAlert) {
+                resAlert.className = 'alert d-none';
+                resAlert.innerHTML = '';
+            }
+
             const payload = {
                 providerName: document.getElementById('remoteProvider').value,
                 taxCode: document.getElementById('remoteTaxCode').value,
@@ -390,9 +406,9 @@
                 password: document.getElementById('remotePassword').value,
                 captchaKey: document.getElementById('remoteCaptchaKey').value,
                 captchaCode: document.getElementById('remoteCaptchaCode').value,
-                invoiceType: document.getElementById('remoteInvoiceType').value,
-                fromDate: document.getElementById('remoteFromDate').value,
-                toDate: document.getElementById('remoteToDate').value,
+                invoiceType: syncedInvoiceType,
+                fromDate: syncedFromDate,
+                toDate: syncedToDate,
                 rememberPassword: document.getElementById('remoteRememberPassword').checked
             };
 
@@ -464,8 +480,46 @@
             document.getElementById('statDupCount').textContent = info.duplicateCount || 0;
             document.getElementById('statFailCount').textContent = info.failedCount || 0;
 
-            if (info.status === 'Completed') {
+            const queryType = syncedInvoiceType && syncedInvoiceType !== 'All' ? `&InvoiceType=${encodeURIComponent(syncedInvoiceType)}` : '';
+            const targetUrl = `/Invoice?FromDate=${encodeURIComponent(syncedFromDate)}&ToDate=${encodeURIComponent(syncedToDate)}${queryType}&QuickDateRange=custom`;
+
+            const btnReload = document.getElementById('btnCompleteAndReload');
+            if (btnReload) {
+                btnReload.onclick = function () {
+                    if (countdownTimer) clearInterval(countdownTimer);
+                    window.location.href = targetUrl;
+                };
+            }
+
+            if (info.status === 'Completed' || info.percent === 100) {
                 bar.className = 'progress-bar bg-success fw-bold';
+                const resAlert = document.getElementById('syncResultAlert');
+
+                if (resAlert && resAlert.classList.contains('d-none')) {
+                    if (info.successCount > 0) {
+                        hasNewInvoicesSynced = true;
+                        resAlert.className = 'alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 py-2';
+                        resAlert.innerHTML = `<div><i class="bi bi-check-circle-fill fs-5 me-2 text-success"></i><strong>Đã nạp thành công ${info.successCount} hóa đơn mới!</strong> <span id="syncCountdownNotice" class="text-muted small ms-1">(Tự động tải lại sau <b id="countdownSec">3</b>s...)</span></div><button type="button" class="btn btn-sm btn-success fw-bold" onclick="if(countdownTimer)clearInterval(countdownTimer);window.location.href='${targetUrl}'">Xem ngay</button>`;
+
+                        let sec = 3;
+                        if (countdownTimer) clearInterval(countdownTimer);
+                        countdownTimer = setInterval(() => {
+                            sec--;
+                            const secSpan = document.getElementById('countdownSec');
+                            if (secSpan) secSpan.textContent = sec;
+                            if (sec <= 0) {
+                                clearInterval(countdownTimer);
+                                window.location.href = targetUrl;
+                            }
+                        }, 1000);
+                    } else if (info.totalFound === 0) {
+                        resAlert.className = 'alert alert-warning py-2 small';
+                        resAlert.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-warning me-2"></i><strong>Cổng Thuế không tìm thấy hóa đơn nào</strong> trong khoảng ngày từ <b>${syncedFromDate}</b> đến <b>${syncedToDate}</b>. Vui lòng kiểm tra lại khoảng ngày hoặc thử chọn mốc ngày khác.`;
+                    } else if (info.duplicateCount > 0 && info.successCount === 0) {
+                        resAlert.className = 'alert alert-info py-2 small';
+                        resAlert.innerHTML = `<i class="bi bi-info-circle-fill text-info me-2"></i>Tìm thấy <b>${info.duplicateCount}</b> hóa đơn nhưng <strong>toàn bộ đã có trên hệ thống từ trước</strong> (trùng lặp 100%). Không có hóa đơn mới nào cần nạp.`;
+                    }
+                }
             } else if (info.status === 'Failed' || info.status === 'Cancelled') {
                 bar.className = 'progress-bar bg-danger fw-bold';
             }
@@ -534,6 +588,13 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-upload me-1"></i> Bắt đầu nạp file';
+            }
+        // Tự động tải lại bảng hóa đơn khi người dùng đóng modal (nếu đã có HĐ mới)
+        document.getElementById('modalImportInvoice')?.addEventListener('hidden.bs.modal', function () {
+            if (countdownTimer) clearInterval(countdownTimer);
+            if (hasNewInvoicesSynced) {
+                const queryType = syncedInvoiceType && syncedInvoiceType !== 'All' ? `&InvoiceType=${encodeURIComponent(syncedInvoiceType)}` : '';
+                window.location.href = `/Invoice?FromDate=${encodeURIComponent(syncedFromDate)}&ToDate=${encodeURIComponent(syncedToDate)}${queryType}&QuickDateRange=custom`;
             }
         });
     })();
