@@ -20,11 +20,12 @@
                 </div>
 
                 <form method="get" asp-action="Lookup" id="lookupForm" class="mt-3">
-                    <div class="input-group input-group-lg shadow-sm">
-                        <span class="input-group-text bg-white border-end-0 text-muted">
-                            <i class="bi bi-building"></i>
+                    <div class="input-group shadow-sm">
+                        <span class="input-group-text bg-white border-end-0 text-muted px-3">
+                            <i class="bi bi-building fs-5 text-primary"></i>
                         </span>
-                        <input type="text" name="taxCode" id="taxCodeInput" class="form-control border-start-0 font-monospace fw-bold text-primary fs-4" 
+                        <input type="text" name="taxCode" id="taxCodeInput" class="form-control border-start-0 font-monospace fw-bold text-primary search-instruction-input" 
+                               style="font-size: 1.05rem;"
                                placeholder="Nhập mã số thuế doanh nghiệp (ví dụ: 0105880697)..." 
                                value="@(Model?.TaxCode ?? initialTaxCode)" autofocus required />
                         <button type="submit" id="btnSubmitLookup" class="btn btn-primary px-4 fw-semibold d-flex align-items-center gap-2">

@@ -15,12 +15,12 @@
     <table class="table table-hover align-middle mb-0">
         <thead>
             <tr>
-                <th style="width: 160px;">Thời gian</th>
-                <th style="width: 140px;">Người thực hiện</th>
-                <th style="width: 150px;">Hành động</th>
-                <th>Đối tượng / Hóa đơn</th>
-                <th>Chi tiết thao tác</th>
-                <th style="width: 120px;" class="text-end">Địa chỉ IP</th>
+                <th style="width: 155px; white-space: nowrap;">Thời gian</th>
+                <th style="width: 175px; white-space: nowrap;">Người thực hiện</th>
+                <th style="width: 145px; white-space: nowrap;">Hành động</th>
+                <th style="width: 180px; white-space: nowrap;">Đối tượng / Hóa đơn</th>
+                <th style="min-width: 280px;">Chi tiết thao tác</th>
+                <th style="width: 95px; white-space: nowrap;" class="text-end">Địa chỉ IP</th>
             </tr>
         </thead>
         <tbody>
@@ -29,16 +29,16 @@
                 foreach (var log in Model)
                 {
                     <tr>
-                        <td class="font-monospace small text-muted">@log.Timestamp.ToString("dd/MM/yyyy HH:mm:ss")</td>
-                        <td>
+                        <td class="font-monospace small text-muted" style="white-space: nowrap;">@log.Timestamp.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td style="white-space: nowrap;">
                             <strong class="small text-dark">@log.UserName</strong>
                         </td>
-                        <td>
+                        <td style="white-space: nowrap;">
                             @if (log.Action.Contains("Xuất"))
                             {
                                 <span class="badge bg-success-subtle text-success border border-success-subtle">@log.Action</span>
                             }
-                            else if (log.Action.Contains("Import"))
+                            else if (log.Action.Contains("Import") || log.Action.Contains("Đồng bộ"))
                             {
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">@log.Action</span>
                             }
@@ -51,13 +51,13 @@
                                 <span class="badge bg-secondary-subtle text-secondary border">@log.Action</span>
                             }
                         </td>
-                        <td>
+                        <td style="white-space: nowrap;">
                             <strong class="font-monospace text-primary small">@log.Target</strong>
                         </td>
-                        <td class="small text-muted text-truncate" style="max-width: 320px;" title="@log.Details">
+                        <td class="small text-secondary" style="min-width: 280px; line-height: 1.45;">
                             @log.Details
                         </td>
-                        <td class="text-end font-monospace small text-muted">@log.IpAddress</td>
+                        <td class="text-end font-monospace small text-muted" style="white-space: nowrap;">@log.IpAddress</td>
                     </tr>
                 }
             }

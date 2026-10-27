@@ -50,10 +50,10 @@
                     <div class="row justify-content-center mt-3">
                         <div class="col-md-8 col-lg-7">
                             <form id="formDirectCrawlOnImport" class="m-0">
-                                <div class="input-group input-group-lg shadow-sm">
-                                    <span class="input-group-text bg-light text-primary fw-bold font-monospace"><i class="bi bi-upc-scan"></i></span>
-                                    <input type="text" id="directCrawlTaxCode" class="form-control font-monospace fw-bold fs-5 text-uppercase" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14" required>
-                                    <button type="submit" class="btn btn-primary fw-bold px-4" id="btnSubmitDirectCrawl">
+                                <div class="input-group shadow-sm">
+                                    <span class="input-group-text bg-light text-primary fw-bold font-monospace px-3"><i class="bi bi-upc-scan fs-5"></i></span>
+                                    <input type="text" id="directCrawlTaxCode" class="form-control font-monospace fw-bold search-instruction-input text-uppercase" style="font-size: 1rem;" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14" required>
+                                    <button type="submit" class="btn btn-primary fw-bold px-4 d-flex align-items-center" id="btnSubmitDirectCrawl">
                                         <span class="spinner-border spinner-border-sm d-none me-1" id="directCrawlSpinner" role="status"></span>
                                         <i class="bi bi-cloud-arrow-down-fill me-1" id="directCrawlIcon"></i> Cào & Thêm ngay
                                     </button>
@@ -494,10 +494,10 @@
                     Nhập Mã số thuế để hệ thống tự động cào thông tin chính thức từ Cổng Tổng cục Thuế (Tên công ty, địa chỉ, trạng thái hoạt động) và thêm ngay vào hệ thống để tiếp tục lấy hóa đơn:
                 </p>
 
-                <div class="input-group input-group-lg shadow-sm mb-3">
-                    <span class="input-group-text bg-light text-primary fw-bold font-monospace"><i class="bi bi-upc-scan"></i></span>
-                    <input type="text" id="modalCrawlTaxCodeInput" class="form-control font-monospace fw-bold fs-5 text-uppercase" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14">
-                    <button type="button" class="btn btn-primary fw-bold px-4" id="btnModalSubmitCrawl">
+                <div class="input-group shadow-sm mb-3">
+                    <span class="input-group-text bg-light text-primary fw-bold font-monospace px-3"><i class="bi bi-upc-scan fs-5"></i></span>
+                    <input type="text" id="modalCrawlTaxCodeInput" class="form-control font-monospace fw-bold search-instruction-input text-uppercase" style="font-size: 1rem;" placeholder="Nhập Mã số thuế (VD: 0314094922)..." maxlength="14">
+                    <button type="button" class="btn btn-primary fw-bold px-4 d-flex align-items-center" id="btnModalSubmitCrawl">
                         <span class="spinner-border spinner-border-sm d-none me-1" id="modalCrawlSpinner" role="status"></span>
                         <i class="bi bi-search me-1" id="modalCrawlIcon"></i> Cào thông tin
                     </button>

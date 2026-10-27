@@ -278,7 +278,7 @@
                     <div class="col-12 col-md">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" name="Keyword" class="form-control" placeholder="Tìm nhanh theo Ký hiệu, Số HĐ, Tên hoặc MST người bán..." value="@filter.Keyword" />
+                            <input type="text" name="Keyword" class="form-control search-instruction-input" placeholder="Tìm theo Ký hiệu, Số HĐ, MST hoặc Tên người bán..." value="@filter.Keyword" />
                         </div>
                     </div>
 
@@ -354,26 +354,26 @@
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
-                    <th style="width: 40px;" class="text-center">
+                    <th style="width: 40px; white-space: nowrap;" class="text-center">
                         <input type="checkbox" id="selectAll" class="form-check-input" />
                     </th>
-                    <th style="width: 50px;" class="text-center">STT</th>
-                    <th style="width: 110px;">Ký hiệu</th>
-                    <th style="width: 100px;">Số HĐ</th>
-                    <th style="width: 110px;">Ngày lập</th>
-                    <th>Thông tin người bán</th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("AmountBeforeTax") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 130px;" onclick="quickSortFinancial('AmountBeforeTax')" title="Nhấp để sắp xếp theo Chưa thuế">
+                    <th style="width: 48px; white-space: nowrap;" class="text-center">STT</th>
+                    <th style="width: 100px; white-space: nowrap;">Ký hiệu</th>
+                    <th style="width: 95px; white-space: nowrap;">Số HĐ</th>
+                    <th style="width: 105px; white-space: nowrap;">Ngày lập</th>
+                    <th style="min-width: 260px;">Thông tin người bán</th>
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("AmountBeforeTax") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 125px; white-space: nowrap;" onclick="quickSortFinancial('AmountBeforeTax')" title="Nhấp để sắp xếp theo Chưa thuế">
                         Chưa thuế @(filter.SortBy == "AmountBeforeTaxDesc" ? "↓" : filter.SortBy == "AmountBeforeTaxAsc" ? "↑" : "")
                     </th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TaxAmount") == true ? "bg-danger-subtle text-danger border-bottom border-danger" : "")" style="width: 120px;" onclick="quickSortFinancial('TaxAmount')" title="Nhấp để sắp xếp theo Tiền thuế GTGT">
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TaxAmount") == true ? "bg-danger-subtle text-danger border-bottom border-danger" : "")" style="width: 115px; white-space: nowrap;" onclick="quickSortFinancial('TaxAmount')" title="Nhấp để sắp xếp theo Tiền thuế GTGT">
                         Tiền thuế @(filter.SortBy == "TaxAmountDesc" ? "↓" : filter.SortBy == "TaxAmountAsc" ? "↑" : "")
                     </th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TotalAmount") == true || filter.SortBy?.StartsWith("Amount") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 140px;" onclick="quickSortFinancial('TotalAmount')" title="Nhấp để sắp xếp theo Tổng thanh toán">
+                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TotalAmount") == true || filter.SortBy?.StartsWith("Amount") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 130px; white-space: nowrap;" onclick="quickSortFinancial('TotalAmount')" title="Nhấp để sắp xếp theo Tổng thanh toán">
                         Thanh toán @(filter.SortBy == "TotalAmountDesc" || filter.SortBy == "AmountDesc" ? "↓" : filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountAsc" ? "↑" : "")
                     </th>
-                    <th class="text-center" style="width: 120px;">Trạng thái</th>
-                    <th class="text-center" style="width: 110px;">Ghi sổ</th>
-                    <th class="text-center" style="width: 120px;">Thao tác</th>
+                    <th class="text-center" style="width: 110px; white-space: nowrap;">Trạng thái</th>
+                    <th class="text-center" style="width: 95px; white-space: nowrap;">Ghi sổ</th>
+                    <th class="text-center" style="width: 115px; white-space: nowrap;">Thao tác</th>
                 </tr>
             </thead>
             <tbody>

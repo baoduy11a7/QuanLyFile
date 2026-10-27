@@ -98,18 +98,18 @@
         </div>
     </div>
 
-    <div class="table-responsive">
+    <div class="table-responsive table-invoice">
         <table class="table table-hover align-middle mb-0" id="companyTable">
-            <thead class="table-light text-secondary small text-uppercase fw-semibold border-bottom">
+            <thead class="table-light text-secondary small fw-semibold border-bottom">
                 <tr>
-                    <th class="text-center" style="width: 55px;">STT</th>
-                    <th style="min-width: 320px;">Doanh nghiệp</th>
-                    <th class="text-center" style="width: 140px;">Phần mềm Kế toán</th>
-                    <th class="text-center" style="width: 110px;">Ngày tạo</th>
-                    <th class="text-end" style="width: 120px;">Tổng HĐ Mua vào</th>
-                    <th class="text-end" style="width: 120px;">Tổng HĐ Bán ra</th>
-                    <th class="text-end" style="width: 120px;">Tổng HĐ</th>
-                    <th class="text-center" style="min-width: 230px; width: 240px;">Thao tác</th>
+                    <th class="text-center" style="width: 48px; white-space: nowrap;">STT</th>
+                    <th style="min-width: 280px;">Doanh nghiệp & MST</th>
+                    <th class="text-center" style="width: 130px; white-space: nowrap;">Phần mềm KT</th>
+                    <th class="text-center" style="width: 105px; white-space: nowrap;">Ngày tạo</th>
+                    <th class="text-end" style="width: 115px; white-space: nowrap;">HĐ Mua vào</th>
+                    <th class="text-end" style="width: 115px; white-space: nowrap;">HĐ Bán ra</th>
+                    <th class="text-end" style="width: 95px; white-space: nowrap;">Tổng HĐ</th>
+                    <th class="text-center" style="width: 210px; white-space: nowrap;">Thao tác</th>
                 </tr>
             </thead>
             <tbody>
@@ -153,35 +153,35 @@
                         </td>
 
                         <!-- 3. Phần mềm Kế toán -->
-                        <td class="text-center">
+                        <td class="text-center" style="white-space: nowrap;">
                             <span class="badge bg-primary text-white font-monospace px-2 py-1 shadow-sm" style="font-size: 0.75rem; letter-spacing: 0.5px;">
                                 @acc.AccountingSoftware
                             </span>
                         </td>
 
                         <!-- 4. Ngày tạo (Ngày thêm vào hệ thống) -->
-                        <td class="text-center text-secondary small font-monospace">
+                        <td class="text-center text-secondary small font-monospace" style="white-space: nowrap;">
                             @acc.CreatedAt.ToString("dd/MM/yyyy")
                         </td>
 
                         <!-- 5. Tổng HĐ Mua vào -->
-                        <td class="text-end font-monospace">
+                        <td class="text-end font-monospace" style="white-space: nowrap;">
                             <span class="fw-semibold text-info">@acc.PurchaseInvoiceCount.ToString("N0")</span>
                         </td>
 
                         <!-- 6. Tổng HĐ Bán ra -->
-                        <td class="text-end font-monospace">
+                        <td class="text-end font-monospace" style="white-space: nowrap;">
                             <span class="fw-semibold text-success">@acc.SoldInvoiceCount.ToString("N0")</span>
                         </td>
 
                         <!-- 7. Tổng HĐ -->
-                        <td class="text-end font-monospace">
+                        <td class="text-end font-monospace" style="white-space: nowrap;">
                             <strong class="text-primary fs-6">@acc.TotalInvoiceCount.ToString("N0")</strong>
                         </td>
 
                         <!-- 8. Thao tác -->
-                        <td class="text-center">
-                            <div class="d-inline-flex gap-1 align-items-center">
+                        <td class="text-center" style="white-space: nowrap;">
+                            <div class="d-inline-flex gap-1 align-items-center flex-nowrap">
                                 @if (isCurrent)
                                 {
                                     <a asp-controller="Invoice" asp-action="Index" class="btn btn-primary btn-sm px-2 fw-semibold" title="Xem danh sách hóa đơn">
