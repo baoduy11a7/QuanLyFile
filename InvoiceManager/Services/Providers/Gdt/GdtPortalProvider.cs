@@ -145,7 +145,69 @@ namespace InvoiceManager.Services.Providers.Gdt
 
         public async Task<CaptchaChallenge?> GetCaptchaAsync(CancellationToken ct = default)
         {
-            // 1. Thử lấy Captcha qua Headless Chrome Agent (đồng bộ chuẩn session browser)
+            // 1. Ưu tiên lấy trực tiếp siêu tốc qua HttpClient (~150ms - 300ms)
+            try
+            {
+                using var ctsDirect = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                ctsDirect.CancelAfter(TimeSpan.FromSeconds(5));
+
+                var client = CreateClient();
+                var endpoint = _options.CaptchaEndpoint.TrimStart('/');
+                var response = await client.GetAsync(endpoint, ctsDirect.Token);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync(ctsDirect.Token);
+                    using var doc = JsonDocument.Parse(content);
+                    var root = doc.RootElement;
+
+                    string key = string.Empty;
+                    string rawImage = string.Empty;
+
+                    if (root.TryGetProperty("key", out var keyProp)) key = keyProp.GetString() ?? string.Empty;
+                    else if (root.TryGetProperty("ckey", out var ckeyProp)) key = ckeyProp.GetString() ?? string.Empty;
+
+                    if (root.TryGetProperty("content", out var contentProp)) rawImage = contentProp.GetString() ?? string.Empty;
+                    else if (root.TryGetProperty("image", out var imgProp)) rawImage = imgProp.GetString() ?? string.Empty;
+                    else if (root.TryGetProperty("svg", out var svgProp)) rawImage = svgProp.GetString() ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(rawImage))
+                    {
+                        bool isSvg = rawImage.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase);
+                        string formattedBase64;
+                        if (isSvg)
+                        {
+                            formattedBase64 = "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(rawImage));
+                        }
+                        else if (!rawImage.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
+                        {
+                            formattedBase64 = "data:image/png;base64," + rawImage;
+                        }
+                        else
+                        {
+                            formattedBase64 = rawImage;
+                        }
+
+                        return new CaptchaChallenge
+                        {
+                            Key = key,
+                            ImageBase64 = formattedBase64,
+                            IsSvg = isSvg,
+                            SvgContent = isSvg ? rawImage : null
+                        };
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("HttpClient lấy captcha trả về mã {Code}, chuyển sang Headless Agent...", response.StatusCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lấy Captcha trực tiếp qua HttpClient thất bại hoặc hết hạn, chuyển sang Headless Chrome Agent.");
+            }
+
+            // 2. Fallback sang Headless Chrome Agent nếu HttpClient bị chặn hoặc lỗi
             try
             {
                 var agentOutput = await RunHeadlessAgentAsync("get-captcha", ct);
@@ -177,77 +239,10 @@ namespace InvoiceManager.Services.Providers.Gdt
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Lỗi khi lấy captcha qua Headless Agent, chuyển sang HttpClient.");
+                _logger.LogWarning(ex, "Lỗi khi lấy captcha qua Headless Agent.");
             }
 
-            // 2. Fallback sang HttpClient truyền thống
-            try
-            {
-                var client = CreateClient();
-                var endpoint = _options.CaptchaEndpoint.TrimStart('/');
-                var response = await client.GetAsync(endpoint, ct);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Không thể lấy captcha từ Cổng thuế. StatusCode: {Code}", response.StatusCode);
-                    return null;
-                }
-
-                var content = await response.Content.ReadAsStringAsync(ct);
-                using var doc = JsonDocument.Parse(content);
-                var root = doc.RootElement;
-
-                string key = string.Empty;
-                string rawImage = string.Empty;
-
-                if (root.TryGetProperty("key", out var keyProp)) key = keyProp.GetString() ?? string.Empty;
-                else if (root.TryGetProperty("ckey", out var ckeyProp)) key = ckeyProp.GetString() ?? string.Empty;
-
-                if (root.TryGetProperty("content", out var contentProp)) rawImage = contentProp.GetString() ?? string.Empty;
-                else if (root.TryGetProperty("image", out var imgProp)) rawImage = imgProp.GetString() ?? string.Empty;
-                else if (root.TryGetProperty("svg", out var svgProp)) rawImage = svgProp.GetString() ?? string.Empty;
-
-                if (string.IsNullOrEmpty(rawImage))
-                {
-                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/svg+xml";
-                    var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    var b64 = Convert.ToBase64String(bytes);
-                    return new CaptchaChallenge
-                    {
-                        Key = key,
-                        ImageBase64 = $"data:{contentType};base64,{b64}",
-                        IsSvg = contentType.Contains("svg")
-                    };
-                }
-
-                bool isSvg = rawImage.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase);
-                string formattedBase64;
-                if (isSvg)
-                {
-                    formattedBase64 = "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(rawImage));
-                }
-                else if (!rawImage.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
-                {
-                    formattedBase64 = "data:image/png;base64," + rawImage;
-                }
-                else
-                {
-                    formattedBase64 = rawImage;
-                }
-
-                return new CaptchaChallenge
-                {
-                    Key = key,
-                    ImageBase64 = formattedBase64,
-                    IsSvg = isSvg,
-                    SvgContent = isSvg ? rawImage : null
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Lỗi khi gọi API lấy Captcha từ Cổng thuế.");
-                return null;
-            }
+            return null;
         }
 
         public async Task<LoginResult> LoginAsync(ProviderCredentials cred, CancellationToken ct = default)
