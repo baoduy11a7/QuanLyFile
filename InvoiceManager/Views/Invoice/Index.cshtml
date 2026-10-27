@@ -1118,9 +1118,20 @@
             if (tabButtonId) {
                 var btn = document.getElementById(tabButtonId);
                 if (btn) {
-                    var tab = new bootstrap.Tab(btn);
+                    var tab = bootstrap.Tab.getOrCreateInstance(btn);
                     tab.show();
                 }
+            }
+
+            if (tabButtonId === 'tab-remote-btn') {
+                setTimeout(function () {
+                    if (typeof window.loadImportModalCaptcha === 'function') {
+                        window.loadImportModalCaptcha();
+                    }
+                    if (typeof window.loadImportModalSavedConnection === 'function') {
+                        window.loadImportModalSavedConnection();
+                    }
+                }, 80);
             }
         }
 

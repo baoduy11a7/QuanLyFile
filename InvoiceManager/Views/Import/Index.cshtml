@@ -602,15 +602,34 @@
 
         // Tải Captcha
         async function loadPageCaptcha() {
-            const provider = $('#pageRemoteProvider').val();
+            const provider = $('#pageRemoteProvider').val() || 'Gdt';
             const container = $('#pageCaptchaImgContainer');
-            container.html('<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>');
+            const refreshIcon = $('#pageBtnRefreshCaptcha i');
+            
+            container.html('<span class="spinner-border spinner-border-sm text-primary" role="status"></span><span class="ms-2 small text-muted">Đang tải...</span>');
+            refreshIcon.addClass('spin-animation');
 
             try {
-                const res = await fetch(`/Import/GetCaptcha?provider=${encodeURIComponent(provider)}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const res = await fetch(`/Import/GetCaptcha?provider=${encodeURIComponent(provider)}`, {
+                    signal: controller.signal,
+                    headers: { 'Accept': 'application/json' }
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
+                        container.html('<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>Hết phiên đăng nhập. Vui lòng F5 tải lại trang.</span>');
+                        return;
+                    }
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
                 const data = await res.json();
                 if (data.success) {
-                    $('#pageRemoteCaptchaKey').val(data.key);
+                    $('#pageRemoteCaptchaKey').val(data.key || '');
                     if (data.isSvg && data.svgContent) {
                         container.html(data.svgContent);
                         const svgEl = container.find('svg')[0];
@@ -619,7 +638,7 @@
                             svgEl.style.width = 'auto';
                             svgEl.style.display = 'block';
                         }
-                    } else {
+                    } else if (data.imageBase64) {
                         container.html(`<img src="${data.imageBase64}" alt="Captcha" style="max-height: 44px; max-width: 100%; border-radius: 4px;" />`);
                     }
 
@@ -629,14 +648,20 @@
                     } else {
                         $('#pageRemoteCaptchaCode').val('');
                         $('#pageCaptchaHint').text('(Nhập các ký tự nhìn thấy trong hình captcha)');
+                        $('#pageRemoteCaptchaCode').focus();
                     }
                 } else {
-                    container.html(`<span class="text-danger small">${data.message || 'Lỗi tải Captcha'}</span>`);
+                    container.html(`<span class="text-danger small">${data.message || 'Lỗi tải Captcha'} - <a href="javascript:void(0)" onclick="loadPageCaptcha()" class="text-decoration-underline fw-bold">Thử lại</a></span>`);
                 }
             } catch (err) {
-                container.html('<span class="text-danger small">Lỗi kết nối</span>');
+                const msg = err.name === 'AbortError' ? 'Hết thời gian chờ (Timeout)' : 'Lỗi kết nối';
+                container.html(`<span class="text-danger small">${msg} - <a href="javascript:void(0)" onclick="loadPageCaptcha()" class="text-decoration-underline fw-bold">Thử lại</a></span>`);
+            } finally {
+                refreshIcon.removeClass('spin-animation');
             }
         }
+
+        $('#pageCaptchaImgContainer').on('click', loadPageCaptcha);
 
         // Tải thông tin tài khoản đã lưu
         async function loadPageSavedConnection() {

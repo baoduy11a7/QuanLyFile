@@ -277,43 +277,91 @@
         });
 
         // Load Captcha
+        // Load Captcha
         async function loadCaptcha() {
-            const provider = document.getElementById('remoteProvider').value;
+            const providerEl = document.getElementById('remoteProvider');
+            const provider = providerEl ? providerEl.value : 'Gdt';
             const container = document.getElementById('captchaImgContainer');
-            container.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>';
+            const refreshBtn = document.getElementById('btnRefreshCaptcha');
+            const refreshIcon = refreshBtn ? refreshBtn.querySelector('i') : null;
+
+            if (container) {
+                container.innerHTML = '<span class="spinner-border spinner-border-sm text-primary" role="status"></span><span class="ms-2 small text-muted">Đang tải...</span>';
+            }
+            if (refreshIcon) {
+                refreshIcon.classList.add('spin-animation');
+            }
 
             try {
-                const res = await fetch(`/Import/GetCaptcha?provider=${encodeURIComponent(provider)}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const res = await fetch(`/Import/GetCaptcha?provider=${encodeURIComponent(provider)}`, {
+                    signal: controller.signal,
+                    headers: { 'Accept': 'application/json' }
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
+                        if (container) container.innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>Hết phiên đăng nhập. Vui lòng F5 tải lại trang.</span>';
+                        return;
+                    }
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
                 const data = await res.json();
                 if (data.success) {
-                    document.getElementById('remoteCaptchaKey').value = data.key;
-                    if (data.isSvg && data.svgContent) {
-                        container.innerHTML = data.svgContent;
-                        const svgEl = container.querySelector('svg');
-                        if (svgEl) {
-                            svgEl.style.maxHeight = '44px';
-                            svgEl.style.width = 'auto';
-                            svgEl.style.display = 'block';
+                    const keyEl = document.getElementById('remoteCaptchaKey');
+                    if (keyEl) keyEl.value = data.key || '';
+
+                    if (container) {
+                        if (data.isSvg && data.svgContent) {
+                            container.innerHTML = data.svgContent;
+                            const svgEl = container.querySelector('svg');
+                            if (svgEl) {
+                                svgEl.style.maxHeight = '44px';
+                                svgEl.style.width = 'auto';
+                                svgEl.style.display = 'block';
+                            }
+                        } else if (data.imageBase64) {
+                            container.innerHTML = `<img src="${data.imageBase64}" alt="Captcha" style="max-height: 44px; max-width: 100%; border-radius: 4px;" />`;
                         }
-                    } else {
-                        container.innerHTML = `<img src="${data.imageBase64}" alt="Captcha" style="max-height: 44px; max-width: 100%; border-radius: 4px;" />`;
                     }
-                    if (provider === 'Mock') {
-                        document.getElementById('remoteCaptchaCode').value = 'ABCD';
-                    } else {
-                        document.getElementById('remoteCaptchaCode').value = '';
+
+                    const codeInput = document.getElementById('remoteCaptchaCode');
+                    if (codeInput) {
+                        if (provider === 'Mock') {
+                            codeInput.value = 'ABCD';
+                        } else {
+                            codeInput.value = '';
+                            codeInput.focus();
+                        }
                     }
                 } else {
-                    container.innerHTML = `<span class="text-danger small">${data.message || 'Lỗi tải Captcha'}</span>`;
+                    if (container) {
+                        container.innerHTML = `<span class="text-danger small">${data.message || 'Lỗi tải Captcha'} - <a href="javascript:void(0)" onclick="loadCaptcha()" class="text-decoration-underline fw-bold">Thử lại</a></span>`;
+                    }
                 }
             } catch (err) {
-                container.innerHTML = '<span class="text-danger small">Lỗi mạng</span>';
+                if (container) {
+                    const msg = err.name === 'AbortError' ? 'Hết thời gian chờ (Timeout)' : 'Lỗi kết nối';
+                    container.innerHTML = `<span class="text-danger small">${msg} - <a href="javascript:void(0)" onclick="loadCaptcha()" class="text-decoration-underline fw-bold">Thử lại</a></span>`;
+                }
+            } finally {
+                if (refreshIcon) {
+                    refreshIcon.classList.remove('spin-animation');
+                }
             }
         }
 
+        // Expose ra window để các trang khác (ví dụ Invoice/Index) có thể gọi trực tiếp khi mở modal
+        window.loadImportModalCaptcha = loadCaptcha;
+        window.loadImportModalSavedConnection = loadSavedConnection;
+
         // Load Saved Connection
         async function loadSavedConnection() {
-            const provider = document.getElementById('remoteProvider').value;
+            const provider = document.getElementById('remoteProvider')?.value || 'Gdt';
             try {
                 const res = await fetch(`/Import/GetSavedConnection?provider=${encodeURIComponent(provider)}`);
                 const data = await res.json();
@@ -370,15 +418,25 @@
         });
 
         document.getElementById('btnRefreshCaptcha')?.addEventListener('click', loadCaptcha);
+        document.getElementById('captchaImgContainer')?.addEventListener('click', loadCaptcha);
         document.getElementById('remoteProvider')?.addEventListener('change', () => {
             loadCaptcha();
             loadSavedConnection();
         });
 
-        // Kích hoạt khi mở Tab Cổng Thuế
+        // Kích hoạt khi chuyển Tab sang Cổng Thuế
         document.getElementById('tab-remote-btn')?.addEventListener('shown.bs.tab', function () {
             loadCaptcha();
             loadSavedConnection();
+        });
+
+        // Kích hoạt khi Modal mở xong (nếu tab Cổng Thuế đang là tab active)
+        document.getElementById('modalImportInvoice')?.addEventListener('shown.bs.modal', function () {
+            const remoteTabBtn = document.getElementById('tab-remote-btn');
+            if (remoteTabBtn && remoteTabBtn.classList.contains('active')) {
+                loadCaptcha();
+                loadSavedConnection();
+            }
         });
 
         // Submit Form Kết Nối Cổng Thuế
