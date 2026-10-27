@@ -696,12 +696,22 @@
             loadPageSavedConnection();
         });
 
+        let pageSyncedFromDate = '';
+        let pageSyncedToDate = '';
+        let pageSyncedInvoiceType = '';
+
         // Bắt đầu lấy dữ liệu API Thuế
         $('#pageFormRemoteFetch').on('submit', async function (e) {
             e.preventDefault();
 
             const alertBox = $('#pageRemoteSetupAlert');
             alertBox.addClass('d-none').text('');
+
+            pageSyncedFromDate = $('#pageRemoteFromDate').val();
+            pageSyncedToDate = $('#pageRemoteToDate').val();
+            pageSyncedInvoiceType = $('#pageRemoteInvoiceType').val();
+            $('#pageSyncResultAlert').addClass('d-none').html('');
+            $('#pageBtnViewFreshInvoices').addClass('d-none');
 
             const bearerToken = ($('#pageRemoteBearerToken').val() || '').trim();
             const payload = {
@@ -712,9 +722,9 @@
                 bearerToken: bearerToken,
                 captchaKey: $('#pageRemoteCaptchaKey').val(),
                 captchaCode: $('#pageRemoteCaptchaCode').val(),
-                invoiceType: $('#pageRemoteInvoiceType').val(),
-                fromDate: $('#pageRemoteFromDate').val(),
-                toDate: $('#pageRemoteToDate').val(),
+                invoiceType: pageSyncedInvoiceType,
+                fromDate: pageSyncedFromDate,
+                toDate: pageSyncedToDate,
                 rememberPassword: $('#pageRemoteRememberPassword').is(':checked')
             };
 
@@ -783,8 +793,27 @@
             $('#pageStatDupCount').text(info.duplicateCount || 0);
             $('#pageStatFailCount').text(info.failedCount || 0);
 
-            if (info.status === 'Completed') {
+            const queryType = pageSyncedInvoiceType && pageSyncedInvoiceType !== 'All' ? `&InvoiceType=${encodeURIComponent(pageSyncedInvoiceType)}` : '';
+            const targetUrl = `/Invoice?FromDate=${encodeURIComponent(pageSyncedFromDate)}&ToDate=${encodeURIComponent(pageSyncedToDate)}${queryType}&QuickDateRange=custom`;
+            $('#pageBtnGoToInvoices').attr('href', targetUrl);
+            $('#pageBtnViewFreshInvoices').attr('href', targetUrl);
+
+            if (info.status === 'Completed' || info.percent === 100) {
                 bar.attr('class', 'progress-bar bg-success fw-bold');
+                const resAlert = $('#pageSyncResultAlert');
+                if (resAlert.hasClass('d-none')) {
+                    if (info.successCount > 0) {
+                        resAlert.removeClass('d-none alert-warning alert-info').addClass('alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 py-2');
+                        resAlert.html(`<div><i class="bi bi-check-circle-fill fs-5 me-2 text-success"></i><strong>Đã nhập thành công ${info.successCount} hóa đơn mới vào hệ thống!</strong></div><a href="${targetUrl}" class="btn btn-sm btn-success fw-bold shadow-sm"><i class="bi bi-receipt me-1"></i> Xem ngay ${info.successCount} hóa đơn</a>`);
+                        $('#pageBtnViewFreshInvoices').removeClass('d-none').html(`<i class="bi bi-check2-circle me-1"></i> Xem ngay ${info.successCount} hóa đơn vừa nạp`);
+                    } else if (info.totalFound === 0) {
+                        resAlert.removeClass('d-none alert-success alert-info').addClass('alert alert-warning py-2 small');
+                        resAlert.html(`<i class="bi bi-exclamation-triangle-fill text-warning me-2"></i><strong>Cổng Thuế không tìm thấy hóa đơn nào</strong> trong khoảng ngày từ <b>${pageSyncedFromDate}</b> đến <b>${pageSyncedToDate}</b>. Vui lòng kiểm tra lại khoảng ngày hoặc thử chọn mốc ngày khác.`);
+                    } else if (info.duplicateCount > 0 && info.successCount === 0) {
+                        resAlert.removeClass('d-none alert-success alert-warning').addClass('alert alert-info py-2 small');
+                        resAlert.html(`<i class="bi bi-info-circle-fill text-info me-2"></i>Tìm thấy <b>${info.duplicateCount}</b> hóa đơn nhưng <strong>toàn bộ đã có trên hệ thống từ trước</strong> (trùng lặp 100%). Không có hóa đơn mới nào cần nạp.`);
+                    }
+                }
             } else if (info.status === 'Failed' || info.status === 'Cancelled') {
                 bar.attr('class', 'progress-bar bg-danger fw-bold');
                 $('#pageLiveStatusBadge').removeClass('bg-secondary').addClass('bg-danger').text(info.status);
@@ -823,6 +852,8 @@
             $('#pageRemoteProgressSection').addClass('d-none');
             $('#pagePostSyncActions').addClass('d-none');
             $('#pageBtnCancelRemoteJob').removeClass('d-none');
+            $('#pageSyncResultAlert').addClass('d-none').html('');
+            $('#pageBtnViewFreshInvoices').addClass('d-none');
             loadPageCaptcha();
         }
 
