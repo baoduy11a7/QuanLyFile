@@ -229,16 +229,18 @@
                                 <div class="text-muted">[Sẵn sàng nhận sự kiện...]</div>
                             </div>
 
+                            <div id="syncResultAlert" class="alert d-none mt-3 mb-2 shadow-sm"></div>
+
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
                                 <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelRemoteJob">
                                     <i class="bi bi-x-circle me-1"></i> Hủy tiến trình
                                 </button>
-                                <div id="postSyncActions" class="d-none d-flex gap-2 flex-wrap">
+                                <div id="postSyncActions" class="d-none d-flex gap-2 flex-wrap align-items-center">
                                     <a href="/Dashboard" class="btn btn-outline-primary btn-sm fw-semibold">
-                                        <i class="bi bi-pie-chart me-1"></i> Xem Báo Cáo & Thống Kê
+                                        <i class="bi bi-pie-chart me-1"></i> Xem Báo Cáo
                                     </a>
-                                    <button type="button" class="btn btn-success btn-sm fw-semibold px-3" id="btnCompleteAndReload" onclick="location.reload()">
-                                        <i class="bi bi-arrow-clockwise me-1"></i> Cập nhật bảng hóa đơn
+                                    <button type="button" class="btn btn-success btn-sm fw-bold px-3 shadow-sm" id="btnCompleteAndReload">
+                                        <i class="bi bi-arrow-clockwise me-1"></i> Xem ngay hóa đơn vừa nạp
                                     </button>
                                 </div>
                             </div>
