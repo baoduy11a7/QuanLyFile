@@ -127,8 +127,9 @@
                                     <div class="col-md-12">
                                         <label class="form-label fw-semibold">Mã xác thực (Captcha):</label>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center" style="min-width: 140px; height: 50px;">
-                                                <span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                                            <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center shadow-sm" style="min-width: 140px; height: 50px; cursor: pointer;" title="Bấm vào để đổi mã Captcha khác">
+                                                <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                                <span class="ms-2 small text-muted">Đang lấy mã...</span>
                                             </div>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshCaptcha" title="Làm mới Captcha">
                                                 <i class="bi bi-arrow-clockwise fs-5"></i>
@@ -424,20 +425,28 @@
             loadSavedConnection();
         });
 
-        // Kích hoạt khi chuyển Tab sang Cổng Thuế
+        // Kích hoạt khi chuyển Tab sang Cổng Thuế (cả click và event shown.bs.tab)
+        document.getElementById('tab-remote-btn')?.addEventListener('click', function () {
+            loadCaptcha();
+            loadSavedConnection();
+        });
         document.getElementById('tab-remote-btn')?.addEventListener('shown.bs.tab', function () {
             loadCaptcha();
             loadSavedConnection();
         });
 
-        // Kích hoạt khi Modal mở xong (nếu tab Cổng Thuế đang là tab active)
-        document.getElementById('modalImportInvoice')?.addEventListener('shown.bs.modal', function () {
-            const remoteTabBtn = document.getElementById('tab-remote-btn');
-            if (remoteTabBtn && remoteTabBtn.classList.contains('active')) {
-                loadCaptcha();
-                loadSavedConnection();
-            }
+        // Kích hoạt khi Modal mở (cả show và shown)
+        document.getElementById('modalImportInvoice')?.addEventListener('show.bs.modal', function () {
+            loadCaptcha();
+            loadSavedConnection();
         });
+        document.getElementById('modalImportInvoice')?.addEventListener('shown.bs.modal', function () {
+            loadCaptcha();
+            loadSavedConnection();
+        });
+
+        // Tự động tải trước ngay khi script nạp vào trang
+        setTimeout(loadCaptcha, 300);
 
         // Submit Form Kết Nối Cổng Thuế
         document.getElementById('formRemoteFetch')?.addEventListener('submit', async function (e) {
