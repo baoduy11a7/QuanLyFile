@@ -149,6 +149,7 @@ namespace InvoiceManager.Tests
             var mockAudit = new Mock<IAuditLogService>();
             var mockLookup = new Mock<ITaxCodeLookupService>();
             var mockTaxAccountContext = new Mock<ITaxAccountContext>();
+            var mockProtector = new Mock<ICredentialProtector>();
 
             mockLookup.Setup(l => l.LookupAsync("0314094922", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new TaxCodeLookupResult
@@ -160,7 +161,7 @@ namespace InvoiceManager.Tests
                     Status = "Đang hoạt động"
                 });
 
-            var controller = new TaxAccountController(db, mockTaxAccountContext.Object, mockAudit.Object, mockLookup.Object)
+            var controller = new TaxAccountController(db, mockTaxAccountContext.Object, mockAudit.Object, mockLookup.Object, mockProtector.Object)
             {
                 ControllerContext = CreateControllerContextWithUser("user-456")
             };

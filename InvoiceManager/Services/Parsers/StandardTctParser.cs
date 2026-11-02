@@ -68,27 +68,29 @@ namespace InvoiceManager.Services.Parsers
 
                 // 1. Thông tin chung
                 var khmsHDon = GetElementValue(ttChung, "KHMSHDon")?.Trim() ?? ""; // Mẫu số: vd 1
-                var khHDon = GetElementValue(ttChung, "KHHDon")?.Trim() ?? "";     // Ký hiệu: vd C25TXX hoặc 1C25TXX
-                if (!string.IsNullOrEmpty(khmsHDon) && !string.IsNullOrEmpty(khHDon))
+                var khHDon = GetElementValue(ttChung, "KHHDon")?.Trim() ?? "";     // Ký hiệu: vd C26TAA hoặc 1C26TAA
+                
+                // Chuẩn hóa ký hiệu hóa đơn thống nhất toàn hệ thống (6 ký tự, ví dụ C26TAA, K26TYY)
+                var cleanSymbol = !string.IsNullOrEmpty(khHDon) ? khHDon : khmsHDon;
+                if (cleanSymbol.Length >= 7 && char.IsDigit(cleanSymbol[0]))
                 {
-                    result.InvoiceSymbol = khHDon.StartsWith(khmsHDon) ? khHDon : $"{khmsHDon}{khHDon}";
+                    cleanSymbol = cleanSymbol.Substring(1);
+                }
+                result.InvoiceSymbol = cleanSymbol.Trim();
+
+                // Chuẩn hóa số hóa đơn 7 chữ số (ví dụ 0015483)
+                var rawNumber = GetElementValue(ttChung, "SHDon")?.Trim() ?? "";
+                if (long.TryParse(rawNumber, out var numVal))
+                {
+                    result.InvoiceNumber = numVal.ToString("D7");
                 }
                 else
                 {
-                    result.InvoiceSymbol = !string.IsNullOrEmpty(khHDon) ? khHDon : khmsHDon;
+                    result.InvoiceNumber = rawNumber.PadLeft(7, '0');
                 }
-                result.InvoiceNumber = GetElementValue(ttChung, "SHDon");
 
                 var nLapStr = GetElementValue(ttChung, "NLap");
-                if (DateTime.TryParse(nLapStr, out var nLapDate))
-                {
-                    result.IssueDate = nLapDate;
-                }
-                else
-                {
-                    result.IssueDate = DateTime.Now;
-                    result.ValidationWarnings.Add("Không đọc được ngày lập hóa đơn, lấy ngày hiện tại.");
-                }
+                result.IssueDate = ParseVietnamInvoiceDate(nLapStr);
 
                 // Mã CQT
                 var mcqThue = GetElementValue(root, "MCCQT") ?? GetElementValue(ttChung, "MCCQT");
@@ -131,20 +133,32 @@ namespace InvoiceManager.Services.Parsers
                     int stt = 1;
                     foreach (var hhdvu in dsHHDVu.Elements().Where(e => e.Name.LocalName == "HHDVu"))
                     {
+                        var itemName = GetElementValue(hhdvu, "THHDVu")?.Trim() ?? string.Empty;
+                        var unit = GetElementValue(hhdvu, "DVTinh")?.Trim() ?? string.Empty;
+                        var taxRate = ParseTaxRate(GetElementValue(hhdvu, "TSuat"));
+                        var amountBeforeTax = ParseDecimal(GetElementValue(hhdvu, "ThTien"), 0);
+                        var taxAmount = ParseDecimal(GetElementValue(hhdvu, "TThue"), 0);
+
+                        // Nếu XML chuẩn TCT không lưu TThue ở từng dòng HHDVu mà chỉ có thuế suất, tính tiền thuế dòng
+                        if (taxAmount == 0 && taxRate > 0 && amountBeforeTax > 0)
+                        {
+                            taxAmount = Math.Round(amountBeforeTax * taxRate / 100m, 0);
+                        }
+
                         var line = new ParsedInvoiceDetail
                         {
                             LineNumber = int.TryParse(GetElementValue(hhdvu, "STT"), out var n) ? n : stt++,
-                            ItemCode = GetElementValue(hhdvu, "MHHDVu"),
-                            ItemName = GetElementValue(hhdvu, "THHDVu"),
-                            Unit = GetElementValue(hhdvu, "DVTinh"),
+                            ItemCode = GetElementValue(hhdvu, "MHHDVu")?.Trim(),
+                            ItemName = itemName,
+                            Unit = unit,
                             Quantity = ParseDecimal(GetElementValue(hhdvu, "SLuong"), 1),
                             UnitPrice = ParseDecimal(GetElementValue(hhdvu, "DGia"), 0),
-                            AmountBeforeTax = ParseDecimal(GetElementValue(hhdvu, "ThTien"), 0),
-                            TaxRate = ParseTaxRate(GetElementValue(hhdvu, "TSuat")),
-                            TaxAmount = ParseDecimal(GetElementValue(hhdvu, "TThue"), 0)
+                            AmountBeforeTax = amountBeforeTax,
+                            TaxRate = taxRate,
+                            TaxAmount = taxAmount,
+                            TotalAmount = amountBeforeTax + taxAmount
                         };
 
-                        line.TotalAmount = line.AmountBeforeTax + line.TaxAmount;
                         result.Details.Add(line);
                     }
                 }
@@ -213,6 +227,39 @@ namespace InvoiceManager.Services.Parsers
             if (parent == null) return string.Empty;
             var el = parent.Descendants().FirstOrDefault(e => e.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase));
             return el?.Value?.Trim() ?? string.Empty;
+        }
+
+        public static DateTime ParseVietnamInvoiceDate(string? dateStr, DateTime? fallback = null)
+        {
+            if (string.IsNullOrWhiteSpace(dateStr)) return fallback ?? DateTime.Today;
+            var trimmed = dateStr.Trim();
+
+            // 1. Kiểm tra ngày thuần túy không có giờ (yyyy-MM-dd, dd/MM/yyyy) tránh hoàn toàn bị lùi 1 ngày do lệch múi giờ
+            if (DateTime.TryParseExact(trimmed, new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "yyyy/MM/dd", "dd-MM-yyyy", "d-M-yyyy" },
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var dOnly))
+            {
+                return dOnly.Date;
+            }
+
+            // 2. Nếu chuỗi có offset/giờ ISO (ví dụ 2026-09-08T17:00:00Z hoặc +00:00)
+            // Phải chuyển đổi chuẩn xác sang múi giờ Việt Nam (+7) trước khi lấy Date
+            if (DateTimeOffset.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+            {
+                return dto.ToOffset(TimeSpan.FromHours(7)).DateTime.Date;
+            }
+
+            // 3. Culture vi-VN
+            if (DateTime.TryParse(trimmed, CultureInfo.GetCultureInfo("vi-VN"), DateTimeStyles.None, out var dVi))
+            {
+                return dVi.Date;
+            }
+
+            if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dInv))
+            {
+                return dInv.Date;
+            }
+
+            return fallback ?? DateTime.Today;
         }
 
         private decimal ParseDecimal(string value, decimal defaultValue)

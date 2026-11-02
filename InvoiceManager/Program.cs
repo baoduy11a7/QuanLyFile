@@ -125,8 +125,10 @@ builder.Services.AddScoped<IInvoiceParser, VnptInvoiceParser>();
 builder.Services.AddScoped<IInvoiceParserFactory, InvoiceParserFactory>();
 
 builder.Services.AddScoped<IInvoiceImportService, InvoiceImportService>();
+builder.Services.AddScoped<IInvoiceFileService, InvoiceFileService>();
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddScoped<ITaxDeclarationService, TaxDeclarationService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<InvoiceAutoSyncJob>();
 
@@ -156,8 +158,8 @@ builder.Services.AddHttpClient(TaxCodeLookupService.ClientName)
 builder.Services.AddScoped<ITaxCodeLookupService, TaxCodeLookupService>();
 
 // Đăng ký các Cổng cung cấp hóa đơn (Strategy Pattern + Factory)
-builder.Services.AddScoped<IInvoiceSourceProvider, GdtPortalProvider>();
 builder.Services.AddScoped<IInvoiceSourceProvider, MockInvoiceSourceProvider>();
+builder.Services.AddScoped<IInvoiceSourceProvider, GdtPortalProvider>();
 builder.Services.AddScoped<IInvoiceSourceProviderFactory, InvoiceSourceProviderFactory>();
 
 // Theo dõi tiến độ chạy nền theo thời gian thực & Job Hangfire

@@ -21,6 +21,7 @@ namespace InvoiceManager.Services.Providers.Models
         public string ImageBase64 { get; set; } = string.Empty;
         public bool IsSvg { get; set; } = false;
         public string? SvgContent { get; set; }
+        public string? AutoSolvedCode { get; set; }
     }
 
     public class LoginResult
@@ -52,7 +53,8 @@ namespace InvoiceManager.Services.Providers.Models
     public class RemoteInvoice
     {
         public string ProviderKey { get; set; } = string.Empty; // Id hoặc khóa tải của cổng thuế
-        public string InvoiceSymbol { get; set; } = string.Empty; // Ký hiệu (e.g. 1C25TKT)
+        public string TemplateCode { get; set; } = "1"; // Ký hiệu mẫu số hóa đơn (khmshdon: 1, 2, 3...)
+        public string InvoiceSymbol { get; set; } = string.Empty; // Ký hiệu (e.g. 1C25TKT hoặc C26TUL)
         public string InvoiceNumber { get; set; } = string.Empty; // Số HĐ chuẩn hóa (e.g. 00000501)
         public string RawInvoiceNumber { get; set; } = string.Empty; // Số HĐ gốc từ API (e.g. 501)
         public DateTime IssueDate { get; set; }
@@ -68,5 +70,49 @@ namespace InvoiceManager.Services.Providers.Models
         public string InvoiceType { get; set; } = "MuaVao"; // "MuaVao" hoặc "BanRa"
         public string? CqtCode { get; set; } // Mã cơ quan thuế cấp
         public string? Status { get; set; }
+    }
+
+    public class OriginalPdfFetchResult
+    {
+        public bool Success { get; set; }
+        public byte[]? PdfBytes { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = "application/pdf";
+        public string? Sha256Hash { get; set; }
+        public string Source { get; set; } = "GDT-ExportPdf";
+        public string? SavedFilePath { get; set; }
+        public int HttpStatusCode { get; set; } = 200;
+        public string ErrorCode { get; set; } = string.Empty;
+        public string? ErrorMessage { get; set; }
+        public string? VerifiedEndpoint { get; set; }
+        public string? EndpointCalled
+        {
+            get => VerifiedEndpoint;
+            set => VerifiedEndpoint = value;
+        }
+        public string? RawGdtResponseSnippet { get; set; }
+        public DownloadInvoiceResult? CompanionPackage { get; set; }
+    }
+
+    public class DownloadedInvoiceFile
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string FileExtension { get; set; } = string.Empty; // .xml, .pdf, .zip, etc.
+        public string ContentType { get; set; } = "application/octet-stream";
+        public byte[] Content { get; set; } = Array.Empty<byte>();
+        public string Source { get; set; } = "GDT-ExportXml"; // GDT-ExportXml, GDT-ExportPdf, GDT-PackageZip, GDT-ZipEntry
+        public string Sha256Hash { get; set; } = string.Empty;
+        public long FileSizeBytes => Content?.LongLength ?? 0;
+    }
+
+    public class DownloadInvoiceResult
+    {
+        public bool Success => Files.Count > 0;
+        public string? ErrorMessage { get; set; }
+        public System.Collections.Generic.List<DownloadedInvoiceFile> Files { get; set; } = new();
+
+        public DownloadedInvoiceFile? XmlFile => Files.Find(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase));
+        public DownloadedInvoiceFile? PdfFile => Files.Find(f => string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase));
+        public DownloadedInvoiceFile? ZipFile => Files.Find(f => string.Equals(f.FileExtension, ".zip", StringComparison.OrdinalIgnoreCase));
     }
 }

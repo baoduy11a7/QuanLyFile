@@ -1,1141 +1,1332 @@
-@model InvoiceManager.Models.ViewModels.InvoiceIndexViewModel
-@{
-    ViewData["Title"] = "Quản lý Hóa đơn & Kế toán";
-    var filter = Model.Filter;
-    var summary = Model.Summary;
-
-    // Đếm số lượng tiêu chí lọc đang được kích hoạt
-    int activeFilterCount = 0;
-    if (!string.IsNullOrEmpty(filter.FileDownloadStatus)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.TemplateType)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.InvoiceSymbol)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.InvoiceNumber)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.SellerName)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.SellerTaxCode)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.Status)) activeFilterCount++;
-    if (!string.IsNullOrEmpty(filter.ValidationResult)) activeFilterCount++;
-    if (filter.MinAmount.HasValue || filter.MaxAmount.HasValue) activeFilterCount++;
-    if (filter.IsReconciled.HasValue) activeFilterCount++;
-}
-
-<div class="d-flex flex-column gap-3">
-    <!-- 1. Thanh Tổng hợp Số liệu Thông Minh (Executive Financial & Volume Hub) -->
-    <div class="row g-3 align-items-stretch">
-        <!-- Khối 1: Tổng quan Nghiệp vụ Hóa đơn (Volume & Type Hub) -->
-        <div class="col-12 col-xl-5">
-            <div class="summary-hub-card h-100">
-                <!-- Top: Header + Hero Count + Sync Status -->
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                    <div class="d-flex align-items-center gap-3 cursor-pointer p-1 rounded @(!filter.HasTaxCode.HasValue && !filter.IsCashRegister.HasValue ? "bg-primary-subtle text-primary border border-primary-subtle" : "")" onclick="quickFilterTaxType('all')" role="button" title="Nhấp để hiển thị toàn bộ hóa đơn">
-                        <div class="hub-icon-badge bg-primary-subtle text-primary">
-                            <i class="bi bi-receipt-cutoff"></i>
-                        </div>
-                        <div>
-                            <div class="hub-title">Tổng số hóa đơn</div>
-                            <div class="d-flex align-items-baseline gap-2">
-                                <span class="hub-hero-value">
-                                    @summary.TotalCount.ToString("N0")
-                                </span>
-                                <span class="hub-subtext">hóa đơn trong kỳ lọc</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Bottom: 3 Phân loại hóa đơn tương tác -->
-                <div class="hub-breakdown-grid">
-                    <!-- Có mã CQT -->
-                    <div class="mini-stat-item has-tax-code @(filter.HasTaxCode == true && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('with_tax_code')" role="button" title="Nhấp để xem danh sách hóa đơn Có mã CQT">
-                        <div class="mini-stat-header">
-                            <i class="bi bi-patch-check-fill text-success"></i>
-                            <span>Có mã CQT</span>
-                        </div>
-                        <div class="mini-stat-value text-success">@summary.WithTaxCodeCount.ToString("N0")</div>
-                        <div class="mini-stat-desc">Có mã cơ quan thuế</div>
-                    </div>
-
-                    <!-- Không mã CQT -->
-                    <div class="mini-stat-item no-tax-code @(filter.HasTaxCode == false && filter.IsCashRegister != true ? "active" : "")" onclick="quickFilterTaxType('without_tax_code')" role="button" title="Nhấp để xem danh sách hóa đơn Không mã CQT">
-                        <div class="mini-stat-header">
-                            <i class="bi bi-shield-x text-secondary"></i>
-                            <span>Không mã CQT</span>
-                        </div>
-                        <div class="mini-stat-value text-secondary">@summary.WithoutTaxCodeCount.ToString("N0")</div>
-                        <div class="mini-stat-desc">HĐ không mã CQT</div>
-                    </div>
-
-                    <!-- Máy tính tiền -->
-                    <div class="mini-stat-item cash-register @(filter.IsCashRegister == true ? "active" : "")" onclick="quickFilterTaxType('cash_register')" role="button" title="Nhấp để xem danh sách hóa đơn từ Máy tính tiền">
-                        <div class="mini-stat-header">
-                            <i class="bi bi-calculator-fill text-warning"></i>
-                            <span>Máy tính tiền</span>
-                        </div>
-                        <div class="mini-stat-value text-warning">@summary.CashRegisterCount.ToString("N0")</div>
-                        <div class="mini-stat-desc">Khởi tạo từ MTT</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Khối 2: Tổng hợp Dòng tiền & Nghĩa vụ Thuế (Financial Highlights - Tương tác sắp xếp danh sách) -->
-        <div class="col-12 col-xl-7">
-            <div class="row g-2 h-100">
-                <!-- Chưa thuế -->
-                <div class="col-12 col-sm-4">
-                    <div class="financial-card h-100 cursor-pointer @(filter.SortBy == "AmountBeforeTaxDesc" || filter.SortBy == "AmountBeforeTaxAsc" ? "border-primary shadow-sm ring-active" : "")" onclick="quickSortFinancial('AmountBeforeTax')" role="button" title="Nhấp để sắp xếp danh sách theo Tiền chưa thuế">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="financial-label">Chưa thuế</span>
-                            <div class="financial-icon-badge bg-light text-secondary border">
-                                <i class="bi bi-box-seam"></i>
-                            </div>
-                        </div>
-                        <div class="financial-value text-dark">
-                            @summary.TotalAmountBeforeTax.ToString("N0") <span class="currency">đ</span>
-                        </div>
-                        <div class="financial-subtext text-muted d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-receipt me-1 text-muted"></i>Tổng tiền hàng</span>
-                            @if (filter.SortBy == "AmountBeforeTaxDesc") {
-                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
-                            } else if (filter.SortBy == "AmountBeforeTaxAsc") {
-                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tiền thuế GTGT -->
-                <div class="col-12 col-sm-4">
-                    <div class="financial-card h-100 cursor-pointer @(filter.SortBy == "TaxAmountDesc" || filter.SortBy == "TaxAmountAsc" ? "border-danger shadow-sm ring-active" : "")" onclick="quickSortFinancial('TaxAmount')" role="button" title="Nhấp để sắp xếp danh sách theo Tiền thuế GTGT">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="financial-label">Tiền thuế GTGT</span>
-                            <div class="financial-icon-badge bg-danger-subtle text-danger border border-danger-subtle">
-                                <i class="bi bi-percent"></i>
-                            </div>
-                        </div>
-                        <div class="financial-value text-danger">
-                            @summary.TotalTaxAmount.ToString("N0") <span class="currency">đ</span>
-                        </div>
-                        <div class="financial-subtext text-muted d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-shield-check me-1 text-success"></i>Thuế GTGT khấu trừ</span>
-                            @if (filter.SortBy == "TaxAmountDesc") {
-                                <span class="badge bg-danger text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
-                            } else if (filter.SortBy == "TaxAmountAsc") {
-                                <span class="badge bg-danger text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tổng thanh toán (Hero Card) -->
-                <div class="col-12 col-sm-4">
-                    <div class="financial-card hero-card h-100 cursor-pointer @(filter.SortBy == "TotalAmountDesc" || filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountDesc" || filter.SortBy == "AmountAsc" ? "border-primary shadow-sm ring-active" : "")" onclick="quickSortFinancial('TotalAmount')" role="button" title="Nhấp để sắp xếp danh sách theo Tổng thanh toán">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="financial-label text-primary fw-bold">Tổng thanh toán</span>
-                            <div class="financial-icon-badge bg-primary text-white shadow-sm">
-                                <i class="bi bi-wallet2"></i>
-                            </div>
-                        </div>
-                        <div class="financial-value text-primary">
-                            @summary.TotalAmount.ToString("N0") <span class="currency text-primary">đ</span>
-                        </div>
-                        <div class="financial-subtext text-primary d-flex justify-content-between align-items-center" style="font-weight: 500;">
-                            <span><i class="bi bi-check2-circle me-1 text-primary"></i>Tổng tiền đã gồm thuế</span>
-                            @if (filter.SortBy == "TotalAmountDesc" || filter.SortBy == "AmountDesc") {
-                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Giảm dần ↓</span>
-                            } else if (filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountAsc") {
-                                <span class="badge bg-primary text-white" style="font-size: 0.65rem;">Tăng dần ↑</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2. Thanh Công Cụ & Bộ Lọc Nghiệp Vụ -->
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-3">
-            <form id="filterForm" asp-controller="Invoice" asp-action="Index" method="get">
-                <input type="hidden" name="InvoiceType" id="inputInvoiceType" value="@filter.InvoiceType" />
-                <input type="hidden" name="QuickDateRange" id="inputQuickDateRange" value="@filter.QuickDateRange" />
-                <input type="hidden" name="SortBy" id="inputSortBy" value="@filter.SortBy" />
-                <input type="hidden" name="Page" id="inputPage" value="1" />
-                <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
-                <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
-                <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
-                <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
-                <input type="hidden" name="SellerName" value="@filter.SellerName" />
-                <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
-                <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
-                <input type="hidden" name="Status" value="@filter.Status" />
-                <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
-                <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
-                <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
-                <input type="hidden" name="HasTaxCode" id="inputHasTaxCode" value="@(filter.HasTaxCode.HasValue ? filter.HasTaxCode.Value.ToString().ToLower() : "")" />
-                <input type="hidden" name="IsCashRegister" id="inputIsCashRegister" value="@(filter.IsCashRegister.HasValue ? filter.IsCashRegister.Value.ToString().ToLower() : "")" />
-
-                <!-- Row 1: Tab Loại HĐ & Quick Actions -->
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-3 mb-3 border-bottom">
-                    <!-- Tabs Mua vào / Bán ra -->
-                    <div class="btn-group col-12 col-md-auto" role="group">
-                        <button type="button" class="btn btn-sm px-3 fw-bold flex-fill @(filter.InvoiceType == "MuaVao" ? "btn-primary" : "btn-outline-secondary")" onclick="switchInvoiceType('MuaVao')">
-                            <i class="bi bi-box-arrow-in-down me-1"></i> Hóa đơn Mua vào
-                        </button>
-                        <button type="button" class="btn btn-sm px-3 fw-bold flex-fill @(filter.InvoiceType == "BanRa" ? "btn-primary" : "btn-outline-secondary")" onclick="switchInvoiceType('BanRa')">
-                            <i class="bi bi-box-arrow-up me-1"></i> Hóa đơn Bán ra
-                        </button>
-                    </div>
-
-                    <!-- Right Quick Actions: Bộ lọc chuyên sâu, Đồng bộ, Nhập XML, Tải PDF Hàng loạt, Xuất file -->
-                    <div class="d-flex align-items-center gap-2 flex-wrap col-12 col-md-auto justify-content-start justify-content-md-end">
-                        <!-- Nút Mở Drawer Bộ Lọc -->
-                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold position-relative" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilter">
-                            <i class="bi bi-funnel me-1"></i> Bộ lọc
-                            @if (activeFilterCount > 0)
-                            {
-                                <span class="badge bg-danger rounded-pill ms-1">@activeFilterCount</span>
-                            }
-                        </button>
-
-                        <!-- Nút Tải PDF gốc hàng loạt trực tiếp -->
-                        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="triggerBatchPdfZip()" title="Tải toàn bộ file PDF gốc các hóa đơn đang chọn hoặc đang lọc (.zip)">
-                            <i class="bi bi-file-earmark-pdf-fill me-1"></i> <span class="d-none d-sm-inline">Tải PDF gốc </span>(.zip)
-                        </button>
-
-                        <!-- Nút Đồng bộ -->
-                        <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="openImportModal('tab-remote-btn')">
-                            <i class="bi bi-arrow-repeat me-1"></i> Đồng bộ
-                        </button>
-
-                        <!-- Nút Nhập XML / ZIP -->
-                        <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="openImportModal('tab-upload-btn')">
-                            <i class="bi bi-cloud-arrow-up me-1"></i> Nhập XML/ZIP
-                        </button>
-
-                        <!-- Nút Xóa Hàng Loạt (chỉ hiện khi có chọn checkbox) -->
-                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold d-none" id="btnDeleteSelected" onclick="deleteSelectedInvoices()">
-                            <i class="bi bi-trash me-1"></i> Xóa đã chọn (<span id="selectedCount">0</span>)
-                        </button>
-
-                        <!-- Nút Xuất Báo Cáo & File Hàng Loạt -->
-                        <div class="dropdown">
-                            <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-download me-1"></i> Xuất dữ liệu
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow">
-                                <li>
-                                    <button type="button" class="dropdown-item py-2 fw-semibold text-danger" onclick="triggerBatchPdfZip()">
-                                        <i class="bi bi-file-earmark-pdf-fill me-2"></i> Tải PDF gốc hàng loạt (.zip)
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item py-2" onclick="triggerBatchZip()">
-                                        <i class="bi bi-file-earmark-zip text-primary me-2"></i> Tải file ZIP Bản thể hiện & XML
-                                    </button>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <button type="button" class="dropdown-item py-2 fw-semibold" style="color: #0284c7;" onclick="triggerExport('ExcelSmartPro')">
-                                        <i class="bi bi-file-earmark-spreadsheet-fill me-2" style="color: #0284c7;"></i> Xuất Excel Smart Pro (Sổ KTSC 4 Sheet)
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelDetailed')">
-                                        <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i> Xuất Excel Chi tiết (dòng hàng)
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item py-2" onclick="triggerExport('ExcelSummary')">
-                                        <i class="bi bi-file-earmark-excel text-success me-2"></i> Xuất Excel Tổng hợp theo HĐ
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Row 2: Bộ lọc ngày & Tìm kiếm nhanh -->
-                <div class="row g-2 align-items-center">
-                    <!-- Quick Date Range Buttons with responsive scroll -->
-                    <div class="col-12 col-xl-auto">
-                        <div class="btn-group btn-group-sm btn-group-responsive w-100" role="group">
-                            <button type="button" class="btn flex-fill @(filter.QuickDateRange == "today" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('today')">Hôm nay</button>
-                            <button type="button" class="btn flex-fill @(filter.QuickDateRange == "thisMonth" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisMonth')">Tháng này</button>
-                            <button type="button" class="btn flex-fill @(filter.QuickDateRange == "lastMonth" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('lastMonth')">Tháng trước</button>
-                            <button type="button" class="btn flex-fill @(filter.QuickDateRange == "thisQuarter" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisQuarter')">Quý này</button>
-                            <button type="button" class="btn flex-fill @(filter.QuickDateRange == "thisYear" ? "btn-secondary" : "btn-outline-secondary")" onclick="setQuickDate('thisYear')">Năm nay</button>
-                        </div>
-                    </div>
-
-                    <!-- Custom Date Range -->
-                    <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
-                        <input type="date" name="FromDate" id="inputFromDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày lập" />
-                        <span class="text-muted">-</span>
-                        <input type="date" name="ToDate" id="inputToDate" class="form-control form-control-sm flex-fill" style="min-width: 125px;" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày lập" />
-                    </div>
-
-                    <!-- Keyword Search Input -->
-                    <div class="col-12 col-md">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" name="Keyword" class="form-control search-instruction-input" placeholder="Tìm theo Ký hiệu, Số HĐ, MST hoặc Tên người bán..." value="@filter.Keyword" />
-                        </div>
-                    </div>
-
-                    <!-- Submit & Filter Actions -->
-                    <div class="col-12 col-md-auto d-flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold flex-fill flex-md-grow-0">
-                            <i class="bi bi-search"></i> Tìm kiếm
-                        </button>
-                        <button type="button" class="btn btn-outline-primary btn-sm flex-fill flex-md-grow-0" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFilter" title="Mở bộ lọc nâng cao bên trái">
-                            <i class="bi bi-sliders"></i> Lọc chi tiết
-                        </button>
-                        @if (activeFilterCount > 0 || !string.IsNullOrEmpty(filter.Keyword))
-                        {
-                            <a asp-action="Index" class="btn btn-outline-danger btn-sm" title="Xóa toàn bộ bộ lọc">
-                                <i class="bi bi-x-circle"></i> Đặt lại
-                            </a>
-                        }
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Hidden Form for Sync Now -->
-    <form id="formSyncNow" asp-controller="Invoice" asp-action="SyncNow" method="post" class="d-none">
-        @Html.AntiForgeryToken()
-    </form>
-
-    <!-- Hidden Form for Batch ZIP export (HTML & XML) -->
-    <form id="formBatchZip" asp-controller="Export" asp-action="BatchZip" method="post" class="d-none">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
-        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="Keyword" value="@filter.Keyword" />
-        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
-        <input type="hidden" name="SellerName" value="@filter.SellerName" />
-        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
-        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
-        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
-        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
-        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
-        <input type="hidden" name="Status" value="@filter.Status" />
-        <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
-        <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
-        <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
-        <div id="selectedIdsContainer"></div>
-    </form>
-
-    <!-- Hidden Form for Batch PDF ZIP export (File PDF gốc hàng loạt) -->
-    <form id="formBatchPdfZip" asp-controller="Export" asp-action="BatchPdfZip" method="post" class="d-none">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
-        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="Keyword" value="@filter.Keyword" />
-        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
-        <input type="hidden" name="SellerName" value="@filter.SellerName" />
-        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
-        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
-        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
-        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
-        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
-        <input type="hidden" name="Status" value="@filter.Status" />
-        <input type="hidden" name="MinAmount" value="@filter.MinAmount" />
-        <input type="hidden" name="MaxAmount" value="@filter.MaxAmount" />
-        <input type="hidden" name="IsReconciled" value="@filter.IsReconciled" />
-        <div id="selectedPdfIdsContainer"></div>
-    </form>
-
-    <!-- 3. Bảng Danh Sách Hóa Đơn Điện Tử (Bám sát layout tham khảo) -->
-    <div class="table-responsive table-invoice" id="invoiceTable">
-        <table class="table table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th style="width: 40px; white-space: nowrap;" class="text-center">
-                        <input type="checkbox" id="selectAll" class="form-check-input" />
-                    </th>
-                    <th style="width: 48px; white-space: nowrap;" class="text-center">STT</th>
-                    <th style="width: 100px; white-space: nowrap;">Ký hiệu</th>
-                    <th style="width: 95px; white-space: nowrap;">Số HĐ</th>
-                    <th style="width: 105px; white-space: nowrap;">Ngày lập</th>
-                    <th style="min-width: 260px;">Thông tin người bán</th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("AmountBeforeTax") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 125px; white-space: nowrap;" onclick="quickSortFinancial('AmountBeforeTax')" title="Nhấp để sắp xếp theo Chưa thuế">
-                        Chưa thuế @(filter.SortBy == "AmountBeforeTaxDesc" ? "↓" : filter.SortBy == "AmountBeforeTaxAsc" ? "↑" : "")
-                    </th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TaxAmount") == true ? "bg-danger-subtle text-danger border-bottom border-danger" : "")" style="width: 115px; white-space: nowrap;" onclick="quickSortFinancial('TaxAmount')" title="Nhấp để sắp xếp theo Tiền thuế GTGT">
-                        Tiền thuế @(filter.SortBy == "TaxAmountDesc" ? "↓" : filter.SortBy == "TaxAmountAsc" ? "↑" : "")
-                    </th>
-                    <th class="text-end cursor-pointer @(filter.SortBy?.StartsWith("TotalAmount") == true || filter.SortBy?.StartsWith("Amount") == true ? "bg-primary-subtle text-primary border-bottom border-primary" : "")" style="width: 130px; white-space: nowrap;" onclick="quickSortFinancial('TotalAmount')" title="Nhấp để sắp xếp theo Tổng thanh toán">
-                        Thanh toán @(filter.SortBy == "TotalAmountDesc" || filter.SortBy == "AmountDesc" ? "↓" : filter.SortBy == "TotalAmountAsc" || filter.SortBy == "AmountAsc" ? "↑" : "")
-                    </th>
-                    <th class="text-center" style="width: 110px; white-space: nowrap;">Trạng thái</th>
-                    <th class="text-center" style="width: 95px; white-space: nowrap;">Ghi sổ</th>
-                    <th class="text-center" style="width: 115px; white-space: nowrap;">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model.Invoices.Any())
-                {
-                    int stt = (Model.CurrentPage - 1) * Model.Filter.PageSize + 1;
-                    foreach (var inv in Model.Invoices)
-                    {
-                        <tr>
-                            <td class="text-center">
-                                <input type="checkbox" class="form-check-input row-select" value="@inv.Id" />
-                            </td>
-                            <td class="text-center text-muted">@stt</td>
-                            <td>
-                                <span class="badge bg-light text-dark border font-monospace">@inv.InvoiceSymbol</span>
-                                @if (inv.IsCashRegister)
-                                {
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Khởi tạo từ máy tính tiền" style="font-size: 0.65rem;">MTT</span>
-                                }
-                                @if (inv.SourceProvider == "ManualExcel")
-                                {
-                                    <span class="badge bg-warning text-dark border border-warning-subtle" title="Hóa đơn nhập tay từ file Excel (Không có file XML gốc)" style="font-size: 0.65rem;"><i class="bi bi-file-earmark-excel text-success me-1"></i>Excel</span>
-                                }
-                            </td>
-                            <td>
-                                <strong class="text-primary font-monospace">@inv.InvoiceNumber</strong>
-                            </td>
-                            <td>
-                                <div class="small fw-medium">@inv.IssueDate.ToString("dd/MM/yyyy")</div>
-                                <div class="text-muted" style="font-size: 0.7rem;">@inv.IssueDate.ToString("HH:mm")</div>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="badge bg-secondary-subtle text-secondary font-monospace" style="font-size: 0.725rem;">MST: @inv.SellerTaxCode</span>
-                                    @if (inv.HasTaxCode)
-                                    {
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;" title="Hóa đơn có mã CQT: @inv.TaxAuthorityCode">Có mã</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-light text-muted border" style="font-size: 0.65rem;">Không mã</span>
-                                    }
-                                </div>
-                                <div class="fw-semibold text-truncate" style="max-width: 320px;" title="@inv.SellerName">
-                                    @inv.SellerName
-                                </div>
-                                @if (!string.IsNullOrEmpty(inv.RiskReason))
-                                {
-                                    <div class="text-danger small" style="font-size: 0.7rem;"><i class="bi bi-exclamation-circle"></i> @inv.RiskReason</div>
-                                }
-                            </td>
-                            <td class="text-end font-monospace">
-                                @inv.AmountBeforeTax.ToString("N0") <span class="text-muted" style="font-size: 0.7rem;">đ</span>
-                            </td>
-                            <td class="text-end font-monospace text-danger">
-                                @inv.TaxAmount.ToString("N0") <span class="text-muted" style="font-size: 0.7rem;">đ</span>
-                            </td>
-                            <td class="text-end font-monospace">
-                                <strong class="text-primary">@inv.TotalAmount.ToString("N0")</strong> <span class="text-muted" style="font-size: 0.7rem;">đ</span>
-                            </td>
-                            <td class="text-center">
-                                @if (inv.Status == "Hóa đơn mới" || inv.Status == "Đã cấp mã" || inv.Status == "5")
-                                {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-check me-1"></i>@(inv.Status == "5" ? "Đã cấp mã" : inv.Status)</span>
-                                }
-                                else if (inv.Status == "Đã điều chỉnh")
-                                {
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Đã điều chỉnh</span>
-                                }
-                                else if (inv.Status == "Đã thay thế")
-                                {
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Đã thay thế</span>
-                                }
-                                else if (inv.Status == "Đã bị hủy")
-                                {
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Đã bị hủy</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-light text-dark border">@inv.Status</span>
-                                }
-                            </td>
-                            <td class="text-center">
-                                <button type="button" class="btn btn-sm p-1 border-0" onclick="toggleReconciliation(@inv.Id)" title="Nhấp để đổi trạng thái vào sổ kế toán">
-                                    @if (inv.IsReconciled)
-                                    {
-                                        <span class="badge bg-primary text-white" id="reconcile-badge-@inv.Id">
-                                            <i class="bi bi-check2-circle"></i> Đã vào sổ
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-light text-muted border" id="reconcile-badge-@inv.Id">
-                                            Chưa ghi sổ
-                                        </span>
-                                    }
-                                </button>
-                            </td>
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-1">
-                                    <!-- Tải file PDF gốc trực tiếp -->
-                                    <a href="/Export/DownloadPdf/@inv.Id" class="btn-action-icon" title="Tải file PDF hóa đơn gốc" download>
-                                        <i class="bi bi-file-earmark-pdf text-danger"></i>
-                                    </a>
-                                    <!-- Xem bản thể hiện PDF / HTML -->
-                                    <button type="button" class="btn-action-icon" title="Xem bản thể hiện hóa đơn" onclick="openInvoiceModal(@inv.Id)">
-                                        <i class="bi bi-file-earmark-text text-primary"></i>
-                                    </button>
-                                    <!-- Tải XML gốc trực tiếp (.xml) -->
-                                    <a asp-action="DownloadRawXml" asp-route-id="@inv.Id" class="btn-action-icon" title="Tải file XML gốc có chữ ký số (.xml)" download>
-                                        <i class="bi bi-file-earmark-code text-success"></i>
-                                    </a>
-                                    <!-- Xem XML gốc trong tab mới -->
-                                    <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem nội dung XML gốc">
-                                        <i class="bi bi-code-slash text-secondary"></i>
-                                    </a>
-                                    <!-- Tải HTML mẫu trực tiếp -->
-                                    <a asp-action="ViewHtml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Mở bản thể hiện ra tab mới">
-                                        <i class="bi bi-box-arrow-up-right text-info"></i>
-                                    </a>
-                                    <!-- Xóa hóa đơn -->
-                                    <button type="button" class="btn-action-icon text-danger" title="Xóa hóa đơn này" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        stt++;
-                    }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="12" class="text-center py-5">
-                            <i class="bi bi-inbox text-muted" style="font-size: 2.5rem;"></i>
-                            <div class="mt-2 text-muted fw-semibold">Không tìm thấy hóa đơn nào phù hợp với bộ lọc hiện tại.</div>
-                            <div class="small text-muted">Vui lòng thử mở rộng khoảng ngày hoặc bấm <a asp-action="Index" class="text-primary">Xóa bộ lọc</a>.</div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    <!-- 4. Phân Trang & Thống Kê Số Lượng Dòng -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
-        <div class="small text-muted">
-            Hiển thị <strong>@Model.Invoices.Count</strong> trên tổng số <strong>@Model.TotalItems.ToString("N0")</strong> hóa đơn
-        </div>
-
-        @if (Model.TotalPages > 1)
-        {
-            <nav aria-label="Phân trang hóa đơn">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
-                        <button type="button" class="page-link" onclick="goToPage(1)"><i class="bi bi-chevron-double-left"></i></button>
-                    </li>
-                    <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
-                        <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage - 1))"><i class="bi bi-chevron-left"></i></button>
-                    </li>
-
-                    @for (int p = Math.Max(1, Model.CurrentPage - 2); p <= Math.Min(Model.TotalPages, Model.CurrentPage + 2); p++)
-                    {
-                        <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
-                            <button type="button" class="page-link" onclick="goToPage(@p)">@p</button>
-                        </li>
-                    }
-
-                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
-                        <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage + 1))"><i class="bi bi-chevron-right"></i></button>
-                    </li>
-                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
-                        <button type="button" class="page-link" onclick="goToPage(@Model.TotalPages)"><i class="bi bi-chevron-double-right"></i></button>
-                    </li>
-                </ul>
-            </nav>
-        }
-    </div>
-</div>
-
-    <!-- Floating Bulk Action Bar (Thao tác hàng loạt khi chọn checkbox) -->
-    <div id="bulkActionBar" class="card shadow-lg border-primary position-fixed bottom-0 start-50 translate-middle-x mb-4 d-none" style="z-index: 1050; max-width: calc(100vw - 24px); border-radius: 12px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);">
-        <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between gap-3">
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary fs-6 px-2 py-1" id="bulkSelectedCount">0</span>
-                <span class="fw-semibold text-dark small">hóa đơn đã chọn</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <!-- Tải file PDF gốc hàng loạt -->
-                <button type="button" class="btn btn-danger btn-sm fw-semibold shadow-sm" onclick="triggerBatchPdfZip()">
-                    <i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc (.zip)
-                </button>
-                <!-- Tải bản thể hiện & XML hàng loạt -->
-                <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" onclick="triggerBatchZip()">
-                    <i class="bi bi-file-earmark-zip me-1"></i> Tải XML/HTML (.zip)
-                </button>
-                <!-- Nút bỏ chọn -->
-                <button type="button" class="btn btn-light btn-sm text-secondary" onclick="clearAllSelections()">
-                    Bỏ chọn
-                </button>
-            </div>
-        </div>
-    </div>
-
-<!-- Offcanvas Bộ Lọc Nghiệp Vụ Chuẩn Ảnh Giao Diện Tham Khảo -->
-<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasFilter" aria-labelledby="offcanvasFilterLabel" style="max-width: 100vw; width: 360px;">
-    <div class="offcanvas-header border-bottom py-3">
-        <h5 class="offcanvas-title fw-bold text-dark fs-5" id="offcanvasFilterLabel">
-            <i class="bi bi-funnel text-primary me-2"></i>Bộ lọc
-        </h5>
-        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body p-3">
-        <form id="drawerFilterForm" asp-controller="Invoice" asp-action="Index" method="get">
-            <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
-            <input type="hidden" name="QuickDateRange" value="custom" />
-            <input type="hidden" name="SortBy" value="@filter.SortBy" />
-            <input type="hidden" name="Page" value="1" />
-
-            <!-- 1. Trạng thái tải file -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Trạng thái tải file</label>
-                <select name="FileDownloadStatus" class="form-select form-select-sm">
-                    <option value="">Chọn trạng thái tải file</option>
-                    <option value="HasPdf" selected="@(filter.FileDownloadStatus == "HasPdf")">Đã tải PDF gốc</option>
-                    <option value="MissingPdf" selected="@(filter.FileDownloadStatus == "MissingPdf")">Chưa tải PDF</option>
-                    <option value="HasXml" selected="@(filter.FileDownloadStatus == "HasXml")">Đã tải XML gốc</option>
-                    <option value="MissingXml" selected="@(filter.FileDownloadStatus == "MissingXml")">Chưa tải XML</option>
-                    <option value="HasBoth" selected="@(filter.FileDownloadStatus == "HasBoth")">Đã tải đủ PDF & XML</option>
-                </select>
-            </div>
-
-            <!-- 2. Ký hiệu mẫu số hóa đơn -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Ký hiệu mẫu số hóa đơn</label>
-                <select name="TemplateType" class="form-select form-select-sm">
-                    <option value="">Chọn ký hiệu mẫu số hóa đơn</option>
-                    <option value="1" selected="@(filter.TemplateType == "1")">1 - Hóa đơn GTGT</option>
-                    <option value="2" selected="@(filter.TemplateType == "2")">2 - Hóa đơn bán hàng</option>
-                    <option value="3" selected="@(filter.TemplateType == "3")">3 - Hóa đơn bán tài sản công</option>
-                    <option value="4" selected="@(filter.TemplateType == "4")">4 - Hóa đơn bán hàng dự trữ quốc gia</option>
-                    <option value="5" selected="@(filter.TemplateType == "5")">5 - Hóa đơn khác (tem, vé, thẻ...)</option>
-                    <option value="6" selected="@(filter.TemplateType == "6")">6 - Chứng từ thu phí, lệ phí</option>
-                </select>
-            </div>
-
-            <!-- 3. Ký hiệu hóa đơn -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Ký hiệu hóa đơn</label>
-                <input type="text" name="InvoiceSymbol" class="form-control form-control-sm font-monospace" placeholder="C25TTP" value="@filter.InvoiceSymbol" />
-            </div>
-
-            <!-- 4. Số hóa đơn -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Số hóa đơn</label>
-                <input type="text" name="InvoiceNumber" class="form-control form-control-sm font-monospace" placeholder="2835" value="@filter.InvoiceNumber" />
-            </div>
-
-            <!-- 5. Tên người bán -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Tên người bán</label>
-                <input type="text" name="SellerName" class="form-control form-control-sm" placeholder="Công ty TNHH ABC" value="@filter.SellerName" />
-            </div>
-
-            <!-- 6. MST người bán -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">MST người bán</label>
-                <input type="text" name="SellerTaxCode" class="form-control form-control-sm font-monospace" placeholder="0309587979" value="@filter.SellerTaxCode" />
-            </div>
-
-            <!-- 7. Trạng thái hóa đơn -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Trạng thái hóa đơn</label>
-                <select name="Status" class="form-select form-select-sm">
-                    <option value="">Chọn trạng thái hóa đơn</option>
-                    <option value="Hóa đơn mới" selected="@(filter.Status == "Hóa đơn mới")">Hóa đơn mới</option>
-                    <option value="Đã thay thế" selected="@(filter.Status == "Đã thay thế")">Đã thay thế</option>
-                    <option value="Đã điều chỉnh" selected="@(filter.Status == "Đã điều chỉnh")">Đã điều chỉnh</option>
-                    <option value="Đã bị hủy" selected="@(filter.Status == "Đã bị hủy")">Đã bị hủy</option>
-                </select>
-            </div>
-
-            <!-- 8. Kết quả kiểm tra -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Kết quả kiểm tra</label>
-                <select name="ValidationResult" class="form-select form-select-sm">
-                    <option value="">Chọn kết quả kiểm tra</option>
-                    <option value="Normal" selected="@(filter.ValidationResult == "Normal")">Hợp lệ / Bình thường</option>
-                    <option value="Warning" selected="@(filter.ValidationResult == "Warning")">Cảnh báo rủi ro</option>
-                    <option value="HasTaxCode" selected="@(filter.ValidationResult == "HasTaxCode")">Có mã CQT</option>
-                    <option value="NoTaxCode" selected="@(filter.ValidationResult == "NoTaxCode")">Không mã CQT</option>
-                    <option value="CashRegister" selected="@(filter.ValidationResult == "CashRegister")">HĐ từ máy tính tiền</option>
-                </select>
-            </div>
-
-            <!-- 9. Khoảng ngày lập hóa đơn -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Khoảng ngày lập</label>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <input type="date" name="FromDate" class="form-control form-control-sm" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" title="Từ ngày" />
-                    </div>
-                    <div class="col-6">
-                        <input type="date" name="ToDate" class="form-control form-control-sm" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" title="Đến ngày" />
-                    </div>
-                </div>
-            </div>
-
-            <!-- 10. Khoảng tiền thanh toán -->
-            <div class="mb-3">
-                <label class="form-label small fw-semibold text-secondary mb-1">Khoảng tiền thanh toán (VND)</label>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <input type="number" name="MinAmount" class="form-control form-control-sm" placeholder="Từ số tiền..." value="@filter.MinAmount" />
-                    </div>
-                    <div class="col-6">
-                        <input type="number" name="MaxAmount" class="form-control form-control-sm" placeholder="Đến số tiền..." value="@filter.MaxAmount" />
-                    </div>
-                </div>
-            </div>
-
-            <!-- 11. Ghi sổ kế toán -->
-            <div class="mb-4">
-                <label class="form-label small fw-semibold text-secondary mb-1">Vào sổ kế toán</label>
-                <select name="IsReconciled" class="form-select form-select-sm">
-                    <option value="">Tất cả</option>
-                    <option value="true" selected="@(filter.IsReconciled == true)">Đã vào sổ</option>
-                    <option value="false" selected="@(filter.IsReconciled == false)">Chưa vào sổ</option>
-                </select>
-            </div>
-        </form>
-    </div>
-    <div class="offcanvas-footer p-3 border-top bg-light d-flex gap-2">
-        <button type="button" class="btn btn-primary w-100 fw-semibold" onclick="$('#drawerFilterForm').submit()">
-            <i class="bi bi-funnel me-1"></i> Áp dụng bộ lọc
-        </button>
-        <a href="/Invoice?InvoiceType=@filter.InvoiceType" class="btn btn-outline-secondary w-50">
-            Đặt lại
-        </a>
-    </div>
-</div>
-
-<!-- Modal Xem Thể Hiện Hóa Đơn Điện Tử Chuẩn Việt Nam -->
-<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header bg-light d-flex justify-content-between align-items-center py-2 px-3">
-                <div class="d-flex align-items-center gap-2">
-                    <h5 class="modal-title fw-bold mb-0" id="invoiceModalLabel">
-                        <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
-                    </h5>
-                    <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" id="btnToggleInvoiceModalFullscreen" onclick="toggleInvoiceModalFullscreen()" title="Bật/Tắt chế độ toàn màn hình">
-                        <i class="bi bi-arrows-fullscreen"></i>
-                    </button>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0" id="invoiceModalBody" style="min-height: 480px;">
-                <div class="d-flex justify-content-center align-items-center h-100 py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer bg-light d-flex justify-content-between">
-                <div id="invoiceModalFooterActions"></div>
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-    <script>
-        // Check all rows & Cập nhật thanh thao tác hàng loạt
-        function updateBulkActionBar() {
-            var count = $('.row-select:checked').length;
-            $('#bulkSelectedCount').text(count);
-            if (count > 0) {
-                $('#bulkActionBar').removeClass('d-none');
-            } else {
-                $('#bulkActionBar').addClass('d-none');
-            }
-        }
-
-        $('#selectAll').on('change', function() {
-            $('.row-select').prop('checked', $(this).is(':checked'));
-            updateBulkActionBar();
-            updateSelectedCount();
-        });
-
-        $(document).on('change', '.row-select', function() {
-            updateBulkActionBar();
-            updateSelectedCount();
-            if (!$(this).is(':checked')) {
-                $('#selectAll').prop('checked', false);
-            } else if ($('.row-select:checked').length === $('.row-select').length) {
-                $('#selectAll').prop('checked', true);
-            }
-        });
-
-        function clearAllSelections() {
-            $('.row-select, #selectAll').prop('checked', false);
-            updateBulkActionBar();
-            updateSelectedCount();
-        }
-
-        function updateSelectedCount() {
-            var count = $('.row-select:checked').length;
-            $('#selectedCount').text(count);
-            if (count > 0) {
-                $('#btnDeleteSelected').removeClass('d-none');
-            } else {
-                $('#btnDeleteSelected').addClass('d-none');
-            }
-        }
-
-        // Xóa 1 hóa đơn
-        function deleteSingleInvoice(id, symbol, number) {
-            if (!confirm('Bạn có chắc chắn muốn xóa hóa đơn ' + symbol + '-' + number + ' khỏi hệ thống? Hành động này không thể hoàn tác!')) {
-                return;
-            }
-
-            var token = $('input[name="__RequestVerificationToken"]').val();
-            $.ajax({
-                url: '/Invoice/Delete',
-                type: 'POST',
-                data: {
-                    id: id,
-                    __RequestVerificationToken: token
-                },
-                success: function(res) {
-                    if (res.success) {
-                        alert(res.message);
-                        location.reload();
-                    } else {
-                        alert(res.message || 'Lỗi khi xóa hóa đơn.');
-                    }
-                },
-                error: function() {
-                    alert('Lỗi hệ thống khi gửi yêu cầu xóa.');
-                }
-            });
-        }
-
-        // Xóa hàng loạt hóa đơn đã chọn
-        function deleteSelectedInvoices() {
-            var selectedIds = [];
-            $('.row-select:checked').each(function() {
-                selectedIds.push(parseInt($(this).val()));
-            });
-
-            if (selectedIds.length === 0) {
-                alert('Vui lòng tích chọn ít nhất 1 hóa đơn để xóa.');
-                return;
-            }
-
-            if (!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn ' + selectedIds.length + ' hóa đơn đã chọn khỏi hệ thống?')) {
-                return;
-            }
-
-            var token = $('input[name="__RequestVerificationToken"]').val();
-            $.ajax({
-                url: '/Invoice/DeleteBatch',
-                type: 'POST',
-                contentType: 'application/json',
-                headers: {
-                    "RequestVerificationToken": token
-                },
-                data: JSON.stringify(selectedIds),
-                success: function(res) {
-                    if (res.success) {
-                        alert(res.message);
-                        location.reload();
-                    } else {
-                        alert(res.message || 'Lỗi khi xóa hóa đơn hàng loạt.');
-                    }
-                },
-                error: function() {
-                    alert('Lỗi hệ thống khi xóa hàng loạt.');
-                }
-            });
-        }
-
-        // Quick date selection
-        function setQuickDate(type) {
-            $('#inputQuickDateRange').val(type);
-            var now = new Date();
-            var from = '';
-            var to = '';
-
-            if (type === 'today') {
-                from = to = formatDate(now);
-            } else if (type === 'thisMonth') {
-                from = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
-                to = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-            } else if (type === 'lastMonth') {
-                from = formatDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-                to = formatDate(new Date(now.getFullYear(), now.getMonth(), 0));
-            } else if (type === 'thisQuarter') {
-                var q = Math.floor(now.getMonth() / 3);
-                from = formatDate(new Date(now.getFullYear(), q * 3, 1));
-                to = formatDate(new Date(now.getFullYear(), (q + 1) * 3, 0));
-            } else if (type === 'thisYear') {
-                from = formatDate(new Date(now.getFullYear(), 0, 1));
-                to = formatDate(new Date(now.getFullYear(), 11, 31));
-            }
-
-            $('input[name="FromDate"]').val(from);
-            $('input[name="ToDate"]').val(to);
-            $('#filterForm').submit();
-        }
-
-        function formatDate(d) {
-            var month = '' + (d.getMonth() + 1),
-                day = '' + d.getDate(),
-                year = d.getFullYear();
-
-            if (month.length < 2) month = '0' + month;
-            if (day.length < 2) day = '0' + day;
-            return [year, month, day].join('-');
-        }
-
-        // Tự động xử lý khi người dùng chọn/chỉnh ngày tháng năm thủ công
-        var dateFilterTimeout = null;
-        $('#filterForm #inputFromDate, #filterForm #inputToDate').on('change input', function() {
-            // Đặt trạng thái về 'custom' để không bị ghi đè bởi mốc mặc định
-            $('#inputQuickDateRange').val('custom');
-            // Cập nhật giao diện: bỏ active các nút chọn nhanh
-            $('.btn-group-responsive button').removeClass('btn-secondary').addClass('btn-outline-secondary');
-
-            var fromVal = $('#inputFromDate').val();
-            var toVal = $('#inputToDate').val();
-            if (fromVal && toVal) {
-                clearTimeout(dateFilterTimeout);
-                // Trì hoãn 700ms để người dùng kịp thao tác chọn tiếp ngày còn lại
-                dateFilterTimeout = setTimeout(function() {
-                    $('#inputPage').val(1);
-                    $('#filterForm').submit();
-                }, 700);
-            }
-        });
-
-        // Hỗ trợ phím Enter trên ô ngày
-        $('#filterForm #inputFromDate, #filterForm #inputToDate').on('keypress', function(e) {
-            if (e.which === 13) {
-                e.preventDefault();
-                clearTimeout(dateFilterTimeout);
-                $('#inputQuickDateRange').val('custom');
-                $('#inputPage').val(1);
-                $('#filterForm').submit();
-            }
-        });
-
-        // Khi người dùng bấm nút Tìm kiếm
-        $('#filterForm').on('submit', function() {
-            clearTimeout(dateFilterTimeout);
-            var fromVal = $('#inputFromDate').val();
-            var toVal = $('#inputToDate').val();
-            if (fromVal || toVal) {
-                var now = new Date();
-                var thisMonthFrom = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
-                var thisMonthTo = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-                if (fromVal !== thisMonthFrom || toVal !== thisMonthTo) {
-                    $('#inputQuickDateRange').val('custom');
-                }
-            }
-        });
-
-        function quickFilterTaxType(type) {
-            var curHasTaxCode = $('#inputHasTaxCode').val();
-            var curIsCashRegister = $('#inputIsCashRegister').val();
-
-            // Toggle logic: nếu nhấp lại vào đúng khối đang active thì hủy lọc (xem tất cả)
-            if (type === 'with_tax_code' && curHasTaxCode === 'true' && curIsCashRegister === 'false') {
-                type = 'all';
-            } else if (type === 'without_tax_code' && curHasTaxCode === 'false' && curIsCashRegister === 'false') {
-                type = 'all';
-            } else if (type === 'cash_register' && curIsCashRegister === 'true') {
-                type = 'all';
-            }
-
-            if (type === 'all') {
-                $('#inputHasTaxCode').val('');
-                $('#inputIsCashRegister').val('');
-            } else if (type === 'with_tax_code') {
-                $('#inputHasTaxCode').val('true');
-                $('#inputIsCashRegister').val('false');
-            } else if (type === 'without_tax_code') {
-                $('#inputHasTaxCode').val('false');
-                $('#inputIsCashRegister').val('false');
-            } else if (type === 'cash_register') {
-                $('#inputHasTaxCode').val('');
-                $('#inputIsCashRegister').val('true');
-            }
-            $('#inputPage').val(1);
-            $('#filterForm').submit();
-        }
-
-        // Sắp xếp danh sách nhanh khi nhấp vào các khối tài chính hoặc tiêu đề cột
-        function quickSortFinancial(field) {
-            var curSort = $('#inputSortBy').val() || '';
-            var nextSort = field + 'Desc';
-
-            if (curSort === field + 'Desc') {
-                nextSort = field + 'Asc';
-            } else if (curSort === field + 'Asc') {
-                nextSort = 'DateDesc'; // Nhấp lần 3 sẽ hoàn nguyên về mặc định theo ngày
-            }
-
-            $('#inputSortBy').val(nextSort);
-            $('#inputPage').val(1);
-            $('#filterForm').submit();
-        }
-
-        // Tự động cuộn mượt đến bảng khi có hành động lọc hoặc sắp xếp
-        $(document).ready(function() {
-            var params = new URLSearchParams(window.location.search);
-            if (params.has('HasTaxCode') || params.has('IsCashRegister') || (params.has('SortBy') && params.get('SortBy') !== 'DateDesc')) {
-                var tbl = document.getElementById('invoiceTable');
-                if (tbl) {
-                    tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }
-        });
-
-        function switchInvoiceType(type) {
-            $('#inputInvoiceType').val(type);
-            $('#filterForm').submit();
-        }
-
-        function goToPage(page) {
-            $('#inputPage').val(page);
-            $('#filterForm').submit();
-        }
-
-        // Export trigger
-        function triggerExport(actionName) {
-            var params = $('#filterForm').serialize();
-            window.location.href = '/Export/' + actionName + '?' + params;
-        }
-
-        // Xuất file ZIP XML & Bản thể hiện HTML
-        function triggerBatchZip() {
-            var selected = [];
-            $('.row-select:checked').each(function() {
-                selected.push($(this).val());
-            });
-
-            var container = $('#selectedIdsContainer');
-            container.empty();
-
-            if (selected.length > 0) {
-                selected.forEach(function(id) {
-                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
-                });
-            }
-
-            $('#formBatchZip').submit();
-        }
-
-        // Tải File PDF Gốc Hàng Loạt (.zip)
-        function triggerBatchPdfZip() {
-            var selected = [];
-            $('.row-select:checked').each(function() {
-                selected.push($(this).val());
-            });
-
-            var container = $('#selectedPdfIdsContainer');
-            container.empty();
-
-            if (selected.length > 0) {
-                selected.forEach(function(id) {
-                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
-                });
-            }
-
-            $('#formBatchPdfZip').submit();
-        }
-
-        // Open Invoice Detail Modal
-        function openInvoiceModal(id) {
-            $('#invoiceModal').modal('show');
-            $('#invoiceModalBody').html('<div class="d-flex justify-content-center align-items-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
-
-            $.get('/Invoice/Detail/' + id, function(html) {
-                $('#invoiceModalBody').html(html);
-                $('#invoiceModalFooterActions').html(
-                    '<a href="/Export/DownloadPdf/' + id + '" target="_blank" class="btn btn-danger btn-sm" download><i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc</a> ' +
-                    '<a href="/Invoice/ViewHtml/' + id + '" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-printer me-1"></i> In / Bản in gốc</a> ' +
-                    '<a href="/Invoice/ViewRawXml/' + id + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-xml me-1"></i> Tải XML gốc</a>'
-                );
-            }).fail(function() {
-                $('#invoiceModalBody').html('<div class="alert alert-danger m-3">Không thể tải thông tin hóa đơn.</div>');
-            });
-        }
-
-        function toggleInvoiceModalFullscreen() {
-            var dialog = $('#invoiceModal .modal-dialog');
-            var icon = $('#btnToggleInvoiceModalFullscreen i');
-            if (dialog.hasClass('modal-fullscreen')) {
-                dialog.removeClass('modal-fullscreen').addClass('modal-xl');
-                icon.removeClass('bi-fullscreen-exit').addClass('bi-arrows-fullscreen');
-                $('#btnToggleInvoiceModalFullscreen').attr('title', 'Phóng to toàn màn hình');
-            } else {
-                dialog.removeClass('modal-xl').addClass('modal-fullscreen');
-                icon.removeClass('bi-arrows-fullscreen').addClass('bi-fullscreen-exit');
-                $('#btnToggleInvoiceModalFullscreen').attr('title', 'Thu nhỏ cửa sổ');
-            }
-        }
-
-        // Toggle reconciliation
-        function toggleReconciliation(id) {
-            var refNo = prompt("Nhập số chứng từ kế toán nội bộ (Phiếu chi, UNC, v.v.):", "PC-" + new Date().toISOString().slice(0,10).replace(/-/g,''));
-            if (refNo === null) return;
-
-            $.post('/Invoice/ToggleReconciliation', {
-                id: id,
-                refNo: refNo,
-                __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val()
-            }, function(res) {
-                if (res.success) {
-                    var badge = $('#reconcile-badge-' + id);
-                    if (res.isReconciled) {
-                        badge.removeClass('bg-light text-muted border').addClass('bg-primary text-white').html('<i class="bi bi-check2-circle"></i> Đã vào sổ');
-                    } else {
-                        badge.removeClass('bg-primary text-white').addClass('bg-light text-muted border').html('Chưa ghi sổ');
-                    }
-                } else {
-                    alert(res.message || 'Lỗi khi cập nhật trạng thái.');
-                }
-            });
-        }
-
-        // Mở Modal Nhập HĐ và tự động kích hoạt Tab mong muốn
-        function openImportModal(tabButtonId) {
-            var modalEl = document.getElementById('modalImportInvoice');
-            if (!modalEl) return;
-            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-
-            if (tabButtonId) {
-                var btn = document.getElementById(tabButtonId);
-                if (btn) {
-                    var tab = bootstrap.Tab.getOrCreateInstance(btn);
-                    tab.show();
-                }
-            }
-
-            if (tabButtonId === 'tab-remote-btn') {
-                setTimeout(function () {
-                    if (typeof window.loadImportModalCaptcha === 'function') {
-                        window.loadImportModalCaptcha();
-                    }
-                    if (typeof window.loadImportModalSavedConnection === 'function') {
-                        window.loadImportModalSavedConnection();
-                    }
-                }, 80);
-            }
-        }
-
-    </script>
-}
-
-<partial name="_ImportModalPartial" />
+@model InvoiceManager.Models.ViewModels.InvoiceIndexViewModel
+@{
+    ViewData["Title"] = "Quản lý Hóa đơn & Kế toán";
+    var filter = Model.Filter;
+    var summary = Model.Summary;
+    bool isBanRa = string.Equals(filter.InvoiceType, "BanRa", StringComparison.OrdinalIgnoreCase);
+}
+
+<style>
+    .fdi-subheader {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .fdi-subheader-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #1d4ed8;
+        font-weight: 600;
+        font-size: 0.875rem;
+        padding: 4px 10px;
+        background: #eff6ff;
+        border-radius: 6px;
+    }
+    .fdi-nav-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 4px;
+    }
+    .fdi-underline-tabs {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    .fdi-tab-link {
+        background: none;
+        border: none;
+        border-bottom: 2.5px solid transparent;
+        padding: 10px 4px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #64748b;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .fdi-tab-link:hover {
+        color: #1d4ed8;
+    }
+    .fdi-tab-link.active {
+        color: #1d4ed8;
+        font-weight: 600;
+        border-bottom-color: #2563eb;
+    }
+    .fdi-filter-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+    .fdi-filter-header {
+        padding: 12px 18px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+    }
+    .fdi-filter-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+    }
+    .fdi-form-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .fdi-form-label {
+        width: 165px;
+        flex-shrink: 0;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #334155;
+        margin-bottom: 0;
+    }
+    .fdi-form-input {
+        flex-grow: 1;
+    }
+    .fdi-form-input .form-control,
+    .fdi-form-input .form-select {
+        font-size: 0.82rem;
+        border-color: #e2e8f0;
+        padding: 5px 10px;
+        border-radius: 6px;
+    }
+    .fdi-form-input .form-control:focus,
+    .fdi-form-input .form-select:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+    }
+    .fdi-date-box {
+        position: relative;
+        flex: 1;
+    }
+    .fdi-date-box span.date-sub-label {
+        position: absolute;
+        top: -7px;
+        left: 10px;
+        background: #fff;
+        padding: 0 4px;
+        font-size: 0.68rem;
+        color: #64748b;
+        line-height: 1;
+    }
+    .fdi-table-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+        overflow: hidden;
+    }
+    .fdi-table-topbar {
+        padding: 8px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        background: #ffffff;
+    }
+    .fdi-summary-pills {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 0.8rem;
+    }
+    .fdi-summary-pill {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 3px 10px;
+        color: #475569;
+    }
+    .fdi-table th {
+        background: #f8fafc !important;
+        color: #334155 !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        padding: 10px 10px !important;
+        vertical-align: middle;
+    }
+    .fdi-table td {
+        font-size: 0.81rem;
+        padding: 9px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #1e293b;
+        vertical-align: middle;
+    }
+    .fdi-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+</style>
+
+<div class="d-flex flex-column gap-2">
+    <!-- 1. Thanh Sub-header: Hóa đơn điện tử & Nút Đồng bộ / Tải nhanh -->
+    <div class="fdi-subheader">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fdi-subheader-tab">
+                <i class="bi bi-file-earmark-text"></i> Hóa đơn điện tử
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="triggerAutoMultiCompanySync()" title="Đồng bộ tự động tất cả các công ty của bạn">
+                <i class="bi bi-buildings me-1"></i> Đồng bộ nhiều công ty
+            </button>
+            <button type="button" class="btn btn-sm fw-semibold text-white px-3" style="background-color: #16a34a; border-color: #16a34a;" onclick="triggerAutoSync()" title="Tự động đồng bộ hóa đơn không cần điền lại thông tin">
+                <i class="bi bi-arrow-repeat me-1"></i> Đồng bộ dữ liệu hoá đơn điện tử
+            </button>
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="triggerAutoQuickDownload()" title="Tự động tải nhanh dữ liệu 30 ngày gần nhất và tệp gốc">
+                <i class="bi bi-lightning-charge-fill me-1"></i> Tải nhanh dữ liệu hoá đơn
+            </button>
+        </div>
+    </div>
+
+    <!-- Thanh tiến trình đồng bộ tự động nổi (Auto Sync Progress Banner) -->
+    <div id="autoSyncProgressBox" class="alert alert-primary border-0 shadow-sm d-none mb-0 py-2 px-3 align-items-center justify-content-between" style="border-radius: 8px;">
+        <div class="d-flex align-items-center gap-3 flex-grow-1 me-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong class="small text-dark" id="autoSyncStatusTitle">Đang tự động kết nối Cổng Tổng cục Thuế...</strong>
+                    <span class="small fw-bold text-primary" id="autoSyncPercent">0%</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div id="autoSyncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;"></div>
+                </div>
+                <div class="small text-muted mt-1" id="autoSyncStageDetail">Khởi tạo tiến trình...</div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;" onclick="cancelAutoSync()">Hủy</button>
+    </div>
+
+    <!-- 2. Thanh Tabs Tra cứu Bán ra / Mua vào / Kiểm tra NCC & Nút Lập tờ khai, Xuất file -->
+    <div class="fdi-nav-bar">
+        <div class="fdi-underline-tabs">
+            <button type="button" class="fdi-tab-link @(isBanRa ? "active" : "")" onclick="switchInvoiceType('BanRa')">
+                Tra cứu hóa đơn điện tử bán ra
+            </button>
+            <button type="button" class="fdi-tab-link @(!isBanRa ? "active" : "")" onclick="switchInvoiceType('MuaVao')">
+                Tra cứu hóa đơn điện tử mua vào
+            </button>
+            <a href="/TaxAccount/Lookup" class="fdi-tab-link">
+                Kiểm tra nhà cung cấp
+            </a>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 py-1">
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="openTaxDeclarationModal()" title="Lập tờ khai thuế GTGT Mẫu 01/GTGT và bảng kê">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Lập tờ khai và bảng kê
+            </button>
+
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="filterRiskSuppliers()">
+                <i class="bi bi-shield-exclamation me-1"></i> Kiểm tra nhà cung cấp rủi ro
+            </button>
+
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Xuất file excel tổng hợp và hóa đơn
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="font-size: 0.84rem;">
+                    <li>
+                        <button type="button" class="dropdown-item py-2 fw-bold text-success" onclick="triggerExport('ExcelSummary')">
+                            <i class="bi bi-file-earmark-excel-fill text-success me-2"></i> Xuất file Excel đầy đủ 7 Sheet
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item py-2 fw-semibold" style="color: #0284c7;" onclick="triggerExport('ExcelSmartPro')">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-2" style="color: #0284c7;"></i> Xuất Excel Smart Pro
+                        </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button type="button" class="dropdown-item py-2 fw-semibold" style="color: #0369a1;" onclick="triggerExport('ExcelFullMuaVao')">
+                            <i class="bi bi-file-earmark-ruled me-2" style="color: #0284c7;"></i> Xuất Excel Chi tiết Mua vào
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item py-2 fw-semibold" style="color: #b45309;" onclick="triggerExport('ExcelFullBanRa')">
+                            <i class="bi bi-file-earmark-ruled-fill me-2" style="color: #d97706;"></i> Xuất Excel Chi tiết Bán ra
+                        </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button type="button" class="dropdown-item py-2 fw-semibold text-danger" onclick="triggerBatchPdfZip()">
+                            <i class="bi bi-file-earmark-pdf-fill me-2"></i> Tải hàng loạt PDF gốc
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item py-2" onclick="triggerBatchZip()">
+                            <i class="bi bi-file-earmark-zip text-primary me-2"></i> Tải file ZIP XML & Bản thể hiện
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Khung Bộ Lọc Hóa Đơn Đã Được Đồng Bộ -->
+    <div class="fdi-filter-card">
+        <div class="fdi-filter-header" data-bs-toggle="collapse" data-bs-target="#collapseFilterBody" aria-expanded="true">
+            <h6 class="fdi-filter-title">
+                <i class="bi bi-funnel text-secondary"></i>
+                Bộ lọc hóa đơn @(isBanRa ? "bán ra" : "mua vào") đã được đồng bộ
+            </h6>
+            <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none">
+                <i class="bi bi-dash-lg"></i>
+            </button>
+        </div>
+
+        <div class="collapse show" id="collapseFilterBody">
+            <div class="p-3 pt-2">
+                <form id="filterForm" asp-controller="Invoice" asp-action="Index" method="get">
+                    <input type="hidden" name="InvoiceType" id="inputInvoiceType" value="@filter.InvoiceType" />
+                    <input type="hidden" name="QuickDateRange" id="inputQuickDateRange" value="custom" />
+                    <input type="hidden" name="SortBy" id="inputSortBy" value="@filter.SortBy" />
+                    <input type="hidden" name="Page" id="inputPage" value="1" />
+                    <input type="hidden" name="HasTaxCode" id="inputHasTaxCode" value="@(filter.HasTaxCode.HasValue ? filter.HasTaxCode.Value.ToString().ToLower() : "")" />
+                    <input type="hidden" name="IsCashRegister" id="inputIsCashRegister" value="@(filter.IsCashRegister.HasValue ? filter.IsCashRegister.Value.ToString().ToLower() : "")" />
+
+                    <div class="row gx-4 gy-1">
+                        <!-- Cột Trái -->
+                        <div class="col-12 col-lg-6">
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">@(isBanRa ? "MST người mua" : "MST người bán")</label>
+                                <div class="fdi-form-input">
+                                    <input type="text" name="SellerTaxCode" class="form-control" placeholder="Nhập mã số thuế..." value="@filter.SellerTaxCode" />
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Trạng thái <span class="text-danger">(*)</span></label>
+                                <div class="fdi-form-input">
+                                    <select name="Status" class="form-select">
+                                        <option value="">Tất cả</option>
+                                        <option value="Hóa đơn mới" selected="@(filter.Status == "Hóa đơn mới")">Hóa đơn mới / Đã cấp mã</option>
+                                        <option value="Đã thay thế" selected="@(filter.Status == "Đã thay thế")">Đã thay thế</option>
+                                        <option value="Đã điều chỉnh" selected="@(filter.Status == "Đã điều chỉnh")">Đã điều chỉnh</option>
+                                        <option value="Đã bị hủy" selected="@(filter.Status == "Đã bị hủy")">Đã bị hủy</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Kết quả kiểm tra <span class="text-danger">(*)</span></label>
+                                <div class="fdi-form-input">
+                                    <select name="ValidationResult" id="selectValidationResult" class="form-select">
+                                        <option value="">Tất cả</option>
+                                        <option value="Normal" selected="@(filter.ValidationResult == "Normal")">Hợp lệ / Bình thường</option>
+                                        <option value="Warning" selected="@(filter.ValidationResult == "Warning")">Cảnh báo rủi ro</option>
+                                        <option value="HasTaxCode" selected="@(filter.ValidationResult == "HasTaxCode")">Có mã CQT</option>
+                                        <option value="NoTaxCode" selected="@(filter.ValidationResult == "NoTaxCode")">Không mã CQT</option>
+                                        <option value="CashRegister" selected="@(filter.ValidationResult == "CashRegister")">Hóa đơn từ máy tính tiền</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Số hóa đơn</label>
+                                <div class="fdi-form-input">
+                                    <input type="text" name="InvoiceNumber" class="form-control" placeholder="Ví dụ: 1702" value="@filter.InvoiceNumber" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cột Phải -->
+                        <div class="col-12 col-lg-6">
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">@(isBanRa ? "Tên người mua / Từ khóa" : "Tên người bán / Từ khóa")</label>
+                                <div class="fdi-form-input">
+                                    <input type="text" name="Keyword" class="form-control" placeholder="Tìm theo tên công ty, ký hiệu, số HĐ..." value="@filter.Keyword" />
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Ngày lập hóa đơn <span class="text-danger">(*)</span></label>
+                                <div class="fdi-form-input d-flex align-items-center gap-2">
+                                    <div class="fdi-date-box">
+                                        <span class="date-sub-label">Từ ngày</span>
+                                        <input type="date" name="FromDate" id="inputFromDate" class="form-control" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+                                    </div>
+                                    <div class="fdi-date-box">
+                                        <span class="date-sub-label">Đến ngày</span>
+                                        <input type="date" name="ToDate" id="inputToDate" class="form-control" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Ký hiệu mẫu số hóa đơn</label>
+                                <div class="fdi-form-input">
+                                    <select name="TemplateType" class="form-select">
+                                        <option value="">Tất cả</option>
+                                        <option value="1" selected="@(filter.TemplateType == "1")">1 - Hóa đơn giá trị gia tăng</option>
+                                        <option value="2" selected="@(filter.TemplateType == "2")">2 - Hóa đơn bán hàng</option>
+                                        <option value="3" selected="@(filter.TemplateType == "3")">3 - Hóa đơn bán tài sản công</option>
+                                        <option value="4" selected="@(filter.TemplateType == "4")">4 - Hóa đơn bán hàng dự trữ quốc gia</option>
+                                        <option value="5" selected="@(filter.TemplateType == "5")">5 - Hóa đơn khác (tem, vé, thẻ...)</option>
+                                        <option value="6" selected="@(filter.TemplateType == "6")">6 - Chứng từ thu phí, lệ phí</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="fdi-form-row">
+                                <label class="fdi-form-label">Ký hiệu hóa đơn</label>
+                                <div class="fdi-form-input">
+                                    <input type="text" name="InvoiceSymbol" class="form-control" placeholder="Ví dụ: C26TUL" value="@filter.InvoiceSymbol" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nút Tìm kiếm & Bỏ tìm kiếm ở chính giữa -->
+                    <div class="d-flex justify-content-center align-items-center gap-2 mt-2 pt-1">
+                        <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">
+                            <i class="bi bi-search me-1"></i> Tìm kiếm
+                        </button>
+                        <a href="/phan-mem-ke-toan?InvoiceType=@filter.InvoiceType" class="btn btn-light border btn-sm px-3 text-secondary">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Bỏ tìm kiếm
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Forms cho Xuất ZIP hàng loạt -->
+    <form id="formBatchZip" asp-controller="Export" asp-action="BatchZip" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="Keyword" value="@filter.Keyword" />
+        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+        <input type="hidden" name="SellerName" value="@filter.SellerName" />
+        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
+        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
+        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
+        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
+        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
+        <input type="hidden" name="Status" value="@filter.Status" />
+        <div id="selectedIdsContainer"></div>
+    </form>
+
+    <form id="formBatchPdfZip" asp-controller="Export" asp-action="BatchPdfZip" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="InvoiceType" value="@filter.InvoiceType" />
+        <input type="hidden" name="FromDate" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="ToDate" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="Keyword" value="@filter.Keyword" />
+        <input type="hidden" name="SellerTaxCode" value="@filter.SellerTaxCode" />
+        <input type="hidden" name="SellerName" value="@filter.SellerName" />
+        <input type="hidden" name="InvoiceSymbol" value="@filter.InvoiceSymbol" />
+        <input type="hidden" name="InvoiceNumber" value="@filter.InvoiceNumber" />
+        <input type="hidden" name="TemplateType" value="@filter.TemplateType" />
+        <input type="hidden" name="FileDownloadStatus" value="@filter.FileDownloadStatus" />
+        <input type="hidden" name="ValidationResult" value="@filter.ValidationResult" />
+        <input type="hidden" name="Status" value="@filter.Status" />
+        <div id="selectedPdfIdsContainer"></div>
+    </form>
+
+    <!-- 4. Khung Bảng Dữ Liệu Hóa Đơn -->
+    <div class="fdi-table-card">
+        <div class="fdi-table-topbar">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <div class="fdi-underline-tabs">
+                    <span class="fdi-tab-link active py-1">Tổng quát</span>
+                </div>
+                <div class="fdi-summary-pills">
+                    <span class="fdi-summary-pill">
+                        Tổng số HĐ: <strong class="text-primary">@summary.TotalCount.ToString("N0")</strong>
+                    </span>
+                    <span class="fdi-summary-pill">
+                        Chưa thuế: <strong>@summary.TotalAmountBeforeTax.ToString("N0") đ</strong>
+                    </span>
+                    <span class="fdi-summary-pill">
+                        Tiền thuế: <strong class="text-danger">@summary.TotalTaxAmount.ToString("N0") đ</strong>
+                    </span>
+                    <span class="fdi-summary-pill">
+                        Tổng thanh toán: <strong class="text-primary">@summary.TotalAmount.ToString("N0") đ</strong>
+                    </span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-danger btn-sm fw-semibold d-none" id="btnDeleteSelected" onclick="deleteSelectedInvoices()">
+                    <i class="bi bi-trash me-1"></i> Xóa đã chọn (<span id="selectedCount">0</span>)
+                </button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold" onclick="triggerBatchPdfZip()" title="Tải hàng loạt file PDF gốc từ Tổng cục Thuế (.zip)">
+                    <i class="bi bi-download me-1"></i> Tải hàng loạt hóa đơn gốc
+                </button>
+                <button type="button" class="btn btn-light border btn-sm fw-semibold text-secondary" onclick="openCompanyModal(true)" title="Cấu hình tài khoản Hóa đơn điện tử lấy hóa đơn gốc">
+                    <i class="bi bi-gear me-1"></i> Cấu hình thông tin lấy hóa đơn gốc
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive" id="invoiceTable">
+            <table class="table fdi-table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 36px;" class="text-center">
+                            <input type="checkbox" id="selectAll" class="form-check-input" />
+                        </th>
+                        <th style="width: 45px;" class="text-center">STT</th>
+                        <th style="width: 75px;" class="text-center">Ký hiệu mẫu số</th>
+                        <th style="width: 90px;" class="text-center">Ký hiệu hóa đơn</th>
+                        <th style="width: 85px;" class="text-center">Số hóa đơn</th>
+                        <th style="width: 95px;" class="text-center">Ngày lập</th>
+                        <th style="width: 130px;">MST người bán/MST người xuất hàng</th>
+                        <th style="min-width: 220px;">Tên người bán/Tên người xuất hàng</th>
+                        <th style="min-width: 180px;">Địa chỉ người bán</th>
+                        <th style="width: 120px;">MST người mua/MST người nhận hàng</th>
+                        <th style="min-width: 180px;">Tên người mua/Tên người nhận hàng</th>
+                        <th style="width: 120px;" class="text-end">Tổng tiền chưa thuế</th>
+                        <th style="width: 110px;" class="text-end">Tổng tiền thuế</th>
+                        <th style="width: 125px;" class="text-end">Tổng thanh toán</th>
+                        <th style="width: 110px;" class="text-center">Trạng thái</th>
+                        <th style="width: 115px;" class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Invoices.Any())
+                    {
+                        int stt = (Model.CurrentPage - 1) * Model.Filter.PageSize + 1;
+                        foreach (var inv in Model.Invoices)
+                        {
+                            var rawSym = inv.InvoiceSymbol ?? "";
+                            var templateNum = (rawSym.Length > 0 && char.IsDigit(rawSym[0])) ? rawSym.Substring(0, 1) : "1";
+                            var shortSym = (rawSym.Length > 1 && char.IsDigit(rawSym[0])) ? rawSym.Substring(1) : rawSym;
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input row-select" value="@inv.Id" />
+                                </td>
+                                <td class="text-center text-muted">@stt</td>
+                                <td class="text-center font-monospace">@templateNum</td>
+                                <td class="text-center font-monospace fw-semibold">@shortSym</td>
+                                <td class="text-center font-monospace fw-bold text-primary">@inv.InvoiceNumber</td>
+                                <td class="text-center">@inv.IssueDate.ToString("dd/MM/yyyy")</td>
+                                <td class="font-monospace">@inv.SellerTaxCode</td>
+                                <td>
+                                    <div class="fw-semibold text-wrap" style="max-width: 280px;">@inv.SellerName</div>
+                                    @if (!string.IsNullOrEmpty(inv.RiskReason))
+                                    {
+                                        <div class="text-danger small"><i class="bi bi-exclamation-circle"></i> @inv.RiskReason</div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="text-muted small text-wrap" style="max-width: 230px;">@inv.SellerAddress</div>
+                                </td>
+                                <td class="font-monospace">@inv.BuyerTaxCode</td>
+                                <td>
+                                    <div class="text-wrap" style="max-width: 220px;">@inv.BuyerName</div>
+                                </td>
+                                <td class="text-end font-monospace">@inv.AmountBeforeTax.ToString("N0")</td>
+                                <td class="text-end font-monospace text-danger">@inv.TaxAmount.ToString("N0")</td>
+                                <td class="text-end font-monospace fw-bold text-primary">@inv.TotalAmount.ToString("N0")</td>
+                                <td class="text-center">
+                                    @if (inv.Status == "Hóa đơn mới" || inv.Status == "Đã cấp mã" || inv.Status == "5")
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">Đã cấp mã</span>
+                                    }
+                                    else if (inv.Status == "Đã điều chỉnh")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Đã điều chỉnh</span>
+                                    }
+                                    else if (inv.Status == "Đã thay thế")
+                                    {
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle">Đã thay thế</span>
+                                    }
+                                    else if (inv.Status == "Đã bị hủy")
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Đã bị hủy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-dark border">@inv.Status</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-inline-flex gap-1">
+                                        <!-- Xem chi tiết & PDF gốc -->
+                                        <button type="button" class="btn-action-icon" title="Chi tiết hóa đơn & Xem PDF gốc" onclick="openInvoiceModal(@inv.Id)">
+                                            <i class="bi bi-file-earmark-text text-primary"></i>
+                                        </button>
+                                        <!-- Tải trọn bộ file gốc (.zip) -->
+                                        <a asp-action="DownloadAllFiles" asp-route-invoiceId="@inv.Id" class="btn-action-icon" title="Tải trọn bộ file hóa đơn gốc (.zip)">
+                                            <i class="bi bi-file-earmark-zip text-warning"></i>
+                                        </a>
+                                        <!-- Xem XML gốc trong tab mới -->
+                                        <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem nội dung XML gốc">
+                                            <i class="bi bi-code-slash text-secondary"></i>
+                                        </a>
+                                        <!-- Xóa hóa đơn -->
+                                        <button type="button" class="btn-action-icon text-danger" title="Xóa hóa đơn này" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            stt++;
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="16" class="text-muted py-4 px-3">
+                                Không có dữ liệu
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Phân trang -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top bg-light">
+            <div class="small text-muted">
+                Hiển thị <strong>@Model.Invoices.Count</strong> trên tổng số <strong>@Model.TotalItems.ToString("N0")</strong> hóa đơn
+            </div>
+
+            @if (Model.TotalPages > 1)
+            {
+                <nav aria-label="Phân trang hóa đơn">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
+                            <button type="button" class="page-link" onclick="goToPage(1)"><i class="bi bi-chevron-double-left"></i></button>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
+                            <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage - 1))"><i class="bi bi-chevron-left"></i></button>
+                        </li>
+
+                        @for (int p = Math.Max(1, Model.CurrentPage - 2); p <= Math.Min(Model.TotalPages, Model.CurrentPage + 2); p++)
+                        {
+                            <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                                <button type="button" class="page-link" onclick="goToPage(@p)">@p</button>
+                            </li>
+                        }
+
+                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
+                            <button type="button" class="page-link" onclick="goToPage(@(Model.CurrentPage + 1))"><i class="bi bi-chevron-right"></i></button>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
+                            <button type="button" class="page-link" onclick="goToPage(@Model.TotalPages)"><i class="bi bi-chevron-double-right"></i></button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Modal Xem PDF Gốc Hóa Đơn Điện Tử -->
+<div class="modal fade overflow-hidden" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered my-0" style="height: 100vh; max-height: 100vh; padding: 12px;">
+        <div class="modal-content h-100 overflow-hidden d-flex flex-column">
+            <div class="modal-header bg-light d-flex justify-content-between align-items-center py-2 px-3 flex-shrink-0">
+                <div class="d-flex align-items-center gap-2">
+                    <h5 class="modal-title fw-bold mb-0" id="invoiceModalLabel">
+                        <i class="bi bi-receipt text-primary me-2"></i> Chi tiết Hóa đơn Điện tử
+                    </h5>
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" id="btnToggleInvoiceModalFullscreen" onclick="toggleInvoiceModalFullscreen()" title="Bật/Tắt chế độ toàn màn hình">
+                        <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 flex-grow-1 overflow-hidden" id="invoiceModalBody">
+                <div class="d-flex justify-content-center align-items-center h-100 py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <div id="invoiceModalFooterActions"></div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $('#selectAll').on('change', function() {
+            $('.row-select').prop('checked', $(this).is(':checked'));
+            updateSelectedCount();
+        });
+
+        $(document).on('change', '.row-select', function() {
+            updateSelectedCount();
+            if (!$(this).is(':checked')) {
+                $('#selectAll').prop('checked', false);
+            } else if ($('.row-select:checked').length === $('.row-select').length) {
+                $('#selectAll').prop('checked', true);
+            }
+        });
+
+        function updateSelectedCount() {
+            var count = $('.row-select:checked').length;
+            $('#selectedCount').text(count);
+            if (count > 0) {
+                $('#btnDeleteSelected').removeClass('d-none');
+            } else {
+                $('#btnDeleteSelected').addClass('d-none');
+            }
+        }
+
+        function filterRiskSuppliers() {
+            $('#selectValidationResult').val('Warning');
+            $('#inputPage').val(1);
+            $('#filterForm').submit();
+        }
+
+        function switchInvoiceType(type) {
+            $('#inputInvoiceType').val(type);
+            $('#inputPage').val(1);
+            $('#filterForm').submit();
+        }
+
+        function goToPage(page) {
+            $('#inputPage').val(page);
+            $('#filterForm').submit();
+        }
+
+        function triggerExport(actionName) {
+            var params = $('#filterForm').serialize();
+            window.location.href = '/Export/' + actionName + '?' + params;
+        }
+
+        function triggerBatchZip() {
+            var selected = [];
+            $('.row-select:checked').each(function() {
+                selected.push($(this).val());
+            });
+            var container = $('#selectedIdsContainer');
+            container.empty();
+            if (selected.length > 0) {
+                selected.forEach(function(id) {
+                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
+                });
+            }
+            $('#formBatchZip').submit();
+        }
+
+        function triggerBatchPdfZip() {
+            var selected = [];
+            $('.row-select:checked').each(function() {
+                selected.push($(this).val());
+            });
+            var container = $('#selectedPdfIdsContainer');
+            container.empty();
+            if (selected.length > 0) {
+                selected.forEach(function(id) {
+                    container.append('<input type="hidden" name="selectedIds" value="' + id + '" />');
+                });
+            }
+            $('#formBatchPdfZip').submit();
+        }
+
+        function openInvoiceModal(id) {
+            $('#invoiceModal').modal('show');
+            $('#invoiceModalBody').html('<div class="d-flex justify-content-center align-items-center h-100 py-5"><div class="spinner-border text-primary" role="status"></div></div>');
+
+            $.get('/Invoice/Detail/' + id, function(html) {
+                $('#invoiceModalBody').html(html);
+                $('#invoiceModalFooterActions').html(
+                    '<button type="button" class="btn btn-danger btn-sm" onclick="downloadOriginalPdf(' + id + ')"><i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải PDF gốc</button> ' +
+                    '<a href="/Invoice/DownloadRawXml/' + id + '" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-xml me-1"></i> Tải XML gốc</a>'
+                );
+            }).fail(function() {
+                $('#invoiceModalBody').html('<div class="alert alert-danger m-3">Không thể tải thông tin hóa đơn.</div>');
+            });
+        }
+
+        function toggleInvoiceModalFullscreen() {
+            var dialog = $('#invoiceModal .modal-dialog');
+            var icon = $('#btnToggleInvoiceModalFullscreen i');
+            if (dialog.hasClass('modal-fullscreen')) {
+                dialog.removeClass('modal-fullscreen').addClass('modal-xl');
+                icon.removeClass('bi-fullscreen-exit').addClass('bi-arrows-fullscreen');
+            } else {
+                dialog.removeClass('modal-xl').addClass('modal-fullscreen');
+                icon.removeClass('bi-arrows-fullscreen').addClass('bi-fullscreen-exit');
+            }
+        }
+
+        function deleteSingleInvoice(id, symbol, number) {
+            if (!confirm('Bạn có chắc chắn muốn xóa hóa đơn ' + symbol + '-' + number + ' khỏi hệ thống?')) {
+                return;
+            }
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/Delete',
+                type: 'POST',
+                data: { id: id, __RequestVerificationToken: token },
+                success: function(res) {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi hệ thống khi gửi yêu cầu xóa.');
+                }
+            });
+        }
+
+        function deleteSelectedInvoices() {
+            var selectedIds = [];
+            $('.row-select:checked').each(function() {
+                selectedIds.push(parseInt($(this).val()));
+            });
+            if (selectedIds.length === 0) return;
+            if (!confirm('Bạn có chắc chắn muốn xóa ' + selectedIds.length + ' hóa đơn đã chọn?')) return;
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Invoice/DeleteBatch',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify(selectedIds),
+                success: function(res) {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        alert(res.message || 'Lỗi khi xóa hóa đơn hàng loạt.');
+                    }
+                }
+            });
+        }
+
+        function openImportModal(tabButtonId) {
+            var modalEl = document.getElementById('modalImportInvoice');
+            if (!modalEl) return;
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+
+            if (tabButtonId) {
+                var btn = document.getElementById(tabButtonId);
+                if (btn) {
+                    var tab = bootstrap.Tab.getOrCreateInstance(btn);
+                    tab.show();
+                }
+            }
+
+            if (tabButtonId === 'tab-remote-btn') {
+                setTimeout(function () {
+                    if (typeof window.loadImportModalCaptcha === 'function') {
+                        window.loadImportModalCaptcha();
+                    }
+                    if (typeof window.loadImportModalSavedConnection === 'function') {
+                        window.loadImportModalSavedConnection();
+                    }
+                }, 80);
+            }
+        }
+
+        // ==========================================
+        // 1. TỰ ĐỘNG ĐỒNG BỘ & TẢI NHANH (KHÔNG CẦN NHẬP LẠI MẬT KHẨU / CAPTCHA)
+        // ==========================================
+        var autoSyncTimer = null;
+        var currentAutoSyncJobId = null;
+
+        function triggerAutoSync() {
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            showAutoSyncProgress('Đang tự động kết nối Cổng Tổng cục Thuế...', 5, 'Khởi chạy tiến trình đồng bộ toàn diện...');
+
+            $.ajax({
+                url: '/Import/AutoSync',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify({
+                    InvoiceType: '@filter.InvoiceType',
+                    FromDate: '@(filter.FromDate?.ToString("yyyy-MM-dd"))',
+                    ToDate: '@(filter.ToDate?.ToString("yyyy-MM-dd"))'
+                }),
+                success: function(res) {
+                    if (res.needSetup || res.requireCaptcha) {
+                        hideAutoSyncProgress();
+                        openImportModalForCaptcha(res.message);
+                        return;
+                    }
+
+                    if (res.success && res.jobId) {
+                        currentAutoSyncJobId = res.jobId;
+                        startAutoSyncPolling(res.jobId);
+                    } else {
+                        hideAutoSyncProgress();
+                        alert(res.message || 'Không thể khởi chạy đồng bộ.');
+                    }
+                },
+                error: function(xhr) {
+                    hideAutoSyncProgress();
+                    alert('Lỗi kết nối khi gửi yêu cầu đồng bộ tự động.');
+                }
+            });
+        }
+
+        function triggerAutoQuickDownload() {
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            showAutoSyncProgress('Đang tải nhanh dữ liệu 30 ngày gần nhất...', 5, 'Kết nối Cổng Thuế và tự động lưu toàn bộ file gốc...');
+
+            $.ajax({
+                url: '/Import/AutoQuickDownload',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify({
+                    InvoiceType: '@filter.InvoiceType'
+                }),
+                success: function(res) {
+                    if (res.needSetup || res.requireCaptcha) {
+                        hideAutoSyncProgress();
+                        openImportModalForCaptcha(res.message);
+                        return;
+                    }
+
+                    if (res.success && res.jobId) {
+                        currentAutoSyncJobId = res.jobId;
+                        startAutoSyncPolling(res.jobId);
+                    } else {
+                        hideAutoSyncProgress();
+                        alert(res.message || 'Không thể khởi chạy tải nhanh.');
+                    }
+                },
+                error: function(xhr) {
+                    hideAutoSyncProgress();
+                    alert('Lỗi kết nối khi gửi yêu cầu tải nhanh.');
+                }
+            });
+        }
+
+        function triggerAutoMultiCompanySync() {
+            if (!confirm('Hệ thống sẽ tự động đồng bộ hóa đơn ngầm cho tất cả các doanh nghiệp có thông tin kết nối Cổng Thuế của bạn. Tiếp tục?')) {
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Import/AutoMultiCompanySync',
+                type: 'POST',
+                headers: { "RequestVerificationToken": token },
+                success: function(res) {
+                    alert(res.message || 'Đã gửi lệnh đồng bộ nhiều công ty.');
+                },
+                error: function() {
+                    alert('Lỗi khi gửi yêu cầu đồng bộ nhiều công ty.');
+                }
+            });
+        }
+
+        function showAutoSyncProgress(title, percent, stage) {
+            $('#autoSyncProgressBox').removeClass('d-none').addClass('d-flex');
+            $('#autoSyncStatusTitle').text(title);
+            $('#autoSyncPercent').text(percent + '%');
+            $('#autoSyncProgressBar').css('width', percent + '%');
+            $('#autoSyncStageDetail').text(stage);
+        }
+
+        function hideAutoSyncProgress() {
+            if (autoSyncTimer) {
+                clearInterval(autoSyncTimer);
+                autoSyncTimer = null;
+            }
+            currentAutoSyncJobId = null;
+            $('#autoSyncProgressBox').removeClass('d-flex').addClass('d-none');
+        }
+
+        function cancelAutoSync() {
+            if (!currentAutoSyncJobId) {
+                hideAutoSyncProgress();
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Import/CancelRemoteJob',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify({ JobId: currentAutoSyncJobId }),
+                complete: function() {
+                    hideAutoSyncProgress();
+                    alert('Đã dừng tiến trình đồng bộ.');
+                }
+            });
+        }
+
+        function startAutoSyncPolling(jobId) {
+            if (autoSyncTimer) clearInterval(autoSyncTimer);
+
+            autoSyncTimer = setInterval(function() {
+                $.ajax({
+                    url: '/Import/RemoteStatus?jobId=' + encodeURIComponent(jobId),
+                    type: 'GET',
+                    success: function(res) {
+                        if (!res || !res.success) return;
+
+                        var pct = Math.max(5, Math.min(100, res.percent || 0));
+                        var stage = res.stage || 'Đang xử lý dữ liệu...';
+                        var summary = 'Đã tìm thấy: ' + (res.totalFound || 0) + ' HĐ | Đã lưu: ' + (res.successCount || 0) + ' HĐ | File gốc: ' + (res.filesDownloadedCount || 0);
+
+                        showAutoSyncProgress('Đang tự động đồng bộ hóa đơn Cổng Thuế...', pct, stage + ' (' + summary + ')');
+
+                        if (res.isFinished) {
+                            clearInterval(autoSyncTimer);
+                            autoSyncTimer = null;
+                            if (res.status === 'Completed') {
+                                $('#autoSyncStatusTitle').text('Đồng bộ hoàn tất thành công!');
+                                $('#autoSyncPercent').text('100%');
+                                $('#autoSyncProgressBar').css('width', '100%').removeClass('bg-primary').addClass('bg-success');
+                                $('#autoSyncStageDetail').text('Hoàn thành: ' + summary + '. Đang tải lại dữ liệu...');
+                                setTimeout(function() { location.reload(); }, 1200);
+                            } else if (res.status === 'Failed') {
+                                hideAutoSyncProgress();
+                                if (res.errorMessage && (res.errorMessage.indexOf('Captcha') >= 0 || res.errorMessage.indexOf('hết hạn') >= 0 || res.errorMessage.indexOf('Tham số không') >= 0)) {
+                                    openImportModalForCaptcha(res.errorMessage);
+                                } else {
+                                    alert('Lỗi đồng bộ: ' + (res.errorMessage || 'Không thể hoàn thành lấy dữ liệu từ Cổng thuế.'));
+                                }
+                            } else {
+                                hideAutoSyncProgress();
+                            }
+                        }
+                    },
+                    error: function() {
+                        // ignore network blips
+                    }
+                });
+            }, 1500);
+        }
+
+        function openImportModalForCaptcha(msg) {
+            hideAutoSyncProgress();
+            var modalEl = document.getElementById('modalImportInvoice');
+            if (modalEl) {
+                var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                var tabRemoteBtn = document.getElementById('tab-remote-btn');
+                if (tabRemoteBtn) {
+                    var tab = bootstrap.Tab.getOrCreateInstance(tabRemoteBtn);
+                    tab.show();
+                }
+                modal.show();
+                if (typeof loadCaptcha === 'function') loadCaptcha(true);
+                if (typeof loadSavedConnection === 'function') loadSavedConnection(true);
+                setTimeout(function() {
+                    var capInput = document.getElementById('remoteCaptchaCode');
+                    if (capInput) capInput.focus();
+                }, 600);
+            }
+        }
+
+        function openQuickGovConfigModal(taxCode, companyName) {
+            openImportModalForCaptcha();
+        }
+
+        function togglePasswordVisibility(inputId) {
+            var input = document.getElementById(inputId);
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function saveGovQuickConfig() {
+            var pwd = $('#govConfigPassword').val();
+            if (!pwd || !pwd.trim()) {
+                alert('Vui lòng nhập mật khẩu Cổng Thuế.');
+                return;
+            }
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            $.ajax({
+                url: '/Import/SaveGovConfig',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify({
+                    Username: $('#govConfigTaxCode').val(),
+                    Password: pwd.trim()
+                }),
+                success: function(res) {
+                    if (res.success) {
+                        var modalEl = document.getElementById('quickGovConfigModal');
+                        if (modalEl) {
+                            var modal = bootstrap.Modal.getInstance(modalEl);
+                            if (modal) modal.hide();
+                        }
+                        alert('Đã lưu mật khẩu Cổng Thuế! Bắt đầu đồng bộ tự động ngay bây giờ.');
+                        triggerAutoSync();
+                    } else {
+                        alert(res.message || 'Lỗi khi lưu mật khẩu.');
+                    }
+                },
+                error: function() {
+                    alert('Lỗi kết nối khi lưu cấu hình.');
+                }
+            });
+        }
+
+        // ==========================================
+        // 2. LẬP TỜ KHAI THUẾ GTGT & BẢNG KÊ (MẪU 01/GTGT)
+        // ==========================================
+        function openTaxDeclarationModal() {
+            var modalEl = document.getElementById('taxDeclarationModal');
+            if (!modalEl) return;
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+
+            // Tự động tính toán khi mở modal
+            setTimeout(function() {
+                calculateDeclaration();
+            }, 100);
+        }
+
+        function togglePeriodControls() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val();
+            if (periodType === 'Quarter') {
+                $('#boxQuarterSelect').removeClass('d-none');
+                $('#boxMonthSelect').addClass('d-none');
+            } else {
+                $('#boxQuarterSelect').addClass('d-none');
+                $('#boxMonthSelect').removeClass('d-none');
+            }
+            calculateDeclaration();
+        }
+
+        function toggleZeroActivity(checked) {
+            if (checked) {
+                $('#val_ct23').text('0 đ');
+                $('#val_ct24').text('0 đ');
+                $('#val_ct25').text('0 đ');
+                $('#val_ct26').text('0 đ');
+                $('#val_ct27').text('0 đ');
+                $('#val_ct28').text('0 đ');
+                $('#val_ct29').text('0 đ');
+                $('#val_ct30').text('0 đ');
+                $('#val_ct31').text('0 đ');
+                $('#val_ct32').text('0 đ');
+                $('#val_ct33').text('0 đ');
+                $('#val_ct34').text('0 đ');
+                $('#val_ct35').text('0 đ');
+                $('#val_ct36').text('0 đ');
+                $('#val_ct40').text('0 đ');
+                $('#val_ct43').text($('#val_ct22').text());
+            } else {
+                calculateDeclaration();
+            }
+        }
+
+        function formatVnd(val) {
+            var num = Number(val) || 0;
+            return num.toLocaleString('vi-VN') + ' đ';
+        }
+
+        function formatCurrencyInput(elem) {
+            var raw = (elem.value || '').replace(/[^\d.-]/g, '');
+            var num = parseFloat(raw) || 0;
+            elem.value = num.toLocaleString('vi-VN');
+        }
+
+        function parseCurrencyInput(val) {
+            if (!val) return 0;
+            var clean = String(val).replace(/[^\d.-]/g, '');
+            return parseFloat(clean) || 0;
+        }
+
+        function calculateDeclaration() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val() || 'Quarter';
+            var quarter = parseInt($('#taxQuarter').val(), 10) || 4;
+            var month = parseInt($('#taxMonth').val(), 10) || 10;
+            var year = parseInt($('#taxYear').val(), 10) || 2026;
+            var carriedForward = parseCurrencyInput($('#taxCarriedForward').val());
+            var ct21 = $('#ct21_Checkbox').is(':checked');
+
+            var token = $('input[name="__RequestVerificationToken"]').val();
+
+            $('#taxIndicatorsBody td[id^="val_ct"]').html('<div class="spinner-border spinner-border-sm text-secondary" role="status"></div>');
+
+            $.ajax({
+                url: '/TaxDeclaration/Calculate',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: { "RequestVerificationToken": token },
+                data: JSON.stringify({
+                    PeriodType: periodType,
+                    Quarter: quarter,
+                    Month: month,
+                    Year: year,
+                    TaxCarriedForwardPreviousPeriod: carriedForward,
+                    Indicator21_NoActivity: ct21
+                }),
+                success: function(res) {
+                    if (!res || !res.success) {
+                        alert(res?.message || 'Không thể tính toán tờ khai.');
+                        return;
+                    }
+
+                    var d = res.data;
+                    $('#taxDecCompanyName').text('Doanh nghiệp: ' + d.companyName + ' (MST: ' + d.taxCode + ')');
+                    $('#taxDecPeriodLabel').text(d.periodDescription);
+
+                    // Cập nhật các chỉ tiêu
+                    $('#val_ct22').text(formatVnd(d.indicator22_TaxCarriedForwardPreviousPeriod));
+                    $('#val_ct23').text(formatVnd(d.indicator23_PurchaseTotalAmountBeforeTax));
+                    $('#val_ct24').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
+                    $('#val_ct24_sub').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
+                    $('#val_ct25').text(formatVnd(d.indicator25_DeductiblePurchaseTaxAmount));
+
+                    $('#val_ct26').text(formatVnd(d.indicator26_RevenueNonTaxable));
+                    $('#val_ct27').text(formatVnd(d.indicator27_RevenueTax0Percent));
+                    $('#val_ct28').text(formatVnd(d.indicator28_RevenueTax5Percent));
+                    $('#val_ct29').text(formatVnd(d.indicator29_TaxAmount5Percent));
+                    $('#val_ct30').text(formatVnd(d.indicator30_RevenueTax8Percent));
+                    $('#val_ct31').text(formatVnd(d.indicator31_TaxAmount8Percent));
+                    $('#val_ct32').text(formatVnd(d.indicator32_RevenueTax10Percent));
+                    $('#val_ct33').text(formatVnd(d.indicator33_TaxAmount10Percent));
+                    $('#val_ct34').text(formatVnd(d.indicator34_TotalRevenue));
+                    $('#val_ct35').text(formatVnd(d.indicator35_TotalOutputTax));
+
+                    $('#val_ct36').text(formatVnd(d.indicator36_VatIncurredPeriod));
+                    $('#val_ct40').text(formatVnd(d.indicator40_VatPayable));
+                    $('#val_ct43').text(formatVnd(d.indicator43_VatDeductibleNextPeriod));
+
+                    // Badges
+                    $('#badgeCountMuaVao').text(d.purchaseInvoices ? d.purchaseInvoices.length : 0);
+                    $('#badgeCountBanRa').text(d.soldInvoices ? d.soldInvoices.length : 0);
+                    $('#badgeCount8Percent').text(d.tax8PercentReductionItems ? d.tax8PercentReductionItems.length : 0);
+
+                    // Bảng kê mua vào
+                    var mvHtml = '';
+                    if (d.purchaseInvoices && d.purchaseInvoices.length > 0) {
+                        for (var i = 0; i < d.purchaseInvoices.length; i++) {
+                            var item = d.purchaseInvoices[i];
+                            mvHtml += '<tr>' +
+                                '<td class="text-center">' + (i + 1) + '</td>' +
+                                '<td>' + (item.invoiceSymbol || '') + '</td>' +
+                                '<td>' + (item.invoiceNumber || '') + '</td>' +
+                                '<td class="text-center">' + (item.issueDate || '') + '</td>' +
+                                '<td>' + (item.sellerName || '') + '</td>' +
+                                '<td>' + (item.sellerTaxCode || '') + '</td>' +
+                                '<td class="text-end fw-semibold">' + formatVnd(item.amountBeforeTax) + '</td>' +
+                                '<td class="text-center">' + (item.taxRate || '') + '</td>' +
+                                '<td class="text-end fw-semibold text-danger">' + formatVnd(item.taxAmount) + '</td>' +
+                                '<td>' + (item.note || '') + '</td>' +
+                            '</tr>';
+                        }
+                    } else {
+                        mvHtml = '<tr><td colspan="10" class="text-center text-muted py-3">Không có hóa đơn mua vào trong kỳ này.</td></tr>';
+                    }
+                    $('#tblTaxMuaVaoBody').html(mvHtml);
+
+                    // Bảng kê bán ra
+                    var brHtml = '';
+                    if (d.soldInvoices && d.soldInvoices.length > 0) {
+                        for (var j = 0; j < d.soldInvoices.length; j++) {
+                            var s = d.soldInvoices[j];
+                            brHtml += '<tr>' +
+                                '<td class="text-center">' + (j + 1) + '</td>' +
+                                '<td>' + (s.invoiceSymbol || '') + '</td>' +
+                                '<td>' + (s.invoiceNumber || '') + '</td>' +
+                                '<td class="text-center">' + (s.issueDate || '') + '</td>' +
+                                '<td>' + (s.buyerName || '') + '</td>' +
+                                '<td>' + (s.buyerTaxCode || '') + '</td>' +
+                                '<td class="text-end fw-semibold">' + formatVnd(s.amountBeforeTax) + '</td>' +
+                                '<td class="text-center">' + (s.taxRate || '') + '</td>' +
+                                '<td class="text-end fw-semibold text-primary">' + formatVnd(s.taxAmount) + '</td>' +
+                                '<td>' + (s.note || '') + '</td>' +
+                            '</tr>';
+                        }
+                    } else {
+                        brHtml = '<tr><td colspan="10" class="text-center text-muted py-3">Không có hóa đơn bán ra trong kỳ này.</td></tr>';
+                    }
+                    $('#tblTaxBanRaBody').html(brHtml);
+
+                    // Phụ lục giảm thuế 8%
+                    var gHtml = '';
+                    if (d.tax8PercentReductionItems && d.tax8PercentReductionItems.length > 0) {
+                        for (var k = 0; k < d.tax8PercentReductionItems.length; k++) {
+                            var g = d.tax8PercentReductionItems[k];
+                            gHtml += '<tr>' +
+                                '<td class="text-center">' + (k + 1) + '</td>' +
+                                '<td>' + (g.itemName || '') + '</td>' +
+                                '<td>' + (g.invoiceSymbol || '') + ' - ' + (g.invoiceNumber || '') + '</td>' +
+                                '<td class="text-center">' + (g.issueDate || '') + '</td>' +
+                                '<td class="text-end fw-semibold">' + formatVnd(g.amountBeforeTax) + '</td>' +
+                                '<td class="text-center fw-bold text-danger">8%</td>' +
+                                '<td class="text-end fw-semibold">' + formatVnd(g.taxAmount8Percent) + '</td>' +
+                                '<td class="text-end fw-bold text-success">' + formatVnd(g.taxReducedAmount2Percent) + '</td>' +
+                            '</tr>';
+                        }
+                    } else {
+                        gHtml = '<tr><td colspan="8" class="text-center text-muted py-3">Không có mặt hàng chịu thuế 8% trong kỳ này.</td></tr>';
+                    }
+                    $('#tblTax8PercentBody').html(gHtml);
+                },
+                error: function() {
+                    alert('Lỗi kết nối khi tính toán tờ khai thuế.');
+                }
+            });
+        }
+
+        function exportTaxDeclarationXml() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val() || 'Quarter';
+            var quarter = parseInt($('#taxQuarter').val(), 10) || 4;
+            var month = parseInt($('#taxMonth').val(), 10) || 10;
+            var year = parseInt($('#taxYear').val(), 10) || 2026;
+            var carriedForward = parseCurrencyInput($('#taxCarriedForward').val());
+            var ct21 = $('#ct21_Checkbox').is(':checked');
+
+            var url = '/TaxDeclaration/ExportXml?PeriodType=' + encodeURIComponent(periodType) +
+                '&Quarter=' + quarter +
+                '&Month=' + month +
+                '&Year=' + year +
+                '&TaxCarriedForwardPreviousPeriod=' + carriedForward +
+                '&Indicator21_NoActivity=' + ct21;
+
+            window.location.href = url;
+        }
+
+        function exportTaxDeclarationExcel() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val() || 'Quarter';
+            var quarter = parseInt($('#taxQuarter').val(), 10) || 4;
+            var month = parseInt($('#taxMonth').val(), 10) || 10;
+            var year = parseInt($('#taxYear').val(), 10) || 2026;
+            var carriedForward = parseCurrencyInput($('#taxCarriedForward').val());
+            var ct21 = $('#ct21_Checkbox').is(':checked');
+
+            var url = '/TaxDeclaration/ExportExcel?PeriodType=' + encodeURIComponent(periodType) +
+                '&Quarter=' + quarter +
+                '&Month=' + month +
+                '&Year=' + year +
+                '&TaxCarriedForwardPreviousPeriod=' + carriedForward +
+                '&Indicator21_NoActivity=' + ct21;
+
+            window.location.href = url;
+        }
+    </script>
+}
+
+<partial name="_ImportModalPartial" />
+<partial name="_TaxDeclarationModalPartial" />

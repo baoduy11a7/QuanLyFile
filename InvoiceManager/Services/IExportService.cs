@@ -10,6 +10,8 @@ namespace InvoiceManager.Services
         Task<byte[]> ExportDetailedExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, string title);
         Task<byte[]> ExportSummaryExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, string title);
         Task<byte[]> ExportSmartProExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, string title);
+        Task<byte[]> ExportFullAccountingWorkbookAsync(List<Invoice> allInvoices, TaxAccount? taxAccount, System.DateTime? fromDate, System.DateTime? toDate);
+        Task<byte[]> ExportFullDetailExcelAsync(List<Invoice> invoices, TaxAccount? taxAccount, bool isBanRa, System.DateTime? fromDate, System.DateTime? toDate);
         Task<byte[]> ExportInvoicesZipAsync(List<Invoice> invoices);
         Task<byte[]> ExportInvoicesPdfZipAsync(List<Invoice> invoices);
         Task<byte[]> GenerateInvoicePdfAsync(Invoice invoice);

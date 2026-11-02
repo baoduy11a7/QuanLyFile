@@ -15,6 +15,12 @@ namespace InvoiceManager.Jobs.JobTracker
         public int SuccessCount { get; set; } = 0;
         public int DuplicateCount { get; set; } = 0;
         public int FailedCount { get; set; } = 0;
+        public int NewCount { get; set; } = 0;
+        public int UpdatedCount { get; set; } = 0;
+        public int FilesDownloadedCount { get; set; } = 0;
+        public int FilesFailedCount { get; set; } = 0;
+        public int MissingFilesCount { get; set; } = 0;
+        public List<string> Errors { get; } = new();
         public string? ErrorMessage { get; set; }
         public List<string> Logs { get; } = new();
         public DateTime StartedAt { get; set; } = DateTime.UtcNow;
@@ -26,6 +32,8 @@ namespace InvoiceManager.Jobs.JobTracker
     {
         JobProgressInfo CreateJob(string jobId, out CancellationToken cancellationToken);
         void UpdateProgress(string jobId, int percent, string stage, int totalFound = -1, int success = -1, int duplicate = -1, int failed = -1);
+        void UpdateStats(string jobId, int newCount = -1, int updatedCount = -1, int filesDownloaded = -1, int filesFailed = -1, int missingFiles = -1);
+        void AddError(string jobId, string error);
         void AddLog(string jobId, string message);
         void CompleteJob(string jobId, string? summary = null);
         void FailJob(string jobId, string error);
@@ -69,6 +77,33 @@ namespace InvoiceManager.Jobs.JobTracker
                     if (success >= 0) info.SuccessCount = success;
                     if (duplicate >= 0) info.DuplicateCount = duplicate;
                     if (failed >= 0) info.FailedCount = failed;
+                }
+            }
+        }
+
+        public void UpdateStats(string jobId, int newCount = -1, int updatedCount = -1, int filesDownloaded = -1, int filesFailed = -1, int missingFiles = -1)
+        {
+            if (_jobs.TryGetValue(jobId, out var info))
+            {
+                lock (info)
+                {
+                    if (newCount >= 0) info.NewCount = newCount;
+                    if (updatedCount >= 0) info.UpdatedCount = updatedCount;
+                    if (filesDownloaded >= 0) info.FilesDownloadedCount = filesDownloaded;
+                    if (filesFailed >= 0) info.FilesFailedCount = filesFailed;
+                    if (missingFiles >= 0) info.MissingFilesCount = missingFiles;
+                }
+            }
+        }
+
+        public void AddError(string jobId, string error)
+        {
+            if (_jobs.TryGetValue(jobId, out var info))
+            {
+                lock (info.Errors)
+                {
+                    info.Errors.Add(error);
+                    if (info.Errors.Count > 100) info.Errors.RemoveAt(0);
                 }
             }
         }

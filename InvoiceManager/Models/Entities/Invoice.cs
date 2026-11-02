@@ -132,5 +132,8 @@ namespace InvoiceManager.Models.Entities
 
         // Chi tiết
         public ICollection<InvoiceDetail> Details { get; set; } = new List<InvoiceDetail>();
+
+        // Danh sách tệp gốc (XML, PDF, ZIP, tệp đính kèm)
+        public ICollection<InvoiceFile> Files { get; set; } = new List<InvoiceFile>();
     }
 }

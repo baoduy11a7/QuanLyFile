@@ -161,29 +161,10 @@ namespace InvoiceManager.Services
         public async Task<List<TaxAccount>> GetAccessibleTaxAccountsAsync()
         {
             var context = HttpContext;
-            if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
-            {
-                return new List<TaxAccount>();
-            }
+            var userId = context?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // Yêu cầu 2: Tài khoản Kế toán (Accountant) quản lý được tất cả công ty và hộ kinh doanh
-            if (context.User.IsInRole("Accountant"))
-            {
-                return await _db.TaxAccounts
-                    .AsNoTracking()
-                    .Where(t => t.IsActive)
-                    .OrderByDescending(t => t.CreatedAt)
-                    .ToListAsync();
-            }
-
-            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-            {
-                return new List<TaxAccount>();
-            }
-
-            // Yêu cầu 1: Tài khoản Admin chỉ được xem đúng 1 công ty hoặc hộ kinh doanh của mình
-            if (context.User.IsInRole("Admin"))
+            // 1. Nếu là Admin: chỉ xem công ty/hộ kinh doanh duy nhất của mình
+            if (context?.User?.IsInRole("Admin") == true && !string.IsNullOrEmpty(userId))
             {
                 var ownCompany = await _db.UserTaxAccounts
                     .AsNoTracking()
@@ -196,35 +177,30 @@ namespace InvoiceManager.Services
                 return ownCompany != null ? new List<TaxAccount> { ownCompany } : new List<TaxAccount>();
             }
 
-            var userAccounts = await _db.UserTaxAccounts
+            // 2. Kế toán (Accountant) hoặc mặc định: xem tất cả công ty đang hoạt động, lọc trùng theo TaxCode
+            var allActive = await _db.TaxAccounts
                 .AsNoTracking()
-                .Where(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.IsActive)
-                .Select(u => u.TaxAccount!)
-                .OrderByDescending(t => t.CreatedAt)
+                .Where(t => t.IsActive)
+                .Select(t => new
+                {
+                    Account = t,
+                    InvoiceCount = t.Invoices.Count
+                })
                 .ToListAsync();
 
-            return userAccounts;
+            return allActive
+                .GroupBy(x => (x.Account.TaxCode ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(x => x.InvoiceCount).ThenBy(x => x.Account.Id).First().Account)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToList();
         }
 
         public async Task<bool> HasAccessToTaxAccountAsync(int taxAccountId)
         {
             var context = HttpContext;
-            if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
-            {
-                return false;
-            }
+            var userId = context?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // Kế toán được quyền truy cập và quản lý tất cả công ty / hộ kinh doanh đang hoạt động
-            if (context.User.IsInRole("Accountant"))
-            {
-                return await _db.TaxAccounts.AnyAsync(t => t.Id == taxAccountId && t.IsActive);
-            }
-
-            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId)) return false;
-
-            // Admin chỉ được truy cập đúng công ty / hộ kinh doanh duy nhất của mình
-            if (context.User.IsInRole("Admin"))
+            if (context?.User?.IsInRole("Admin") == true && !string.IsNullOrEmpty(userId))
             {
                 var ownCompanyId = await _db.UserTaxAccounts
                     .AsNoTracking()
@@ -237,8 +213,7 @@ namespace InvoiceManager.Services
                 return ownCompanyId.HasValue && ownCompanyId.Value == taxAccountId;
             }
 
-            return await _db.UserTaxAccounts
-                .AnyAsync(u => u.UserId == userId && u.TaxAccountId == taxAccountId && u.TaxAccount!.IsActive);
+            return await _db.TaxAccounts.AnyAsync(t => t.Id == taxAccountId && t.IsActive);
         }
     }
 }

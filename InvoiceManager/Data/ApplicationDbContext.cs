@@ -19,6 +19,7 @@ namespace InvoiceManager.Data
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<FeatureRequest> FeatureRequests => Set<FeatureRequest>();
         public DbSet<RemoteConnection> RemoteConnections => Set<RemoteConnection>();
+        public DbSet<InvoiceFile> InvoiceFiles => Set<InvoiceFile>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -52,6 +53,24 @@ namespace InvoiceManager.Data
                 .WithOne(d => d.Invoice)
                 .HasForeignKey(d => d.InvoiceId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Invoice>()
+                .HasMany(i => i.Files)
+                .WithOne(f => f.Invoice)
+                .HasForeignKey(f => f.InvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<InvoiceFile>()
+                .HasIndex(f => new { f.InvoiceId, f.TaxAccountId });
+
+            builder.Entity<InvoiceFile>()
+                .HasIndex(f => new { f.TaxAccountId, f.Sha256Hash });
+
+            builder.Entity<InvoiceFile>()
+                .HasOne(f => f.TaxAccount)
+                .WithMany(t => t.InvoiceFiles)
+                .HasForeignKey(f => f.TaxAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             builder.Entity<UserTaxAccount>()
                 .HasOne(u => u.User)

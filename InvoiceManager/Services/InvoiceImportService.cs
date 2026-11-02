@@ -11,6 +11,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -81,25 +82,79 @@ namespace InvoiceManager.Services
                     }
                 }
 
-                // 2. Kiểm tra tính idempotent (tránh trùng lặp theo khóa nghiệp vụ)
+                // Chuẩn hóa ký hiệu (6 ký tự) và số hóa đơn (7 chữ số)
+                var normSymbol = parseResult.InvoiceSymbol?.Trim() ?? "";
+                if (normSymbol.Length >= 7 && char.IsDigit(normSymbol[0]))
+                {
+                    normSymbol = normSymbol.Substring(1);
+                }
+                parseResult.InvoiceSymbol = normSymbol;
+
+                var normNumber = parseResult.InvoiceNumber?.Trim() ?? "";
+                if (long.TryParse(normNumber, out var nNumVal))
+                {
+                    normNumber = nNumVal.ToString("D7");
+                }
+                else
+                {
+                    normNumber = normNumber.PadLeft(7, '0');
+                }
+                parseResult.InvoiceNumber = normNumber;
+                var rawNum = normNumber.TrimStart('0');
+                if (string.IsNullOrEmpty(rawNum)) rawNum = "0";
+
+                // 2. Kiểm tra tính idempotent (tránh trùng lặp theo khóa nghiệp vụ bao gồm cả dạng 6 và 7 ký tự)
                 var existing = await _db.Invoices
+                    .Include(i => i.Details)
                     .FirstOrDefaultAsync(i => i.TaxAccountId == taxAccountId 
                                            && i.InvoiceType == invoiceType 
                                            && i.SellerTaxCode == parseResult.SellerTaxCode 
-                                           && i.InvoiceSymbol == parseResult.InvoiceSymbol 
-                                           && i.InvoiceNumber == parseResult.InvoiceNumber);
+                                           && (i.InvoiceSymbol == normSymbol || i.InvoiceSymbol == "1" + normSymbol) 
+                                           && (i.InvoiceNumber == normNumber || i.InvoiceNumber == rawNum));
 
                 if (existing != null)
                 {
+                    existing.InvoiceSymbol = normSymbol;
+                    existing.InvoiceNumber = normNumber;
+                    if (parseResult.IssueDate > DateTime.MinValue) existing.IssueDate = parseResult.IssueDate;
+
+                    // Nếu hóa đơn đã có nhưng chỉ có chi tiết tạm, cập nhật danh sách mặt hàng thật từ XML
+                    bool needsDetailUpdate = !existing.Details.Any() ||
+                        existing.Details.All(d => d.ItemName.StartsWith("Hàng hóa, dịch vụ theo HĐ") || d.Unit == "Lô/Gói" || d.Unit == "Lần") ||
+                        existing.SourceProvider == "GDT-Direct";
+
+                    if (needsDetailUpdate && parseResult.Details.Any())
+                    {
+                        existing.Details.Clear();
+                        foreach (var d in parseResult.Details)
+                        {
+                            existing.Details.Add(new InvoiceDetail
+                            {
+                                LineNumber = d.LineNumber,
+                                ItemCode = d.ItemCode,
+                                ItemName = d.ItemName,
+                                Unit = d.Unit,
+                                Quantity = d.Quantity,
+                                UnitPrice = d.UnitPrice,
+                                AmountBeforeTax = d.AmountBeforeTax,
+                                TaxRate = d.TaxRate,
+                                TaxAmount = d.TaxAmount,
+                                TotalAmount = d.TotalAmount
+                            });
+                        }
+                        existing.SourceProvider = "TCT-Standard";
+                    }
+
                     // Nếu hóa đơn đã có nhưng chưa có file PDF gốc, cập nhật ngay file PDF mới
                     if (string.IsNullOrEmpty(existing.RawPdfPath) && !string.IsNullOrEmpty(rawPdfPath))
                     {
                         existing.RawPdfPath = rawPdfPath;
-                        await _db.SaveChangesAsync();
                     }
 
+                    await _db.SaveChangesAsync();
+
                     batchResult.SkippedDuplicateCount++;
-                    batchResult.Messages.Add($"Hóa đơn {parseResult.InvoiceSymbol}-{parseResult.InvoiceNumber} của MST {parseResult.SellerTaxCode} đã tồn tại trên hệ thống. Đã đồng bộ bổ sung file PDF gốc (nếu có).");
+                    batchResult.Messages.Add($"Hóa đơn {parseResult.InvoiceSymbol}-{parseResult.InvoiceNumber} của MST {parseResult.SellerTaxCode} đã tồn tại trên hệ thống. Đã đồng bộ bổ sung mặt hàng thật & file PDF gốc.");
                     return batchResult;
                 }
 
@@ -148,6 +203,41 @@ namespace InvoiceManager.Services
                         TaxRate = d.TaxRate,
                         TaxAmount = d.TaxAmount,
                         TotalAmount = d.TotalAmount
+                    });
+                }
+
+                // Lưu thông tin tệp gốc vào danh sách Files
+                var xmlBytes = ms.ToArray();
+                invoice.Files.Add(new InvoiceFile
+                {
+                    TaxAccountId = taxAccountId,
+                    OriginalFileName = Path.GetFileName(fileName),
+                    StoredFileName = Path.GetFileName(savedFilePath),
+                    FileExtension = ".xml",
+                    ContentType = "application/xml",
+                    FileSizeBytes = xmlBytes.Length,
+                    FilePath = savedFilePath,
+                    Source = "ImportXml",
+                    DownloadedAt = DateTime.Now,
+                    Sha256Hash = ComputeSha256(xmlBytes),
+                    Status = "Valid"
+                });
+
+                if (rawPdfBytes != null && rawPdfBytes.Length > 0 && !string.IsNullOrEmpty(rawPdfPath))
+                {
+                    invoice.Files.Add(new InvoiceFile
+                    {
+                        TaxAccountId = taxAccountId,
+                        OriginalFileName = Path.ChangeExtension(Path.GetFileName(fileName), ".pdf"),
+                        StoredFileName = Path.GetFileName(rawPdfPath),
+                        FileExtension = ".pdf",
+                        ContentType = "application/pdf",
+                        FileSizeBytes = rawPdfBytes.Length,
+                        FilePath = rawPdfPath,
+                        Source = "ImportPdf",
+                        DownloadedAt = DateTime.Now,
+                        Sha256Hash = ComputeSha256(rawPdfBytes),
+                        Status = "Valid"
                     });
                 }
 
@@ -969,6 +1059,14 @@ namespace InvoiceManager.Services
             await stream.CopyToAsync(fileStream);
 
             return fullPath;
+        }
+
+        private static string ComputeSha256(byte[] data)
+        {
+            if (data == null || data.Length == 0) return string.Empty;
+            using var sha = SHA256.Create();
+            var hash = sha.ComputeHash(data);
+            return Convert.ToHexString(hash).ToLowerInvariant();
         }
     }
 }

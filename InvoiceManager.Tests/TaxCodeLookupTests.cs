@@ -46,8 +46,8 @@ namespace InvoiceManager.Tests
             {
                 Id = 1,
                 TaxCode = "0105880697",
-                CompanyName = "Test Company",
-                Address = "Test Address",
+                CompanyName = "CÔNG TY CỔ PHẦN CHIẾU SÁNG VÀ THƯƠNG MẠI HÀ NỘI",
+                Address = "Thôn Trường An, Xã An Khánh, TP Hà Nội",
                 CreatedAt = System.DateTime.Now
             });
             await db.SaveChangesAsync();
@@ -90,7 +90,7 @@ namespace InvoiceManager.Tests
             Assert.Equal("0105880697", result.TaxCode);
             Assert.Equal("CÔNG TY CỔ PHẦN CHIẾU SÁNG VÀ THƯƠNG MẠI HÀ NỘI", result.CompanyName);
             Assert.Equal("Thôn Trường An, Xã An Khánh, TP Hà Nội", result.Address);
-            Assert.Equal("NNT đang hoạt động", result.Status);
+            Assert.Equal("Đang hoạt động", result.Status);
             Assert.True(result.ExistsInSystem);
             Assert.Equal(1, result.ExistingAccountId);
         }

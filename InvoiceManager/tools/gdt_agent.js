@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const child_process = require('child_process');
 const puppeteer = require('puppeteer-core');
 
 function getBrowserPath() {
@@ -100,6 +101,103 @@ async function getCaptcha() {
   }
 }
 
+async function autoLogin(username, password) {
+  const { browser, page } = await createBrowserAndPage();
+  const solverScript = path.join(__dirname, 'auto_captcha_solver.py');
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const capData = await page.evaluate(async () => {
+        try {
+          const res = await fetch('/api/captcha');
+          if (!res.ok) return { success: false, status: res.status };
+          return await res.json();
+        } catch (e) {
+          return { success: false, message: e.message };
+        }
+      });
+
+      if (!capData || !capData.key || !capData.content) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      let code = '';
+      try {
+        const p = child_process.spawnSync('python', [solverScript, 'solve-svg'], {
+          input: capData.content,
+          encoding: 'utf-8',
+          timeout: 5000
+        });
+        if (p.stdout) {
+          const resOcr = JSON.parse(p.stdout.trim());
+          if (resOcr.success && resOcr.code) {
+            code = resOcr.code.trim();
+          }
+        }
+      } catch (_) {}
+
+      if (!code || code.length < 4) {
+        continue;
+      }
+
+      const authResult = await page.evaluate(async (u, p, c, k) => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch('/api/security-taxpayer/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/',
+              'Action': ''
+            },
+            body: JSON.stringify({
+              username: u,
+              password: p,
+              cvalue: c,
+              ckey: k
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (res.ok) {
+            const token = json?.token || json?.access_token || json?.jwt;
+            if (token) return { success: true, token };
+            return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token' };
+          }
+          const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
+          return { success: false, status: res.status, message: msg };
+        } catch (err) {
+          clearTimeout(tid);
+          return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
+        }
+      }, username, password, code, capData.key);
+
+      if (authResult.success && authResult.token) {
+        console.log(JSON.stringify({ success: true, token: authResult.token, attempt }));
+        return;
+      }
+
+      const msg = authResult.message || '';
+      if (!msg.toLowerCase().includes('captcha')) {
+        console.log(JSON.stringify({ success: false, message: msg, attempt }));
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    console.log(JSON.stringify({ success: false, message: 'Đã thử tự động giải Captcha 5 lần nhưng chưa thành công.' }));
+  } finally {
+    await browser.close();
+  }
+}
+
 async function login(username, password, captcha, key) {
   const { browser, page } = await createBrowserAndPage();
 
@@ -148,6 +246,201 @@ async function login(username, password, captcha, key) {
     }, username, password, captcha, key);
 
     console.log(JSON.stringify(result));
+  } finally {
+    await browser.close();
+  }
+}
+
+
+async function autoLogin(username, password) {
+  const { browser, page } = await createBrowserAndPage();
+  const solverScript = path.join(__dirname, 'auto_captcha_solver.py');
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const capData = await page.evaluate(async () => {
+        try {
+          const res = await fetch('/api/captcha');
+          if (!res.ok) return { success: false, status: res.status };
+          return await res.json();
+        } catch (e) {
+          return { success: false, message: e.message };
+        }
+      });
+
+      if (!capData || !capData.key || !capData.content) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      let code = '';
+      try {
+        const p = child_process.spawnSync('python', [solverScript, 'solve-svg'], {
+          input: capData.content,
+          encoding: 'utf-8',
+          timeout: 5000
+        });
+        if (p.stdout) {
+          const resOcr = JSON.parse(p.stdout.trim());
+          if (resOcr.success && resOcr.code) {
+            code = resOcr.code.trim();
+          }
+        }
+      } catch (_) {}
+
+      if (!code || code.length < 4) {
+        continue;
+      }
+
+      const authResult = await page.evaluate(async (u, p, c, k) => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch('/api/security-taxpayer/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/',
+              'Action': ''
+            },
+            body: JSON.stringify({
+              username: u,
+              password: p,
+              cvalue: c,
+              ckey: k
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (res.ok) {
+            const token = json?.token || json?.access_token || json?.jwt;
+            if (token) return { success: true, token };
+            return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token' };
+          }
+          const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
+          return { success: false, status: res.status, message: msg };
+        } catch (err) {
+          clearTimeout(tid);
+          return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
+        }
+      }, username, password, code, capData.key);
+
+      if (authResult.success && authResult.token) {
+        console.log(JSON.stringify({ success: true, token: authResult.token, attempt }));
+        return;
+      }
+
+      const msg = authResult.message || '';
+      if (!msg.toLowerCase().includes('captcha')) {
+        console.log(JSON.stringify({ success: false, message: msg, attempt }));
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    console.log(JSON.stringify({ success: false, message: 'Đã thử tự động giải Captcha 5 lần nhưng chưa thành công.' }));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function autoLogin(username, password) {
+  const { browser, page } = await createBrowserAndPage();
+  const solverScript = path.join(__dirname, 'auto_captcha_solver.py');
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const capData = await page.evaluate(async () => {
+        try {
+          const res = await fetch('/api/captcha');
+          if (!res.ok) return { success: false, status: res.status };
+          return await res.json();
+        } catch (e) {
+          return { success: false, message: e.message };
+        }
+      });
+
+      if (!capData || !capData.key || !capData.content) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      let code = '';
+      try {
+        const p = child_process.spawnSync('python', [solverScript, 'solve-svg'], {
+          input: capData.content,
+          encoding: 'utf-8',
+          timeout: 5000
+        });
+        if (p.stdout) {
+          const resOcr = JSON.parse(p.stdout.trim());
+          if (resOcr.success && resOcr.code) {
+            code = resOcr.code.trim();
+          }
+        }
+      } catch (_) {}
+
+      if (!code || code.length < 4) {
+        continue;
+      }
+
+      const authResult = await page.evaluate(async (u, p, c, k) => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch('/api/security-taxpayer/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/',
+              'Action': ''
+            },
+            body: JSON.stringify({
+              username: u,
+              password: p,
+              cvalue: c,
+              ckey: k
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (res.ok) {
+            const token = json?.token || json?.access_token || json?.jwt;
+            if (token) return { success: true, token };
+            return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token' };
+          }
+          const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
+          return { success: false, status: res.status, message: msg };
+        } catch (err) {
+          clearTimeout(tid);
+          return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
+        }
+      }, username, password, code, capData.key);
+
+      if (authResult.success && authResult.token) {
+        console.log(JSON.stringify({ success: true, token: authResult.token, attempt }));
+        return;
+      }
+
+      const msg = authResult.message || '';
+      if (!msg.toLowerCase().includes('captcha')) {
+        console.log(JSON.stringify({ success: false, message: msg, attempt }));
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    console.log(JSON.stringify({ success: false, message: 'Đã thử tự động giải Captcha 5 lần nhưng chưa thành công.' }));
   } finally {
     await browser.close();
   }
@@ -216,6 +509,103 @@ async function fetchInvoices(token, endpoint, searchParam) {
   }
 }
 
+async function autoLogin(username, password) {
+  const { browser, page } = await createBrowserAndPage();
+  const solverScript = path.join(__dirname, 'auto_captcha_solver.py');
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const capData = await page.evaluate(async () => {
+        try {
+          const res = await fetch('/api/captcha');
+          if (!res.ok) return { success: false, status: res.status };
+          return await res.json();
+        } catch (e) {
+          return { success: false, message: e.message };
+        }
+      });
+
+      if (!capData || !capData.key || !capData.content) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      let code = '';
+      try {
+        const p = child_process.spawnSync('python', [solverScript, 'solve-svg'], {
+          input: capData.content,
+          encoding: 'utf-8',
+          timeout: 5000
+        });
+        if (p.stdout) {
+          const resOcr = JSON.parse(p.stdout.trim());
+          if (resOcr.success && resOcr.code) {
+            code = resOcr.code.trim();
+          }
+        }
+      } catch (_) {}
+
+      if (!code || code.length < 4) {
+        continue;
+      }
+
+      const authResult = await page.evaluate(async (u, p, c, k) => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch('/api/security-taxpayer/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/',
+              'Action': ''
+            },
+            body: JSON.stringify({
+              username: u,
+              password: p,
+              cvalue: c,
+              ckey: k
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (res.ok) {
+            const token = json?.token || json?.access_token || json?.jwt;
+            if (token) return { success: true, token };
+            return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token' };
+          }
+          const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
+          return { success: false, status: res.status, message: msg };
+        } catch (err) {
+          clearTimeout(tid);
+          return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
+        }
+      }, username, password, code, capData.key);
+
+      if (authResult.success && authResult.token) {
+        console.log(JSON.stringify({ success: true, token: authResult.token, attempt }));
+        return;
+      }
+
+      const msg = authResult.message || '';
+      if (!msg.toLowerCase().includes('captcha')) {
+        console.log(JSON.stringify({ success: false, message: msg, attempt }));
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    console.log(JSON.stringify({ success: false, message: 'Đã thử tự động giải Captcha 5 lần nhưng chưa thành công.' }));
+  } finally {
+    await browser.close();
+  }
+}
+
 (async () => {
   const args = process.argv.slice(2);
   const cmd = args[0];
@@ -223,6 +613,12 @@ async function fetchInvoices(token, endpoint, searchParam) {
   try {
     if (cmd === 'get-captcha') {
       await getCaptcha();
+    } else if (cmd === 'auto-login') {
+      const uIdx = args.indexOf('--username');
+      const pIdx = args.indexOf('--password');
+      const u = uIdx !== -1 ? args[uIdx + 1] : '';
+      const p = pIdx !== -1 ? args[pIdx + 1] : '';
+      await autoLogin(u, p);
     } else if (cmd === 'login') {
       const uIdx = args.indexOf('--username');
       const pIdx = args.indexOf('--password');

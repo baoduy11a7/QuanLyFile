@@ -1,0 +1,350 @@
+<!-- Modal Lập Tờ Khai Thuế GTGT & Bảng Kê (Mẫu 01/GTGT - TT 80/2021/TT-BTC) -->
+<div class="modal fade" id="taxDeclarationModal" tabindex="-1" aria-labelledby="taxDeclarationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 95vw;">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; height: 90vh;">
+            <!-- Header Modal -->
+            <div class="modal-header text-white py-2 px-3" style="background: linear-gradient(135deg, #1e3a8a, #2563eb);">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-spreadsheet-fill fs-5"></i>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0" id="taxDeclarationModalLabel">Lập Tờ Khai Thuế GTGT & Bảng Kê (Mẫu 01/GTGT - Thông tư 80/2021/TT-BTC)</h6>
+                        <small class="text-white-50" id="taxDecCompanyName">Doanh nghiệp: Đang tải...</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Body Modal -->
+            <div class="modal-body p-3 d-flex flex-column gap-3" style="background: #f8fafc; overflow-y: auto;">
+                <!-- 1. Thanh cấu hình kỳ kê khai -->
+                <div class="card border-0 shadow-sm p-3" style="border-radius: 8px;">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold text-muted mb-1">Kỳ tính thuế</label>
+                            <div class="d-flex gap-2">
+                                <div class="form-check form-check-inline mb-0">
+                                    <input class="form-check-input" type="radio" name="taxPeriodType" id="periodTypeQuarter" value="Quarter" checked onchange="togglePeriodControls()">
+                                    <label class="form-check-label small fw-semibold" for="periodTypeQuarter">Theo Quý</label>
+                                </div>
+                                <div class="form-check form-check-inline mb-0">
+                                    <input class="form-check-input" type="radio" name="taxPeriodType" id="periodTypeMonth" value="Month" onchange="togglePeriodControls()">
+                                    <label class="form-check-label small fw-semibold" for="periodTypeMonth">Theo Tháng</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-2" id="boxQuarterSelect">
+                            <label class="form-label small fw-semibold text-muted mb-1">Quý tính thuế</label>
+                            <select class="form-select form-select-sm" id="taxQuarter">
+                                <option value="1">Quý 1</option>
+                                <option value="2">Quý 2</option>
+                                <option value="3">Quý 3</option>
+                                <option value="4" selected>Quý 4</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2 d-none" id="boxMonthSelect">
+                            <label class="form-label small fw-semibold text-muted mb-1">Tháng tính thuế</label>
+                            <select class="form-select form-select-sm" id="taxMonth">
+                                @for (int m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m" selected="@(m == DateTime.Today.Month)">Tháng @m</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold text-muted mb-1">Năm kê khai</label>
+                            <input type="number" class="form-control form-control-sm" id="taxYear" value="@DateTime.Today.Year" min="2020" max="2035">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-muted mb-1">[22] Thuế GTGT kỳ trước chuyển sang (VNĐ)</label>
+                            <input type="text" class="form-control form-control-sm text-end fw-semibold text-primary" id="taxCarriedForward" value="0" placeholder="0" onblur="formatCurrencyInput(this)" onchange="calculateDeclaration()">
+                        </div>
+
+                        <div class="col-md-3 d-flex align-items-end gap-2">
+                            <button type="button" class="btn btn-primary btn-sm fw-semibold w-100" onclick="calculateDeclaration()">
+                                <i class="bi bi-calculator me-1"></i> Tính toán tờ khai
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Tabs nội dung: Tờ khai / Bảng kê mua vào / Bảng kê bán ra / Phụ lục 8% -->
+                <div class="card border-0 shadow-sm flex-grow-1 d-flex flex-column" style="border-radius: 8px; overflow: hidden;">
+                    <div class="card-header bg-white border-bottom p-0">
+                        <ul class="nav nav-tabs border-0 px-3 pt-2" id="taxModalTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active fw-semibold small text-primary" id="tab-tokhai-link" data-bs-toggle="tab" data-bs-target="#tab-tokhai" type="button" role="tab">
+                                    <i class="bi bi-file-text me-1"></i> Tờ khai 01/GTGT (TT 80/2021)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-semibold small text-secondary" id="tab-muavao-link" data-bs-toggle="tab" data-bs-target="#tab-muavao" type="button" role="tab">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i> Bảng kê mua vào <span class="badge bg-secondary ms-1" id="badgeCountMuaVao">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-semibold small text-secondary" id="tab-banra-link" data-bs-toggle="tab" data-bs-target="#tab-banra" type="button" role="tab">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i> Bảng kê bán ra <span class="badge bg-secondary ms-1" id="badgeCountBanRa">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-semibold small text-secondary" id="tab-giamthue-link" data-bs-toggle="tab" data-bs-target="#tab-giamthue" type="button" role="tab">
+                                    <i class="bi bi-percent me-1"></i> Phụ lục giảm thuế 8% (NQ 110) <span class="badge bg-success ms-1" id="badgeCount8Percent">0</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="card-body p-0 flex-grow-1 overflow-auto tab-content" id="taxModalTabContent">
+                        <!-- TAB 1: TỜ KHAI 01/GTGT -->
+                        <div class="tab-pane fade show active p-3" id="tab-tokhai" role="tabpanel">
+                            <div class="table-responsive bg-white border rounded">
+                                <table class="table table-bordered table-hover table-sm align-middle mb-0" style="font-size: 0.82rem;">
+                                    <thead class="table-light text-center">
+                                        <tr>
+                                            <th style="width: 50px;">Mã CT</th>
+                                            <th>Chỉ tiêu kê khai thuế GTGT</th>
+                                            <th style="width: 180px;">Giá trị HHDV (VNĐ)</th>
+                                            <th style="width: 180px;">Thuế GTGT (VNĐ)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="taxIndicatorsBody">
+                                        <tr class="table-light fw-bold"><td colspan="4">A. KHÔNG PHÁT SINH HOẠT ĐỘNG MUA, BÁN TRONG KỲ</td></tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[21]</td>
+                                            <td>Không phát sinh hoạt động mua, bán trong kỳ</td>
+                                            <td colspan="2" class="text-center">
+                                                <input type="checkbox" class="form-check-input" id="ct21_Checkbox" onchange="toggleZeroActivity(this.checked)">
+                                            </td>
+                                        </tr>
+                                        <tr class="table-light fw-bold"><td colspan="4">B. THUẾ GTGT ĐƯỢC KHẤU TRỪ KỲ TRƯỚC CHUYỂN SANG</td></tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[22]</td>
+                                            <td>Thuế GTGT còn được khấu trừ kỳ trước chuyển sang</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end fw-bold text-primary" id="val_ct22">0 đ</td>
+                                        </tr>
+                                        <tr class="table-light fw-bold"><td colspan="4">C. HOẠT ĐỘNG MUA VÀO TRONG KỲ</td></tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[23]</td>
+                                            <td>Giá trị và thuế GTGT của hàng hóa, dịch vụ mua vào</td>
+                                            <td class="text-end fw-semibold" id="val_ct23">0 đ</td>
+                                            <td class="text-end fw-semibold" id="val_ct24">0 đ</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[24]</td>
+                                            <td>Thuế GTGT của hàng hóa, dịch vụ mua vào</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end fw-semibold text-muted" id="val_ct24_sub">0 đ</td>
+                                        </tr>
+                                        <tr class="fw-bold bg-light">
+                                            <td class="text-center text-primary">[25]</td>
+                                            <td>Tổng số thuế GTGT của HHDV mua vào được khấu trừ kỳ này</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end text-success" id="val_ct25">0 đ</td>
+                                        </tr>
+                                        <tr class="table-light fw-bold"><td colspan="4">D. HOẠT ĐỘNG BÁN RA TRONG KỲ</td></tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[26]</td>
+                                            <td>Hàng hóa, dịch vụ bán ra không chịu thuế GTGT</td>
+                                            <td class="text-end" id="val_ct26">0 đ</td>
+                                            <td class="text-muted text-center">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[27]</td>
+                                            <td>Hàng hóa, dịch vụ bán ra chịu thuế suất 0%</td>
+                                            <td class="text-end" id="val_ct27">0 đ</td>
+                                            <td class="text-muted text-center">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[28]</td>
+                                            <td>Hàng hóa, dịch vụ bán ra chịu thuế suất 5% ([29]: Thuế GTGT)</td>
+                                            <td class="text-end" id="val_ct28">0 đ</td>
+                                            <td class="text-end" id="val_ct29">0 đ</td>
+                                        </tr>
+                                        <tr class="table-warning bg-opacity-25">
+                                            <td class="text-center fw-bold text-danger">[30]</td>
+                                            <td>Hàng hóa, dịch vụ bán ra chịu thuế suất 8% (NQ 110/2023/QH15) ([31]: Thuế GTGT)</td>
+                                            <td class="text-end fw-semibold text-danger" id="val_ct30">0 đ</td>
+                                            <td class="text-end fw-semibold text-danger" id="val_ct31">0 đ</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[32]</td>
+                                            <td>Hàng hóa, dịch vụ bán ra chịu thuế suất 10% ([33]: Thuế GTGT)</td>
+                                            <td class="text-end" id="val_ct32">0 đ</td>
+                                            <td class="text-end" id="val_ct33">0 đ</td>
+                                        </tr>
+                                        <tr class="fw-bold bg-light">
+                                            <td class="text-center text-primary">[34]</td>
+                                            <td>Tổng doanh thu và thuế GTGT của HHDV bán ra ([35]: Thuế GTGT)</td>
+                                            <td class="text-end text-primary" id="val_ct34">0 đ</td>
+                                            <td class="text-end text-primary" id="val_ct35">0 đ</td>
+                                        </tr>
+                                        <tr class="table-light fw-bold"><td colspan="4">E. XÁC ĐỊNH NGHĨA VỤ THUẾ GTGT PHẢI NỘP</td></tr>
+                                        <tr>
+                                            <td class="text-center fw-bold text-primary">[36]</td>
+                                            <td>Thuế GTGT phát sinh trong kỳ ([35] - [25])</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end fw-bold" id="val_ct36">0 đ</td>
+                                        </tr>
+                                        <tr class="table-danger fw-bold">
+                                            <td class="text-center text-danger fs-6">[40]</td>
+                                            <td class="text-danger">Thuế GTGT còn phải nộp trong kỳ (Nếu [36] - [22] > 0)</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end text-danger fs-6" id="val_ct40">0 đ</td>
+                                        </tr>
+                                        <tr class="table-success fw-bold">
+                                            <td class="text-center text-success fs-6">[43]</td>
+                                            <td class="text-success">Thuế GTGT còn được khấu trừ chuyển kỳ sau (Nếu [36] - [22] &lt; 0)</td>
+                                            <td class="text-muted text-center">-</td>
+                                            <td class="text-end text-success fs-6" id="val_ct43">0 đ</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: BẢNG KÊ MUA VÀO -->
+                        <div class="tab-pane fade p-3" id="tab-muavao" role="tabpanel">
+                            <div class="table-responsive bg-white border rounded" style="max-height: 55vh;">
+                                <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
+                                    <thead class="table-light text-center sticky-top">
+                                        <tr>
+                                            <th style="width: 40px;">STT</th>
+                                            <th>Ký hiệu</th>
+                                            <th>Số HĐ</th>
+                                            <th>Ngày lập</th>
+                                            <th>Tên người bán</th>
+                                            <th>MST người bán</th>
+                                            <th>Doanh số chưa thuế</th>
+                                            <th>Thuế suất</th>
+                                            <th>Tiền thuế GTGT</th>
+                                            <th>Ghi chú</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tblTaxMuaVaoBody">
+                                        <tr><td colspan="10" class="text-center text-muted py-3">Chưa có dữ liệu. Vui lòng bấm Tính toán tờ khai.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: BẢNG KÊ BÁN RA -->
+                        <div class="tab-pane fade p-3" id="tab-banra" role="tabpanel">
+                            <div class="table-responsive bg-white border rounded" style="max-height: 55vh;">
+                                <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
+                                    <thead class="table-light text-center sticky-top">
+                                        <tr>
+                                            <th style="width: 40px;">STT</th>
+                                            <th>Ký hiệu</th>
+                                            <th>Số HĐ</th>
+                                            <th>Ngày lập</th>
+                                            <th>Tên người mua</th>
+                                            <th>MST người mua</th>
+                                            <th>Doanh số chưa thuế</th>
+                                            <th>Thuế suất</th>
+                                            <th>Tiền thuế GTGT</th>
+                                            <th>Ghi chú</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tblTaxBanRaBody">
+                                        <tr><td colspan="10" class="text-center text-muted py-3">Chưa có dữ liệu. Vui lòng bấm Tính toán tờ khai.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- TAB 4: PHỤ LỤC 8% -->
+                        <div class="tab-pane fade p-3" id="tab-giamthue" role="tabpanel">
+                            <div class="alert alert-info py-2 px-3 small mb-2 d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle-fill fs-5"></i>
+                                <div>Phụ lục giảm thuế giá trị gia tăng theo Nghị quyết 110/2023/QH15 (Giảm 2% thuế suất từ 10% xuống 8%).</div>
+                            </div>
+                            <div class="table-responsive bg-white border rounded" style="max-height: 50vh;">
+                                <table class="table table-bordered table-striped table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
+                                    <thead class="table-light text-center sticky-top">
+                                        <tr>
+                                            <th style="width: 40px;">STT</th>
+                                            <th>Tên hàng hóa, dịch vụ</th>
+                                            <th>Ký hiệu - Số HĐ</th>
+                                            <th>Ngày lập</th>
+                                            <th>Giá trị trước thuế</th>
+                                            <th>Thuế suất 8%</th>
+                                            <th>Tiền thuế sau giảm</th>
+                                            <th>Tiền thuế giảm (2%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tblTax8PercentBody">
+                                        <tr><td colspan="8" class="text-center text-muted py-3">Không có mặt hàng chịu thuế 8% trong kỳ này.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Modal Actions -->
+            <div class="modal-footer bg-light py-2 px-3 justify-content-between">
+                <div class="small text-muted" id="taxDeclarationSummaryFooter">
+                    Kỳ kê khai: <span class="fw-semibold text-dark" id="taxDecPeriodLabel">Quý 4/2026</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger fw-semibold px-3" onclick="exportTaxDeclarationXml()">
+                        <i class="bi bi-file-earmark-code me-1"></i> Xuất XML nộp thuế điện tử
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success fw-semibold px-3" onclick="exportTaxDeclarationExcel()">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel Tờ khai & Bảng kê
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cấu hình thông tin Cổng Thuế một lần -->
+<div class="modal fade" id="quickGovConfigModal" tabindex="-1" aria-labelledby="quickGovConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <h6 class="modal-title fw-bold" id="quickGovConfigModalLabel">
+                    <i class="bi bi-key-fill me-1"></i> Cấu hình kết nối Cổng Thuế 1 lần
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <p class="small text-muted mb-3">
+                    Lưu thông tin đăng nhập Cổng Tổng cục Thuế (hoadondientu.gdt.gov.vn) một lần duy nhất. Hệ thống sẽ tự động đồng bộ hóa đơn và tải tệp gốc vĩnh viễn mà không cần nhập lại.
+                </p>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">Mã số thuế / Tài khoản</label>
+                    <input type="text" class="form-control form-control-sm" id="govConfigTaxCode" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Mật khẩu Cổng Thuế (*)</label>
+                    <div class="input-group input-group-sm">
+                        <input type="password" class="form-control form-control-sm" id="govConfigPassword" placeholder="Nhập mật khẩu hoadondientu.gdt.gov.vn">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('govConfigPassword')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="alert alert-info py-2 px-3 small mb-0">
+                    <i class="bi bi-shield-lock-fill text-primary me-1"></i>
+                    Mật khẩu được mã hóa an toàn bằng ASP.NET Core DataProtection theo tiêu chuẩn bảo mật ngân hàng.
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="saveGovQuickConfig()">
+                    <i class="bi bi-check-lg me-1"></i> Lưu & Tự động kết nối
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+

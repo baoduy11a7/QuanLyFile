@@ -48,9 +48,29 @@ namespace InvoiceManager.Models.ViewModels
         public int SuccessCount { get; set; } = 0;
         public int DuplicateCount { get; set; } = 0;
         public int FailedCount { get; set; } = 0;
+        public int NewCount { get; set; } = 0;
+        public int UpdatedCount { get; set; } = 0;
+        public int FilesDownloadedCount { get; set; } = 0;
+        public int FilesFailedCount { get; set; } = 0;
+        public int MissingFilesCount { get; set; } = 0;
+        public List<string> Errors { get; set; } = new();
         public string? ErrorMessage { get; set; }
         public List<string> Logs { get; set; } = new();
         public bool IsFinished { get; set; }
+    }
+
+    public class SyncWithOriginalFilesResultViewModel
+    {
+        public bool Success { get; set; }
+        public string? JobId { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int TotalFound { get; set; }
+        public int NewCount { get; set; }
+        public int UpdatedCount { get; set; }
+        public int FilesDownloadedCount { get; set; }
+        public int FilesFailedCount { get; set; }
+        public int MissingFilesCount { get; set; }
+        public List<string> Errors { get; set; } = new();
     }
 
     public class SavedConnectionInfoViewModel

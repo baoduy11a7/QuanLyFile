@@ -133,12 +133,12 @@ namespace InvoiceManager.Services.Providers.Mock
             }
         }
 
-        public Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
+        public async Task<DownloadInvoiceResult> DownloadAllInvoiceFilesAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
         {
             decimal taxRateVal = inv.AmountBeforeTax > 0 ? Math.Round(inv.TaxAmount / inv.AmountBeforeTax * 100, 0) : 10;
             string taxRateStr = $"{taxRateVal}%";
 
-            // Tạo XML theo chuẩn Tổng cục Thuế Quyết định 1450/QĐ-TCT với chi tiết dòng hàng
+            // Tạo XML theo chuẩn Tổng cục Thuế Quyết định 1450/QĐ-TCT
             var xml = $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <HDon>
   <TTChung>
@@ -186,13 +186,78 @@ namespace InvoiceManager.Services.Providers.Mock
   </NDHDon>
 </HDon>";
 
-            return Task.FromResult(Encoding.UTF8.GetBytes(xml));
+            var xmlBytes = Encoding.UTF8.GetBytes(xml);
+            var pdfMock = Encoding.UTF8.GetBytes("%PDF-1.4\n%Mock PDF original content for invoice " + inv.InvoiceSymbol + "-" + inv.InvoiceNumber + "\n%%EOF\n");
+
+            var result = new DownloadInvoiceResult();
+            result.Files.Add(new DownloadedInvoiceFile
+            {
+                FileName = $"Mock_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.xml",
+                FileExtension = ".xml",
+                ContentType = "application/xml",
+                Content = xmlBytes,
+                Source = "Mock-Xml",
+                Sha256Hash = ComputeSha256(xmlBytes)
+            });
+
+            result.Files.Add(new DownloadedInvoiceFile
+            {
+                FileName = $"Mock_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.pdf",
+                FileExtension = ".pdf",
+                ContentType = "application/pdf",
+                Content = pdfMock,
+                Source = "Mock-Pdf",
+                Sha256Hash = ComputeSha256(pdfMock)
+            });
+
+            return result;
+        }
+
+        public async Task<byte[]> DownloadXmlAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
+        {
+            var res = await DownloadAllInvoiceFilesAsync(inv, token, ct);
+            return res.XmlFile?.Content ?? Array.Empty<byte>();
         }
 
         public async Task<(byte[]? XmlBytes, byte[]? PdfBytes)> DownloadInvoiceFilesAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
         {
-            var xml = await DownloadXmlAsync(inv, token, ct);
-            return (xml, null);
+            var res = await DownloadAllInvoiceFilesAsync(inv, token, ct);
+            return (res.XmlFile?.Content, res.PdfFile?.Content);
+        }
+
+        public async Task<OriginalPdfFetchResult> FetchOriginalPdfAsync(RemoteInvoice inv, string token, CancellationToken ct = default)
+        {
+            var res = await DownloadAllInvoiceFilesAsync(inv, token, ct);
+            var pdfFile = res.PdfFile;
+            if (pdfFile != null && pdfFile.Content != null && pdfFile.Content.Length > 4)
+            {
+                return new OriginalPdfFetchResult
+                {
+                    Success = true,
+                    PdfBytes = pdfFile.Content,
+                    FileName = pdfFile.FileName,
+                    Sha256Hash = pdfFile.Sha256Hash,
+                    Source = pdfFile.Source,
+                    HttpStatusCode = 200,
+                    VerifiedEndpoint = "/api/query/invoices/export-pdf",
+                    CompanionPackage = res
+                };
+            }
+
+            return new OriginalPdfFetchResult
+            {
+                Success = false,
+                HttpStatusCode = 404,
+                ErrorCode = "PDF_NOT_FOUND",
+                ErrorMessage = "Không tìm thấy PDF gốc trong MockProvider."
+            };
+        }
+
+        private static string ComputeSha256(byte[] data)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            var hash = sha.ComputeHash(data);
+            return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
         private static string NumberToWords(decimal number)

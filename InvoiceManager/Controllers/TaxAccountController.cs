@@ -648,5 +648,205 @@ namespace InvoiceManager.Controllers
                 message = $"Đã cào thông tin và ghi nhớ doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
             });
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetCompanyInfo(int? id = null)
+        {
+            var targetId = id ?? await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!targetId.HasValue)
+            {
+                return Json(new { success = false });
+            }
+
+            var account = await _db.TaxAccounts.AsNoTracking().FirstOrDefaultAsync(t => t.Id == targetId.Value);
+            if (account == null)
+            {
+                return Json(new { success = false });
+            }
+
+            var conn = await _db.RemoteConnections
+                .AsNoTracking()
+                .Where(r => r.ProviderName == "Gdt" && (r.TaxAccountId == account.Id || r.Username == account.TaxCode))
+                .OrderByDescending(r => r.TaxAccountId == account.Id)
+                .ThenByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                .FirstOrDefaultAsync();
+
+            return Json(new
+            {
+                success = true,
+                id = account.Id,
+                taxCode = account.TaxCode,
+                companyName = account.CompanyName,
+                address = account.Address,
+                representative = account.Representative,
+                accountantName = account.Email,
+                phoneNumber = account.PhoneNumber,
+                gdtUsername = conn?.Username ?? account.TaxCode,
+                hasSavedPassword = conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword)
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveCompanyModal(
+            int? id,
+            string taxCode,
+            string? aliasName,
+            string? companyName,
+            string? address,
+            string? representative,
+            string? accountantName,
+            string? gdtUsername,
+            string? gdtPassword)
+        {
+            if (string.IsNullOrWhiteSpace(taxCode))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập Mã số thuế." });
+            }
+
+            var cleanTaxCode = taxCode.Trim();
+            var finalCompanyName = !string.IsNullOrWhiteSpace(companyName)
+                ? companyName.Trim()
+                : (!string.IsNullOrWhiteSpace(aliasName) ? aliasName.Trim() : $"Doanh nghiệp MST {cleanTaxCode}");
+
+            // Nếu người dùng chỉ nhập MST mà chưa có tên công ty, tự động tra cứu nhanh
+            if (string.IsNullOrWhiteSpace(companyName))
+            {
+                try
+                {
+                    var lookup = await _taxCodeLookupService.LookupAsync(cleanTaxCode);
+                    if (lookup.Success && !string.IsNullOrWhiteSpace(lookup.CompanyName))
+                    {
+                        finalCompanyName = lookup.CompanyName.Trim();
+                        if (string.IsNullOrWhiteSpace(address) && !string.IsNullOrWhiteSpace(lookup.Address))
+                        {
+                            address = lookup.Address.Trim();
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // Ưu tiên tìm tài khoản thuế có sẵn cùng MST (chọn bản ghi có nhiều hóa đơn nhất nếu trùng)
+            TaxAccount? account = null;
+            if (id.HasValue && id.Value > 0)
+            {
+                account = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.Id == id.Value);
+            }
+            if (account == null)
+            {
+                account = await _db.TaxAccounts
+                    .Where(t => t.TaxCode == cleanTaxCode)
+                    .OrderByDescending(t => t.Invoices.Count)
+                    .FirstOrDefaultAsync();
+            }
+
+            bool isNew = (account == null);
+            if (account == null)
+            {
+                account = new TaxAccount
+                {
+                    TaxCode = cleanTaxCode,
+                    CompanyName = finalCompanyName,
+                    Address = address?.Trim() ?? "",
+                    Representative = representative?.Trim(),
+                    Email = accountantName?.Trim(),
+                    IsActive = true,
+                    CreatedAt = DateTime.Now
+                };
+                _db.TaxAccounts.Add(account);
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                account.TaxCode = cleanTaxCode;
+                account.CompanyName = finalCompanyName;
+                if (!string.IsNullOrWhiteSpace(address)) account.Address = address.Trim();
+                if (!string.IsNullOrWhiteSpace(representative)) account.Representative = representative.Trim();
+                if (!string.IsNullOrWhiteSpace(accountantName)) account.Email = accountantName.Trim();
+                account.IsActive = true;
+                await _db.SaveChangesAsync();
+            }
+
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var userMapping = await _db.UserTaxAccounts
+                    .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccountId == account.Id);
+                if (userMapping == null)
+                {
+                    _db.UserTaxAccounts.Add(new UserTaxAccount
+                    {
+                        UserId = currentUserId,
+                        TaxAccountId = account.Id,
+                        IsDefault = true,
+                        CanManage = true,
+                        AssignedAt = DateTime.Now
+                    });
+                    await _db.SaveChangesAsync();
+                }
+            }
+
+            // Lưu thông tin kết nối Cổng Thuế (Ghi nhớ 1 lần để những lần sau chỉ cần chọn công ty)
+            var effectiveGdtUser = !string.IsNullOrWhiteSpace(gdtUsername) ? gdtUsername.Trim() : cleanTaxCode;
+            var conn = await _db.RemoteConnections
+                .FirstOrDefaultAsync(r => r.TaxAccountId == account.Id && r.ProviderName == "Gdt");
+
+            if (conn == null)
+            {
+                conn = new RemoteConnection
+                {
+                    TaxAccountId = account.Id,
+                    ProviderName = "Gdt",
+                    Username = effectiveGdtUser,
+                    RememberPassword = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.RemoteConnections.Add(conn);
+            }
+            else
+            {
+                conn.Username = effectiveGdtUser;
+                conn.RememberPassword = true;
+                conn.UpdatedAt = DateTime.UtcNow;
+            }
+
+            if (!string.IsNullOrWhiteSpace(gdtPassword))
+            {
+                conn.EncryptedPassword = _credentialProtector != null ? _credentialProtector.Protect(gdtPassword.Trim()) : gdtPassword.Trim();
+            }
+            else if (string.IsNullOrEmpty(conn.EncryptedPassword))
+            {
+                // Nếu có bản ghi cùng MST đã lưu mật khẩu trước đó thì kế thừa luôn
+                var existingSiblingConn = await _db.RemoteConnections
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(r => r.ProviderName == "Gdt" && r.Username == effectiveGdtUser && r.EncryptedPassword != null && r.EncryptedPassword != "");
+                if (existingSiblingConn != null)
+                {
+                    conn.EncryptedPassword = existingSiblingConn.EncryptedPassword;
+                }
+            }
+
+            await _db.SaveChangesAsync();
+
+            // Tự động chuyển sang công ty vừa lưu
+            await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
+            await _auditLog.LogActionAsync(
+                isNew ? "Tạo mới Công ty & Lưu kết nối Thuế" : "Cập nhật Công ty & Lưu kết nối Thuế",
+                $"MST: {account.TaxCode}",
+                account.CompanyName,
+                account.Id);
+
+            return Json(new
+            {
+                success = true,
+                id = account.Id,
+                taxCode = account.TaxCode,
+                companyName = account.CompanyName,
+                message = $"Đã lưu thông tin công ty {account.CompanyName} (MST: {account.TaxCode}) và ghi nhớ kết nối thành công!"
+            });
+        }
     }
 }

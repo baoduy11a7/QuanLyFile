@@ -124,7 +124,15 @@
                                     </div>
 
                                     <!-- Mã Captcha -->
-                                    <div class="col-md-12">
+                                    <!-- Thông báo phiên kết nối Cổng Thuế đang hoạt động (Bỏ qua Captcha) -->
+                                    <div class="col-12 d-none" id="activeTokenNotice">
+                                        <div class="alert alert-success py-2 px-3 small d-flex align-items-center mb-0 border border-success-subtle">
+                                            <i class="bi bi-shield-check fs-5 me-2 text-success"></i>
+                                            <div><strong>Phiên kết nối Cổng Thuế đang hoạt động:</strong> Đã ghi nhớ kết nối an toàn, bạn không cần nhập mã xác thực (Captcha). Bấm <b>Bắt đầu lấy hóa đơn</b> để đồng bộ ngay.</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-12" id="modalCaptchaSection">
                                         <label class="form-label fw-semibold">Mã xác thực (Captcha):</label>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <div id="captchaImgContainer" class="border rounded bg-light p-1 d-flex align-items-center justify-content-center shadow-sm" style="min-width: 140px; height: 50px; cursor: pointer;" title="Bấm vào để đổi mã Captcha khác">
@@ -196,28 +204,34 @@
 
                             <!-- Thống kê mini đếm số lượng -->
                             <div class="row g-2 text-center mb-3">
-                                <div class="col-3">
+                                <div class="col">
                                     <div class="border rounded p-2 bg-light">
-                                        <small class="text-muted d-block">Tìm thấy</small>
-                                        <span class="fs-5 fw-bold text-dark" id="statFoundCount">0</span>
+                                        <small class="text-muted d-block" style="font-size: 0.725rem;">Tìm thấy</small>
+                                        <span class="fs-6 fw-bold text-dark" id="statFoundCount">0</span>
                                     </div>
                                 </div>
-                                <div class="col-3">
+                                <div class="col">
                                     <div class="border rounded p-2 bg-success bg-opacity-10 border-success">
-                                        <small class="text-success d-block fw-semibold">HĐ Mới</small>
-                                        <span class="fs-5 fw-bold text-success" id="statNewCount">0</span>
+                                        <small class="text-success d-block fw-semibold" style="font-size: 0.725rem;">HĐ Mới</small>
+                                        <span class="fs-6 fw-bold text-success" id="statNewCount">0</span>
                                     </div>
                                 </div>
-                                <div class="col-3">
-                                    <div class="border rounded p-2 bg-warning bg-opacity-10 border-warning">
-                                        <small class="text-warning text-dark d-block fw-semibold">Trùng lặp</small>
-                                        <span class="fs-5 fw-bold text-warning text-dark" id="statDupCount">0</span>
+                                <div class="col">
+                                    <div class="border rounded p-2 bg-primary bg-opacity-10 border-primary">
+                                        <small class="text-primary d-block fw-semibold" style="font-size: 0.725rem;">Cập nhật</small>
+                                        <span class="fs-6 fw-bold text-primary" id="statUpdatedCount">0</span>
                                     </div>
                                 </div>
-                                <div class="col-3">
+                                <div class="col">
+                                    <div class="border rounded p-2 bg-info bg-opacity-10 border-info">
+                                        <small class="text-info text-dark d-block fw-semibold" style="font-size: 0.725rem;">Tệp gốc</small>
+                                        <span class="fs-6 fw-bold text-dark" id="statFilesCount">0</span>
+                                    </div>
+                                </div>
+                                <div class="col">
                                     <div class="border rounded p-2 bg-danger bg-opacity-10 border-danger">
-                                        <small class="text-danger d-block fw-semibold">Lỗi</small>
-                                        <span class="fs-5 fw-bold text-danger" id="statFailCount">0</span>
+                                        <small class="text-danger d-block fw-semibold" style="font-size: 0.725rem;">Lỗi</small>
+                                        <span class="fs-6 fw-bold text-danger" id="statFailCount">0</span>
                                     </div>
                                 </div>
                             </div>
@@ -337,6 +351,8 @@
                     if (codeInput) {
                         if (provider === 'Mock') {
                             codeInput.value = 'ABCD';
+                        } else if (data.autoCode) {
+                            codeInput.value = data.autoCode;
                         } else {
                             codeInput.value = '';
                             codeInput.focus();
@@ -376,12 +392,25 @@
                 const rememberEl = document.getElementById('remoteRememberPassword');
                 const noticeEl = document.getElementById('savedPasswordNotice');
                 const passwordEl = document.getElementById('remotePassword');
+                const activeTokenNotice = document.getElementById('activeTokenNotice');
+                const captchaSection = document.getElementById('modalCaptchaSection');
+                const captchaCodeInput = document.getElementById('remoteCaptchaCode');
+
+                if (data.hasActiveToken) {
+                    activeTokenNotice?.classList.remove('d-none');
+                    captchaSection?.classList.add('d-none');
+                    captchaCodeInput?.removeAttribute('required');
+                    passwordEl?.removeAttribute('required');
+                } else {
+                    activeTokenNotice?.classList.add('d-none');
+                    captchaSection?.classList.remove('d-none');
+                }
 
                 if (data.success && data.exists) {
                     if (data.username) document.getElementById('remoteUsername').value = data.username;
                     const remember = data.rememberPassword === true;
                     if (rememberEl) rememberEl.checked = remember;
-                    if (data.hasSavedPassword && remember) {
+                    if ((data.hasSavedPassword || data.hasActiveToken) && remember) {
                         noticeEl?.classList.remove('d-none');
                         passwordEl?.removeAttribute('required');
                     } else {
@@ -553,8 +582,13 @@
 
             document.getElementById('progressStageText').textContent = info.stage || '';
             document.getElementById('statFoundCount').textContent = info.totalFound || 0;
-            document.getElementById('statNewCount').textContent = info.successCount || 0;
-            document.getElementById('statDupCount').textContent = info.duplicateCount || 0;
+            document.getElementById('statNewCount').textContent = info.newCount !== undefined ? info.newCount : (info.successCount || 0);
+            if (document.getElementById('statUpdatedCount')) {
+                document.getElementById('statUpdatedCount').textContent = info.updatedCount !== undefined ? info.updatedCount : 0;
+            }
+            if (document.getElementById('statFilesCount')) {
+                document.getElementById('statFilesCount').textContent = info.filesDownloadedCount !== undefined ? info.filesDownloadedCount : 0;
+            }
             document.getElementById('statFailCount').textContent = info.failedCount || 0;
 
             const queryType = syncedInvoiceType && syncedInvoiceType !== 'All' ? `&InvoiceType=${encodeURIComponent(syncedInvoiceType)}` : '';

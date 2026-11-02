@@ -21,19 +21,22 @@ namespace InvoiceManager.Controllers
         private readonly IAuditLogService _auditLog;
         private readonly IExportService _exportService;
         private readonly ISyncService _syncService;
+        private readonly IInvoiceFileService _invoiceFileService;
 
         public InvoiceController(
             ApplicationDbContext db,
             ITaxAccountContext taxAccountContext,
             IAuditLogService auditLog,
             IExportService exportService,
-            ISyncService syncService)
+            ISyncService syncService,
+            IInvoiceFileService invoiceFileService)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
             _auditLog = auditLog;
             _exportService = exportService;
             _syncService = syncService;
+            _invoiceFileService = invoiceFileService;
         }
 
         public async Task<IActionResult> Index(InvoiceFilterViewModel filter)
@@ -106,7 +109,7 @@ namespace InvoiceManager.Controllers
             };
 
             // Query chi tiết áp dụng thêm các tiêu chí lọc danh sách (CQT, MTT, Trạng thái, Bộ lọc chuyên sâu...)
-            IQueryable<Invoice> query = baseQuery.Include(i => i.Details);
+            IQueryable<Invoice> query = baseQuery.Include(i => i.Details).Include(i => i.Files);
 
             // 4. Lọc theo MST người bán cụ thể
             if (!string.IsNullOrWhiteSpace(filter.SellerTaxCode))
@@ -149,19 +152,20 @@ namespace InvoiceManager.Controllers
                 switch (filter.FileDownloadStatus)
                 {
                     case "HasPdf":
-                        query = query.Where(i => i.RawPdfPath != null && i.RawPdfPath != "");
+                        query = query.Where(i => (i.RawPdfPath != null && i.RawPdfPath != "") || i.Files.Any(f => f.FileExtension == ".pdf"));
                         break;
                     case "MissingPdf":
-                        query = query.Where(i => i.RawPdfPath == null || i.RawPdfPath == "");
+                        query = query.Where(i => (i.RawPdfPath == null || i.RawPdfPath == "") && !i.Files.Any(f => f.FileExtension == ".pdf"));
                         break;
                     case "HasXml":
-                        query = query.Where(i => i.RawXmlPath != null && i.RawXmlPath != "");
+                        query = query.Where(i => (i.RawXmlPath != null && i.RawXmlPath != "") || i.Files.Any(f => f.FileExtension == ".xml"));
                         break;
                     case "MissingXml":
-                        query = query.Where(i => i.RawXmlPath == null || i.RawXmlPath == "");
+                        query = query.Where(i => (i.RawXmlPath == null || i.RawXmlPath == "") && !i.Files.Any(f => f.FileExtension == ".xml"));
                         break;
                     case "HasBoth":
-                        query = query.Where(i => (i.RawPdfPath != null && i.RawPdfPath != "") && (i.RawXmlPath != null && i.RawXmlPath != ""));
+                        query = query.Where(i => ((i.RawPdfPath != null && i.RawPdfPath != "") || i.Files.Any(f => f.FileExtension == ".pdf"))
+                                              && ((i.RawXmlPath != null && i.RawXmlPath != "") || i.Files.Any(f => f.FileExtension == ".xml")));
                         break;
                 }
             }
@@ -298,6 +302,8 @@ namespace InvoiceManager.Controllers
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             var invoice = await _db.Invoices
                 .Include(i => i.Details)
+                .Include(i => i.Files)
+                .Include(i => i.Files)
                 .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
 
             if (invoice == null) return NotFound("Không tìm thấy hóa đơn hoặc bạn không có quyền truy cập.");
@@ -312,11 +318,23 @@ namespace InvoiceManager.Controllers
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             var invoice = await _db.Invoices
                 .Include(i => i.Details)
+                .Include(i => i.Files)
                 .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
 
             if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
 
             await _auditLog.LogActionAsync("Xem bản thể hiện HTML", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
+            // Ưu tiên bản thể hiện HTML gốc từ gói CQT / Nhà cung cấp
+            var officialHtmlFile = invoice.Files
+                .FirstOrDefault(f => string.Equals(f.FileExtension, ".html", StringComparison.OrdinalIgnoreCase)
+                                     && !string.IsNullOrWhiteSpace(f.FilePath)
+                                     && System.IO.File.Exists(f.FilePath));
+            if (officialHtmlFile != null)
+            {
+                var htmlContent = await System.IO.File.ReadAllTextAsync(officialHtmlFile.FilePath, Encoding.UTF8);
+                return Content(htmlContent, "text/html; charset=utf-8");
+            }
+
             var html = _exportService.GenerateInvoiceHtml(invoice);
             return Content(html, "text/html; charset=utf-8");
         }
@@ -326,24 +344,27 @@ namespace InvoiceManager.Controllers
         {
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             var invoice = await _db.Invoices
-                .Include(i => i.Details)
+                .Include(i => i.Files)
                 .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
 
             if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
 
-            await _auditLog.LogActionAsync("Xem XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
-
+            var xmlFile = invoice.Files.FirstOrDefault(f => f.FileExtension == ".xml" && System.IO.File.Exists(f.FilePath));
             string xmlContent = "";
-            if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
+            if (xmlFile != null)
+            {
+                xmlContent = await System.IO.File.ReadAllTextAsync(xmlFile.FilePath, Encoding.UTF8);
+            }
+            else if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
             {
                 xmlContent = await System.IO.File.ReadAllTextAsync(invoice.RawXmlPath, Encoding.UTF8);
             }
             else
             {
-                // Tái tạo nội dung XML chuẩn Nghị định 123 nếu hóa đơn tạo từ seed
-                xmlContent = GenerateStandardXmlForInvoice(invoice);
+                return Content("<?xml version=\"1.0\" encoding=\"utf-8\"?><Notice>Hóa đơn này chưa có tệp XML gốc từ Tổng cục Thuế. Vui lòng bấm 'Lấy tệp từ Cổng Thuế' trong chi tiết hóa đơn để hệ thống tải bản gốc.</Notice>", "application/xml; charset=utf-8");
             }
 
+            await _auditLog.LogActionAsync("Xem XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
             return Content(xmlContent, "application/xml; charset=utf-8");
         }
 
@@ -352,26 +373,78 @@ namespace InvoiceManager.Controllers
         {
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
             var invoice = await _db.Invoices
-                .Include(i => i.Details)
+                .Include(i => i.Files)
                 .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
 
             if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
 
-            await _auditLog.LogActionAsync("Tải XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
+            var xmlFile = invoice.Files.FirstOrDefault(f => f.FileExtension == ".xml" && System.IO.File.Exists(f.FilePath));
+            if (xmlFile != null)
+            {
+                var bytes = await System.IO.File.ReadAllBytesAsync(xmlFile.FilePath);
+                await _auditLog.LogActionAsync("Tải XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
+                return File(bytes, "application/xml", xmlFile.OriginalFileName);
+            }
 
-            byte[] xmlBytes;
             if (!string.IsNullOrEmpty(invoice.RawXmlPath) && System.IO.File.Exists(invoice.RawXmlPath))
             {
-                xmlBytes = await System.IO.File.ReadAllBytesAsync(invoice.RawXmlPath);
-            }
-            else
-            {
-                var xmlContent = GenerateStandardXmlForInvoice(invoice);
-                xmlBytes = Encoding.UTF8.GetBytes(xmlContent);
+                var bytes = await System.IO.File.ReadAllBytesAsync(invoice.RawXmlPath);
+                await _auditLog.LogActionAsync("Tải XML gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
+                string fileName = $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.xml";
+                return File(bytes, "application/xml", fileName);
             }
 
-            string fileName = $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.xml";
-            return File(xmlBytes, "application/xml", fileName);
+            return NotFound("Hóa đơn chưa có tệp XML gốc từ Tổng cục Thuế. Vui lòng bấm 'Lấy tệp từ Cổng Thuế' trong chi tiết hóa đơn để tải về.");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadFile(int id)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Unauthorized();
+
+            var result = await _invoiceFileService.GetFileForDownloadAsync(id, taxAccountId.Value);
+            if (result == null) return NotFound("Tệp không tồn tại hoặc bạn không có quyền truy cập.");
+
+            await _auditLog.LogActionAsync("Tải tệp gốc", result.Value.DownloadFileName, null, taxAccountId.Value);
+            return File(result.Value.Stream, result.Value.ContentType, result.Value.DownloadFileName);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewFile(int id)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Unauthorized();
+
+            var result = await _invoiceFileService.GetFileForDownloadAsync(id, taxAccountId.Value);
+            if (result == null) return NotFound("Tệp không tồn tại hoặc bạn không có quyền truy cập.");
+
+            await _auditLog.LogActionAsync("Xem tệp gốc", result.Value.DownloadFileName, null, taxAccountId.Value);
+            Response.Headers.ContentDisposition = "inline; filename=\"" + Uri.EscapeDataString(result.Value.DownloadFileName) + "\"";
+            return File(result.Value.Stream, result.Value.ContentType);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadAllFiles(int invoiceId)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Unauthorized();
+
+            var result = await _invoiceFileService.DownloadAllFilesAsZipAsync(invoiceId, taxAccountId.Value);
+            if (result == null) return NotFound("Hóa đơn này chưa có tệp gốc nào được lưu trên hệ thống.");
+
+            await _auditLog.LogActionAsync("Tải toàn bộ tệp gốc (ZIP)", result.Value.ZipFileName, null, taxAccountId.Value);
+            return File(result.Value.ZipBytes, "application/zip", result.Value.ZipFileName);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SyncInvoiceFiles(int invoiceId)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Json(new { success = false, message = "Phiên làm việc hết hạn." });
+
+            var result = await _invoiceFileService.SyncInvoiceFilesFromGdtAsync(invoiceId, taxAccountId.Value);
+            return Json(new { success = result.Success, message = result.Message, count = result.FilesCount });
         }
 
         [HttpPost]
@@ -394,17 +467,18 @@ namespace InvoiceManager.Controllers
                 return Json(new { success = false, message = "Chỉ chấp nhận file định dạng .pdf." });
             }
 
-            var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", taxAccountId.Value.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
-            Directory.CreateDirectory(storageRoot);
+            using var ms = new MemoryStream();
+            await pdfFile.CopyToAsync(ms);
+            var bytes = ms.ToArray();
 
-            var filePath = Path.Combine(storageRoot, $"Original_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.pdf");
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await pdfFile.CopyToAsync(stream);
-            }
-
-            invoice.RawPdfPath = filePath;
-            await _db.SaveChangesAsync();
+            await _invoiceFileService.SaveSingleFileAsync(
+                id,
+                taxAccountId.Value,
+                pdfFile.FileName,
+                ".pdf",
+                "application/pdf",
+                bytes,
+                "UploadOriginal");
 
             await _auditLog.LogActionAsync("Đính kèm PDF gốc", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", $"Lưu file {pdfFile.FileName}", taxAccountId);
 
@@ -460,6 +534,7 @@ namespace InvoiceManager.Controllers
 
             var invoice = await _db.Invoices
                 .Include(i => i.Details)
+                .Include(i => i.Files)
                 .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId.Value);
 
             if (invoice == null) return Json(new { success = false, message = "Không tìm thấy hóa đơn cần xóa hoặc bạn không có quyền." });
@@ -492,6 +567,7 @@ namespace InvoiceManager.Controllers
 
             var invoices = await _db.Invoices
                 .Include(i => i.Details)
+                .Include(i => i.Files)
                 .Where(i => ids.Contains(i.Id) && i.TaxAccountId == taxAccountId.Value)
                 .ToListAsync();
 
@@ -607,67 +683,95 @@ namespace InvoiceManager.Controllers
             }
         }
 
-        private string GenerateStandardXmlForInvoice(Invoice invoice)
+        [HttpGet("/api/invoices/{id:int}/original-pdf")]
+        public async Task<IActionResult> GetOriginalPdf(int id, System.Threading.CancellationToken ct = default)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-            sb.AppendLine("<HDon xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">");
-            sb.AppendLine("  <DLHDon>");
-            sb.AppendLine("    <TTChung>");
-            sb.AppendLine($"      <PBan>2.0.0</PBan>");
-            sb.AppendLine($"      <THDon>Hóa đơn giá trị gia tăng</THDon>");
-            sb.AppendLine($"      <KHMSHDon>{invoice.InvoiceSymbol.Substring(0, 1)}</KHMSHDon>");
-            sb.AppendLine($"      <KHHDon>{invoice.InvoiceSymbol.Substring(1)}</KHHDon>");
-            sb.AppendLine($"      <SHDon>{invoice.InvoiceNumber}</SHDon>");
-            sb.AppendLine($"      <NLap>{invoice.IssueDate:yyyy-MM-dd}</NLap>");
-            sb.AppendLine($"      <DVTTe>VND</DVTTe>");
-            sb.AppendLine($"      <TGia>1</TGia>");
-            sb.AppendLine($"      <HTTToan>TM/CK</HTTToan>");
-            sb.AppendLine("    </TTChung>");
-            sb.AppendLine("    <NDHDon>");
-            sb.AppendLine("      <NBan>");
-            sb.AppendLine($"        <Ten>{System.Security.SecurityElement.Escape(invoice.SellerName)}</Ten>");
-            sb.AppendLine($"        <MST>{invoice.SellerTaxCode}</MST>");
-            sb.AppendLine($"        <DChi>{System.Security.SecurityElement.Escape(invoice.SellerAddress ?? "")}</DChi>");
-            sb.AppendLine("      </NBan>");
-            sb.AppendLine("      <NMua>");
-            sb.AppendLine($"        <Ten>{System.Security.SecurityElement.Escape(invoice.BuyerName ?? "")}</Ten>");
-            sb.AppendLine($"        <MST>{invoice.BuyerTaxCode ?? ""}</MST>");
-            sb.AppendLine($"        <DChi>{System.Security.SecurityElement.Escape(invoice.BuyerAddress ?? "")}</DChi>");
-            sb.AppendLine("      </NMua>");
-            sb.AppendLine("      <DSHHDVu>");
-            foreach (var d in invoice.Details)
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue)
             {
-                sb.AppendLine("        <HHDVu>");
-                sb.AppendLine($"          <STT>{d.LineNumber}</STT>");
-                sb.AppendLine($"          <MHHDVu>{d.ItemCode ?? ""}</MHHDVu>");
-                sb.AppendLine($"          <THHDVu>{System.Security.SecurityElement.Escape(d.ItemName)}</THHDVu>");
-                sb.AppendLine($"          <DVTinh>{System.Security.SecurityElement.Escape(d.Unit ?? "")}</DVTinh>");
-                sb.AppendLine($"          <SLuong>{d.Quantity}</SLuong>");
-                sb.AppendLine($"          <DGia>{d.UnitPrice}</DGia>");
-                sb.AppendLine($"          <ThTien>{d.AmountBeforeTax}</ThTien>");
-                sb.AppendLine($"          <TSuat>{(d.TaxRate == -1 ? "KCT" : d.TaxRate + "%")}</TSuat>");
-                sb.AppendLine($"          <TThue>{d.TaxAmount}</TThue>");
-                sb.AppendLine("        </HHDVu>");
+                return StatusCode(401, new
+                {
+                    success = false,
+                    errorCode = "NO_TAX_ACCOUNT",
+                    message = "Chưa chọn tài khoản thuế làm việc hoặc phiên đăng nhập đã hết hạn."
+                });
             }
-            sb.AppendLine("      </DSHHDVu>");
-            sb.AppendLine("      <TToan>");
-            sb.AppendLine($"        <TgTCThue>{invoice.AmountBeforeTax}</TgTCThue>");
-            sb.AppendLine($"        <TgTThue>{invoice.TaxAmount}</TgTThue>");
-            sb.AppendLine($"        <TgTTTBSo>{invoice.TotalAmount}</TgTTTBSo>");
-            sb.AppendLine("      </TToan>");
-            sb.AppendLine("    </NDHDon>");
-            sb.AppendLine("  </DLHDon>");
-            if (!string.IsNullOrEmpty(invoice.TaxAuthorityCode))
+
+            var result = await _invoiceFileService.GetOrFetchOriginalPdfAsync(id, taxAccountId.Value, null, ct);
+            if (!result.Success || result.PdfBytes == null || result.PdfBytes.Length == 0)
             {
-                sb.AppendLine($"  <MCCQT>{invoice.TaxAuthorityCode}</MCCQT>");
+                int statusCode = result.HttpStatusCode > 0 ? result.HttpStatusCode : 404;
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    errorCode = result.ErrorCode,
+                    message = result.ErrorMessage,
+                    endpoint = result.EndpointCalled,
+                    gdtResponse = result.RawGdtResponseSnippet
+                });
             }
-            sb.AppendLine("  <DSCKS>");
-            sb.AppendLine($"    <NNBS>{System.Security.SecurityElement.Escape(invoice.SellerName)}</NNBS>");
-            sb.AppendLine($"    <NBS>{invoice.IssueDate:yyyy-MM-ddTHH:mm:ss}</NBS>");
-            sb.AppendLine("  </DSCKS>");
-            sb.AppendLine("</HDon>");
-            return sb.ToString();
+
+            await _auditLog.LogActionAsync(
+                "Xem PDF gốc",
+                result.FileName,
+                $"Nguồn: {result.Source}, Dung lượng: {result.PdfBytes.Length:N0} bytes",
+                taxAccountId.Value);
+
+            Response.Headers["X-Original-Pdf-Source"] = result.Source;
+            if (!string.IsNullOrWhiteSpace(result.Sha256Hash))
+            {
+                Response.Headers["X-Original-Pdf-Sha256"] = result.Sha256Hash;
+            }
+            Response.Headers.ContentDisposition = "inline; filename=\"" + Uri.EscapeDataString(result.FileName) + "\"";
+            return File(result.PdfBytes, "application/pdf");
+        }
+
+        [HttpGet("/api/invoices/{id:int}/original-pdf/download")]
+        public async Task<IActionResult> DownloadOriginalPdf(int id, System.Threading.CancellationToken ct = default)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue)
+            {
+                return StatusCode(401, new
+                {
+                    success = false,
+                    errorCode = "NO_TAX_ACCOUNT",
+                    message = "Chưa chọn tài khoản thuế làm việc hoặc phiên đăng nhập đã hết hạn."
+                });
+            }
+
+            var result = await _invoiceFileService.GetOrFetchOriginalPdfAsync(id, taxAccountId.Value, null, ct);
+            if (!result.Success || result.PdfBytes == null || result.PdfBytes.Length == 0)
+            {
+                int statusCode = result.HttpStatusCode > 0 ? result.HttpStatusCode : 404;
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    errorCode = result.ErrorCode,
+                    message = result.ErrorMessage,
+                    endpoint = result.EndpointCalled,
+                    gdtResponse = result.RawGdtResponseSnippet
+                });
+            }
+
+            await _auditLog.LogActionAsync(
+                "Tải PDF gốc",
+                result.FileName,
+                $"Nguồn: {result.Source}, Dung lượng: {result.PdfBytes.Length:N0} bytes",
+                taxAccountId.Value);
+
+            Response.Headers["X-Original-Pdf-Source"] = result.Source;
+            if (!string.IsNullOrWhiteSpace(result.Sha256Hash))
+            {
+                Response.Headers["X-Original-Pdf-Sha256"] = result.Sha256Hash;
+            }
+            return File(result.PdfBytes, "application/pdf", result.FileName);
+        }
+
+        [HttpGet]
+        public Task<IActionResult> ViewInvoicePdf(int id, System.Threading.CancellationToken ct = default)
+        {
+            return GetOriginalPdf(id, ct);
         }
     }
 }

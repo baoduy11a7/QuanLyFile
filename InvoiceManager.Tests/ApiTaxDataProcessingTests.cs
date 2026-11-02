@@ -147,7 +147,7 @@ namespace InvoiceManager.Tests
             var parseResult = await parser.ParseAsync(ms, "Remote_1C25TAA_0000005.xml");
 
             Assert.True(parseResult.Success, parseResult.ErrorMessage);
-            Assert.Equal("1C25TAA", parseResult.InvoiceSymbol);
+            Assert.Equal("C25TAA", parseResult.InvoiceSymbol);
             Assert.Equal("0000005", parseResult.InvoiceNumber);
             Assert.Equal(85000000m, parseResult.AmountBeforeTax);
             Assert.Equal(93500000m, parseResult.TotalAmount);
@@ -284,14 +284,14 @@ namespace InvoiceManager.Tests
             Assert.Equal(2, invoices.Count);
 
             var inv1 = invoices[0];
-            Assert.Equal("1C24TXX", inv1.InvoiceSymbol);
+            Assert.Equal("C24TXX", inv1.InvoiceSymbol);
             Assert.Equal("0012345", inv1.InvoiceNumber);
             Assert.Equal("12345", inv1.RawInvoiceNumber);
             Assert.Equal(10000000m, inv1.AmountBeforeTax);
             Assert.Equal(11000000m, inv1.TotalAmount);
 
             var inv2 = invoices[1];
-            Assert.Equal("2C24TBB", inv2.InvoiceSymbol);
+            Assert.Equal("C24TBB", inv2.InvoiceSymbol);
             Assert.Equal("0006789", inv2.InvoiceNumber);
             Assert.Equal("6789", inv2.RawInvoiceNumber);
             Assert.Equal(5000000m, inv2.AmountBeforeTax);

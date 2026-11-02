@@ -1,3 +1,5 @@
+using System.IO;
+using InvoiceManager.Services.Parsers;
 using InvoiceManager.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +28,9 @@ namespace InvoiceManager.Data
 
             // Đảm bảo các cột mới (BusinessType, ShortName, AccountantName) luôn tồn tại trên mọi hệ CSDL (SQL Server, SQLite, PostgreSQL)
             await EnsureTaxAccountColumnsAsync(context);
+
+            // Tự động chuẩn hóa & khắc phục lỗi ngày lập, tên hàng hóa, đơn vị tính cho các hóa đơn hiện có
+            await RepairExistingInvoicesAsync(context);
 
             // 1. Seed Roles
             string[] roles = { "Admin", "Accountant", "Viewer" };
@@ -466,6 +471,128 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
             });
 
             await context.SaveChangesAsync();
+        }
+
+        public static async Task RepairExistingInvoicesAsync(ApplicationDbContext context)
+        {
+            try
+            {
+                var parser = new StandardTctParser();
+                var invoices = await context.Invoices
+                    .Include(i => i.Details)
+                    .Include(i => i.Files)
+                    .ToListAsync();
+
+                int repairedCount = 0;
+                string storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles");
+
+                foreach (var inv in invoices)
+                {
+                    bool isPlaceholder = !inv.Details.Any() ||
+                        inv.Details.All(d => d.ItemName.StartsWith("Hàng hóa") || d.Unit == "Lô/Gói" || d.Unit == "Lần") ||
+                        inv.Details.Any(d => d.TaxAmount == 0 && d.TaxRate > 0);
+
+                    string? xmlPath = null;
+                    if (!string.IsNullOrEmpty(inv.RawXmlPath) && File.Exists(inv.RawXmlPath))
+                    {
+                        xmlPath = inv.RawXmlPath;
+                    }
+
+                    if (xmlPath == null)
+                    {
+                        var xmlFile = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.FilePath) && File.Exists(f.FilePath));
+                        if (xmlFile != null)
+                        {
+                            xmlPath = xmlFile.FilePath;
+                        }
+                    }
+
+                    if (xmlPath == null && Directory.Exists(storageRoot))
+                    {
+                        var normNum = long.TryParse(inv.InvoiceNumber, out var n) ? n.ToString() : inv.InvoiceNumber;
+                        var cleanSymbol = (inv.InvoiceSymbol ?? "").TrimStart('1');
+                        var candidates = Directory.GetFiles(storageRoot, "*.xml", SearchOption.AllDirectories)
+                            .Where(f => f.Contains(cleanSymbol, StringComparison.OrdinalIgnoreCase) && (f.Contains(normNum) || f.Contains(inv.InvoiceNumber)))
+                            .ToList();
+                        if (candidates.Any())
+                        {
+                            xmlPath = candidates.First();
+                        }
+                    }
+
+                    if (xmlPath != null && File.Exists(xmlPath))
+                    {
+                        try
+                        {
+                            using var fs = File.OpenRead(xmlPath);
+                            var parsed = await parser.ParseAsync(fs, Path.GetFileName(xmlPath));
+                            if (parsed.Success)
+                            {
+                                bool modified = false;
+
+                                // 1. Chỉnh lỗi ngày lập thấp hơn 1 ngày
+                                if (parsed.IssueDate > DateTime.MinValue && (inv.IssueDate != parsed.IssueDate))
+                                {
+                                    inv.IssueDate = parsed.IssueDate;
+                                    modified = true;
+                                }
+
+                                // 2. Chỉnh lỗi tên hàng hóa và đơn vị tính sai
+                                if (isPlaceholder && parsed.Details.Any())
+                                {
+                                    inv.Details.Clear();
+                                    foreach (var d in parsed.Details)
+                                    {
+                                        var taxAmt = d.TaxAmount > 0 ? d.TaxAmount : (d.TaxRate > 0 ? Math.Round(d.AmountBeforeTax * d.TaxRate / 100m, 0) : 0);
+                                        inv.Details.Add(new InvoiceDetail
+                                        {
+                                            LineNumber = d.LineNumber,
+                                            ItemCode = d.ItemCode,
+                                            ItemName = d.ItemName,
+                                            Unit = d.Unit,
+                                            Quantity = d.Quantity,
+                                            UnitPrice = d.UnitPrice,
+                                            AmountBeforeTax = d.AmountBeforeTax,
+                                            TaxRate = d.TaxRate,
+                                            TaxAmount = taxAmt,
+                                            TotalAmount = d.AmountBeforeTax + taxAmt
+                                        });
+                                    }
+                                    inv.SourceProvider = "TCT-Standard";
+                                    modified = true;
+                                }
+                                else if (inv.Details.Any(d => d.TaxAmount == 0 && d.TaxRate > 0))
+                                {
+                                    foreach (var d in inv.Details.Where(d => d.TaxAmount == 0 && d.TaxRate > 0))
+                                    {
+                                        d.TaxAmount = Math.Round(d.AmountBeforeTax * d.TaxRate / 100m, 0);
+                                        d.TotalAmount = d.AmountBeforeTax + d.TaxAmount;
+                                    }
+                                    modified = true;
+                                }
+
+                                if (string.IsNullOrEmpty(inv.RawXmlPath) || !File.Exists(inv.RawXmlPath))
+                                {
+                                    inv.RawXmlPath = xmlPath;
+                                    modified = true;
+                                }
+
+                                if (modified) repairedCount++;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                if (repairedCount > 0)
+                {
+                    await context.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Lỗi khi tự động chuẩn hóa hóa đơn: {ex.Message}");
+            }
         }
     }
 }

@@ -396,6 +396,75 @@ namespace InvoiceManager.Migrations
                     b.ToTable("InvoiceDetails");
                 });
 
+            modelBuilder.Entity("InvoiceManager.Models.Entities.InvoiceFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("DownloadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Sha256Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("TaxAccountId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId", "TaxAccountId");
+
+                    b.HasIndex("TaxAccountId", "Sha256Hash");
+
+                    b.ToTable("InvoiceFiles");
+                });
+
             modelBuilder.Entity("InvoiceManager.Models.Entities.RemoteConnection", b =>
                 {
                     b.Property<int>("Id")
@@ -747,6 +816,25 @@ namespace InvoiceManager.Migrations
                     b.Navigation("Invoice");
                 });
 
+            modelBuilder.Entity("InvoiceManager.Models.Entities.InvoiceFile", b =>
+                {
+                    b.HasOne("InvoiceManager.Models.Entities.Invoice", "Invoice")
+                        .WithMany("Files")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("InvoiceManager.Models.Entities.TaxAccount", "TaxAccount")
+                        .WithMany("InvoiceFiles")
+                        .HasForeignKey("TaxAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("TaxAccount");
+                });
+
             modelBuilder.Entity("InvoiceManager.Models.Entities.RemoteConnection", b =>
                 {
                     b.HasOne("InvoiceManager.Models.Entities.TaxAccount", "TaxAccount")
@@ -849,10 +937,14 @@ namespace InvoiceManager.Migrations
             modelBuilder.Entity("InvoiceManager.Models.Entities.Invoice", b =>
                 {
                     b.Navigation("Details");
+
+                    b.Navigation("Files");
                 });
 
             modelBuilder.Entity("InvoiceManager.Models.Entities.TaxAccount", b =>
                 {
+                    b.Navigation("InvoiceFiles");
+
                     b.Navigation("Invoices");
 
                     b.Navigation("RemoteConnections");

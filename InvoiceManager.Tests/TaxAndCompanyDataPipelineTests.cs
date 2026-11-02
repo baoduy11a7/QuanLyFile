@@ -149,8 +149,8 @@ namespace InvoiceManager.Tests
             Assert.Equal(0, countB);
 
             var savedInvoice = await db.Invoices.Include(i => i.Details).FirstAsync(i => i.TaxAccountId == companyA.Id);
-            Assert.Equal("1C25TKT", savedInvoice.InvoiceSymbol);
-            Assert.Equal("00000099", savedInvoice.InvoiceNumber);
+            Assert.Equal("C25TKT", savedInvoice.InvoiceSymbol);
+            Assert.Equal("0000099", savedInvoice.InvoiceNumber);
             Assert.Equal(22000000m, savedInvoice.TotalAmount);
             Assert.Single(savedInvoice.Details);
             Assert.Equal("Máy chủ Dell PowerEdge", savedInvoice.Details.First().ItemName);

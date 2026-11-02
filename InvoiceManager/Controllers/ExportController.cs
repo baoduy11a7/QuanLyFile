@@ -30,6 +30,7 @@ namespace InvoiceManager.Controllers
         private readonly IEnumerable<IInvoiceSourceProvider> _providers;
         private readonly ICredentialProtector _protector;
         private readonly IInvoiceParserFactory _parserFactory;
+        private readonly IInvoiceFileService _invoiceFileService;
         private readonly ILogger<ExportController> _logger;
 
         public ExportController(
@@ -40,6 +41,7 @@ namespace InvoiceManager.Controllers
             IEnumerable<IInvoiceSourceProvider> providers,
             ICredentialProtector protector,
             IInvoiceParserFactory parserFactory,
+            IInvoiceFileService invoiceFileService,
             ILogger<ExportController> logger)
         {
             _db = db;
@@ -49,6 +51,7 @@ namespace InvoiceManager.Controllers
             _providers = providers;
             _protector = protector;
             _parserFactory = parserFactory;
+            _invoiceFileService = invoiceFileService;
             _logger = logger;
         }
 
@@ -59,18 +62,26 @@ namespace InvoiceManager.Controllers
             var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
-            var invoices = await GetFilteredInvoicesQuery(filter, taxAccountId.Value).ToListAsync();
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => i.TaxAccountId == taxAccountId.Value);
 
-            string title = $"BẢNG KÊ CHI TIẾT HÀNG HÓA - HÓA ĐƠN {(filter.InvoiceType == "BanRa" ? "BÁN RA" : "MUA VÀO")}";
-            var fileBytes = await _exportService.ExportDetailedExcelAsync(invoices, taxAccount, title);
+            if (filter.FromDate.HasValue)
+                query = query.Where(i => i.IssueDate >= filter.FromDate.Value.Date);
+            if (filter.ToDate.HasValue)
+                query = query.Where(i => i.IssueDate <= filter.ToDate.Value.Date.AddDays(1).AddTicks(-1));
+
+            var invoices = await query.ToListAsync();
+
+            var fileBytes = await _exportService.ExportFullAccountingWorkbookAsync(invoices, taxAccount, filter.FromDate, filter.ToDate);
 
             await _auditLog.LogActionAsync(
                 "Xuất Excel Chi tiết", 
                 $"{invoices.Count} hóa đơn", 
-                $"Loại: {filter.InvoiceType}, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                $"Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
                 taxAccountId.Value);
 
-            string fileName = $"BangKeChiTiet_{filter.InvoiceType}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            string fileName = $"BangKeChiTiet_{taxAccount?.TaxCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
@@ -81,18 +92,86 @@ namespace InvoiceManager.Controllers
             var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
-            var invoices = await GetFilteredInvoicesQuery(filter, taxAccountId.Value).ToListAsync();
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => i.TaxAccountId == taxAccountId.Value);
 
-            string title = $"BẢNG KÊ TỔNG HỢP HÓA ĐƠN {(filter.InvoiceType == "BanRa" ? "BÁN RA" : "MUA VÀO")}";
-            var fileBytes = await _exportService.ExportSummaryExcelAsync(invoices, taxAccount, title);
+            if (filter.FromDate.HasValue)
+                query = query.Where(i => i.IssueDate >= filter.FromDate.Value.Date);
+            if (filter.ToDate.HasValue)
+                query = query.Where(i => i.IssueDate <= filter.ToDate.Value.Date.AddDays(1).AddTicks(-1));
+
+            var invoices = await query.ToListAsync();
+
+            var fileBytes = await _exportService.ExportFullAccountingWorkbookAsync(invoices, taxAccount, filter.FromDate, filter.ToDate);
 
             await _auditLog.LogActionAsync(
-                "Xuất Excel Tổng hợp", 
+                "Xuất Excel 7 Sheet Kế Toán", 
                 $"{invoices.Count} hóa đơn", 
-                $"Loại: {filter.InvoiceType}, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                $"Đầy đủ 7 sheet (HĐ Vào, HĐ Ra, Bảng kê 8%, Bảng kê bán ra, Bảng kê mua vào, Chi tiết bán ra, Chi tiết mua vào), Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
                 taxAccountId.Value);
 
-            string fileName = $"BangKeTongHop_{filter.InvoiceType}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            string fileName = $"BaoCao_HoaDon_{taxAccount?.TaxCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExcelFullMuaVao(InvoiceFilterViewModel filter)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
+
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => i.TaxAccountId == taxAccountId.Value && i.InvoiceType != "BanRa");
+
+            if (filter.FromDate.HasValue)
+                query = query.Where(i => i.IssueDate >= filter.FromDate.Value.Date);
+            if (filter.ToDate.HasValue)
+                query = query.Where(i => i.IssueDate <= filter.ToDate.Value.Date.AddDays(1).AddTicks(-1));
+
+            var invoices = await query.OrderBy(i => i.IssueDate).ThenBy(i => i.InvoiceNumber).ToListAsync();
+
+            var fileBytes = await _exportService.ExportFullDetailExcelAsync(invoices, taxAccount, false, filter.FromDate, filter.ToDate);
+
+            await _auditLog.LogActionAsync(
+                "Xuất Excel Chi tiết Mua vào Đầy đủ", 
+                $"{invoices.Count} hóa đơn", 
+                $"Báo cáo chi tiết mua vào đầy đủ 41 cột thông tin, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                taxAccountId.Value);
+
+            string fileName = $"BaoCao_ChiTiet_MuaVao_DayDu_{taxAccount?.TaxCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExcelFullBanRa(InvoiceFilterViewModel filter)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
+
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => i.TaxAccountId == taxAccountId.Value && i.InvoiceType == "BanRa");
+
+            if (filter.FromDate.HasValue)
+                query = query.Where(i => i.IssueDate >= filter.FromDate.Value.Date);
+            if (filter.ToDate.HasValue)
+                query = query.Where(i => i.IssueDate <= filter.ToDate.Value.Date.AddDays(1).AddTicks(-1));
+
+            var invoices = await query.OrderBy(i => i.IssueDate).ThenBy(i => i.InvoiceNumber).ToListAsync();
+
+            var fileBytes = await _exportService.ExportFullDetailExcelAsync(invoices, taxAccount, true, filter.FromDate, filter.ToDate);
+
+            await _auditLog.LogActionAsync(
+                "Xuất Excel Chi tiết Bán ra Đầy đủ", 
+                $"{invoices.Count} hóa đơn", 
+                $"Báo cáo chi tiết bán ra đầy đủ 41 cột thông tin, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                taxAccountId.Value);
+
+            string fileName = $"BaoCao_ChiTiet_BanRa_DayDu_{taxAccount?.TaxCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
@@ -103,18 +182,27 @@ namespace InvoiceManager.Controllers
             var taxAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
-            var invoices = await GetFilteredInvoicesQuery(filter, taxAccountId.Value).ToListAsync();
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Where(i => i.TaxAccountId == taxAccountId.Value);
 
-            string title = $"SỔ KẾ TOÁN SMART PRO (KTSC) - HÓA ĐƠN {(filter.InvoiceType == "BanRa" ? "BÁN RA" : "MUA VÀO")}";
+            if (filter.FromDate.HasValue)
+                query = query.Where(i => i.IssueDate >= filter.FromDate.Value.Date);
+            if (filter.ToDate.HasValue)
+                query = query.Where(i => i.IssueDate <= filter.ToDate.Value.Date.AddDays(1).AddTicks(-1));
+
+            var invoices = await query.ToListAsync();
+
+            string title = $"SỔ KẾ TOÁN SMART PRO (KTSC)";
             var fileBytes = await _exportService.ExportSmartProExcelAsync(invoices, taxAccount, title);
 
             await _auditLog.LogActionAsync(
                 "Xuất Excel Smart Pro (KTSC)", 
                 $"{invoices.Count} hóa đơn", 
-                $"Loại: {filter.InvoiceType}, Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
+                $"Tổng tiền: {invoices.Sum(i => i.TotalAmount):N0} đ", 
                 taxAccountId.Value);
 
-            string fileName = $"Smart_KTSC_{filter.InvoiceType}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            string fileName = $"Smart_KTSC_{taxAccount?.TaxCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
@@ -182,19 +270,12 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction("Index", "Invoice", filter);
             }
 
-            // Tự động tải bù file PDF gốc từ Cổng Thuế cho các hóa đơn chưa có file PDF trên máy
-            var missingPdfs = invoices.Where(i => string.IsNullOrEmpty(i.RawPdfPath) || !System.IO.File.Exists(i.RawPdfPath)).Take(15).ToList();
-            foreach (var inv in missingPdfs)
-            {
-                await TryFetchOriginalPdfFromGovAsync(inv);
-            }
-
-            var zipBytes = await _exportService.ExportInvoicesPdfZipAsync(invoices);
+            var zipBytes = await CreateOriginalPdfsZipAsync(invoices, taxAccountId.Value);
 
             await _auditLog.LogActionAsync(
                 "Tải PDF Gốc Hàng Loạt (ZIP)", 
                 $"{invoices.Count} hóa đơn", 
-                $"Tải file nén ZIP chứa các file PDF hóa đơn gốc", 
+                $"Tải file nén ZIP chứa các file PDF hóa đơn gốc nhà cung cấp", 
                 taxAccountId.Value);
 
             string fileName = $"HoaDon_PDF_Goc_{DateTime.Now:yyyyMMdd_HHmmss}.zip";
@@ -214,14 +295,8 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction("Index", "Invoice", filter);
             }
 
-            // Tự động tải bù file PDF gốc từ Cổng Thuế cho các hóa đơn chưa có file PDF trên máy
-            var missingPdfs = invoices.Where(i => string.IsNullOrEmpty(i.RawPdfPath) || !System.IO.File.Exists(i.RawPdfPath)).Take(15).ToList();
-            foreach (var inv in missingPdfs)
-            {
-                await TryFetchOriginalPdfFromGovAsync(inv);
-            }
+            var zipBytes = await CreateOriginalPdfsZipAsync(invoices, taxAccountId.Value);
 
-            var zipBytes = await _exportService.ExportInvoicesPdfZipAsync(invoices);
             await _auditLog.LogActionAsync(
                 "Tải PDF Gốc Hàng Loạt (ZIP)", 
                 $"{invoices.Count} hóa đơn", 
@@ -232,40 +307,79 @@ namespace InvoiceManager.Controllers
             return File(zipBytes, "application/zip", fileName);
         }
 
+        private async Task<byte[]> CreateOriginalPdfsZipAsync(List<Invoice> invoices, int taxAccountId)
+        {
+            using var zipMs = new MemoryStream();
+            using (var archive = new System.IO.Compression.ZipArchive(zipMs, System.IO.Compression.ZipArchiveMode.Create, true))
+            {
+                var entryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var inv in invoices)
+                {
+                    try
+                    {
+                        var pdfResult = await _invoiceFileService.GetOrFetchOriginalPdfAsync(inv.Id, taxAccountId);
+                        byte[]? pdfBytes = (pdfResult.Success && pdfResult.PdfBytes != null && pdfResult.PdfBytes.Length > 0)
+                            ? pdfResult.PdfBytes
+                            : null;
+
+                        if (pdfBytes == null)
+                        {
+                            pdfBytes = await _exportService.GenerateInvoicePdfAsync(inv);
+                        }
+
+                        if (pdfBytes != null && pdfBytes.Length > 0)
+                        {
+                            var entryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}.pdf";
+                            if (entryNames.Contains(entryName))
+                            {
+                                entryName = $"HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}_{inv.Id}.pdf";
+                            }
+                            entryNames.Add(entryName);
+
+                            var entry = archive.CreateEntry(entryName, System.IO.Compression.CompressionLevel.Optimal);
+                            using var entryStream = entry.Open();
+                            await entryStream.WriteAsync(pdfBytes, 0, pdfBytes.Length);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Lỗi đóng gói PDF cho HĐ {Symbol}-{Number}", inv.InvoiceSymbol, inv.InvoiceNumber);
+                    }
+                }
+            }
+            return zipMs.ToArray();
+        }
+
         [HttpGet]
         public async Task<IActionResult> DownloadPdf(int id)
         {
             var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
-            var invoice = await _db.Invoices
-                .Include(i => i.Details)
-                .FirstOrDefaultAsync(i => i.Id == id && i.TaxAccountId == taxAccountId);
-
-            if (invoice == null) return NotFound("Không tìm thấy hóa đơn.");
-
-            // Nếu chưa có file PDF gốc hoặc đang dùng dòng hàng tạm từ metadata, thử tải file gốc từ Cổng Thuế
-            bool hasDummyDetails = invoice.Details.Any(d => d.ItemName.StartsWith("Hàng hóa, dịch vụ theo HĐ", StringComparison.OrdinalIgnoreCase) || d.Unit == "Lô/Gói");
-            if (string.IsNullOrEmpty(invoice.RawPdfPath) || !System.IO.File.Exists(invoice.RawPdfPath) || hasDummyDetails)
+            if (!taxAccountId.HasValue)
             {
-                await TryFetchOriginalPdfFromGovAsync(invoice);
+                return StatusCode(401, new
+                {
+                    success = false,
+                    errorCode = "NO_TAX_ACCOUNT",
+                    message = "Chưa chọn tài khoản thuế."
+                });
             }
 
-            // Xóa cache cũ cả trong thư mục thực thi lẫn thư mục gốc ứng dụng
-            var cacheDirs = new[]
+            var result = await _invoiceFileService.GetOrFetchOriginalPdfAsync(id, taxAccountId.Value);
+            if (!result.Success || result.PdfBytes == null || result.PdfBytes.Length == 0)
             {
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "GeneratedPdfs"),
-                Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "GeneratedPdfs")
-            };
-            foreach (var dir in cacheDirs)
-            {
-                var cachedPdfPath = Path.Combine(dir, $"HD_{invoice.Id}_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf");
-                try { if (System.IO.File.Exists(cachedPdfPath)) System.IO.File.Delete(cachedPdfPath); } catch { }
+                int statusCode = result.HttpStatusCode > 0 ? result.HttpStatusCode : 404;
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    errorCode = result.ErrorCode,
+                    message = result.ErrorMessage,
+                    endpoint = result.EndpointCalled,
+                    gdtResponse = result.RawGdtResponseSnippet
+                });
             }
 
-            var pdfBytes = await _exportService.GenerateInvoicePdfAsync(invoice);
-            await _auditLog.LogActionAsync("Tải PDF hóa đơn", $"{invoice.InvoiceSymbol}-{invoice.InvoiceNumber}", null, taxAccountId);
-
-            string fileName = $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}.pdf";
-            return File(pdfBytes, "application/pdf", fileName);
+            await _auditLog.LogActionAsync("Tải PDF hóa đơn gốc", result.FileName, $"Nguồn: {result.Source}", taxAccountId.Value);
+            return File(result.PdfBytes, "application/pdf", result.FileName);
         }
 
         private async Task TryFetchOriginalPdfFromGovAsync(Invoice invoice)
@@ -300,27 +414,20 @@ namespace InvoiceManager.Controllers
                     InvoiceNumber = invoice.InvoiceNumber,
                     RawInvoiceNumber = invoice.InvoiceNumber,
                     SellerTaxCode = invoice.SellerTaxCode,
-                    BuyerTaxCode = invoice.BuyerTaxCode
+                    BuyerTaxCode = invoice.BuyerTaxCode ?? string.Empty
                 };
 
-                var files = await provider.DownloadInvoiceFilesAsync(remoteInv, token);
-                var storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles", invoice.TaxAccountId.ToString(), DateTime.Now.Year.ToString(), DateTime.Now.Month.ToString("D2"));
-                Directory.CreateDirectory(storageRoot);
-
-                bool updated = false;
-                if (files.PdfBytes != null && files.PdfBytes.Length > 0)
+                var dlResult = await provider.DownloadAllInvoiceFilesAsync(remoteInv, token);
+                if (dlResult.Success && dlResult.Files.Any())
                 {
-                    var pdfPath = Path.Combine(storageRoot, $"Gov_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.pdf");
-                    await System.IO.File.WriteAllBytesAsync(pdfPath, files.PdfBytes);
-                    invoice.RawPdfPath = pdfPath;
-                    updated = true;
+                    await _invoiceFileService.SaveDownloadedFilesAsync(invoice.Id, invoice.TaxAccountId, dlResult);
                 }
+
+                var files = (XmlBytes: dlResult.XmlFile?.Content, PdfBytes: dlResult.PdfFile?.Content);
+                bool updated = false;
 
                 if (files.XmlBytes != null && files.XmlBytes.Length > 0)
                 {
-                    var xmlPath = Path.Combine(storageRoot, $"Gov_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_{Guid.NewGuid():N}.xml");
-                    await System.IO.File.WriteAllBytesAsync(xmlPath, files.XmlBytes);
-                    invoice.RawXmlPath = xmlPath;
                     updated = true;
 
                     // Nếu hóa đơn chỉ có chi tiết tạm, cập nhật danh sách mặt hàng thật từ XML Cổng Thuế

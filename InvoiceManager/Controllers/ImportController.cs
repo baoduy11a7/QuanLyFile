@@ -6,6 +6,7 @@ using InvoiceManager.Models.Entities;
 using InvoiceManager.Models.ViewModels;
 using InvoiceManager.Services;
 using InvoiceManager.Services.Providers;
+using InvoiceManager.Services.Providers.Gdt;
 using InvoiceManager.Services.Providers.Models;
 using InvoiceManager.Services.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -242,7 +243,8 @@ namespace InvoiceManager.Controllers
                     key = captcha.Key,
                     imageBase64 = captcha.ImageBase64,
                     isSvg = captcha.IsSvg,
-                    svgContent = captcha.SvgContent
+                    svgContent = captcha.SvgContent,
+                    autoCode = captcha.AutoSolvedCode
                 });
             }
             catch (Exception ex)
@@ -255,28 +257,43 @@ namespace InvoiceManager.Controllers
         [Authorize(Roles = "Admin,Accountant")]
         public async Task<IActionResult> GetSavedConnection(string provider = "Gdt")
         {
-            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
-            if (!taxAccountId.HasValue)
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
             {
                 return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
             }
 
             var conn = await _db.RemoteConnections
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.TaxAccountId == taxAccountId.Value && r.ProviderName == provider);
+                .Where(r => r.ProviderName == provider && (r.TaxAccountId == currentAccount.Id || r.Username == currentAccount.TaxCode))
+                .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                .ThenByDescending(r => r.TaxAccountId == currentAccount.Id)
+                .FirstOrDefaultAsync();
+
+            var activeToken = GdtPortalProvider.GetCachedToken(conn?.Username ?? currentAccount.TaxCode, currentAccount.Id);
+            bool hasActiveToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
 
             if (conn == null)
             {
-                return Json(new { success = true, exists = false });
+                return Json(new
+                {
+                    success = true,
+                    exists = false,
+                    username = currentAccount.TaxCode,
+                    rememberPassword = true,
+                    hasSavedPassword = false,
+                    hasActiveToken = hasActiveToken
+                });
             }
 
             return Json(new
             {
                 success = true,
                 exists = true,
-                username = conn.Username,
-                rememberPassword = conn.RememberPassword,
-                hasSavedPassword = conn.RememberPassword && !string.IsNullOrEmpty(conn.EncryptedPassword),
+                username = !string.IsNullOrWhiteSpace(conn.Username) ? conn.Username : currentAccount.TaxCode,
+                rememberPassword = true,
+                hasSavedPassword = !string.IsNullOrEmpty(conn.EncryptedPassword),
+                hasActiveToken = hasActiveToken,
                 lastSyncAt = conn.LastSyncAt?.ToString("dd/MM/yyyy HH:mm"),
                 lastSyncStatus = conn.LastSyncStatus,
                 lastSyncMessage = conn.LastSyncMessage
@@ -312,7 +329,8 @@ namespace InvoiceManager.Controllers
             return Json(new { success = true, remember = request?.Remember ?? false });
         }
 
-        [HttpPost]
+        [HttpPost("Import/StartRemoteFetch")]
+        [HttpPost("/api/invoices/sync-with-original-files")]
         [Authorize(Roles = "Admin,Accountant")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StartRemoteFetch([FromBody] RemoteSyncRequestViewModel model)
@@ -338,6 +356,15 @@ namespace InvoiceManager.Controllers
 
             var passwordToUse = model.Password;
             bool hasToken = !string.IsNullOrWhiteSpace(model.BearerToken);
+            if (!hasToken)
+            {
+                var cachedToken = GdtPortalProvider.GetCachedToken(currentAccount.TaxCode, currentAccount.Id);
+                if (!string.IsNullOrWhiteSpace(cachedToken) && !GdtPortalProvider.IsJwtExpired(cachedToken))
+                {
+                    model.BearerToken = cachedToken;
+                    hasToken = true;
+                }
+            }
 
             if (!hasToken)
             {
@@ -345,9 +372,11 @@ namespace InvoiceManager.Controllers
                 if (string.IsNullOrWhiteSpace(passwordToUse))
                 {
                     var savedConn = await _db.RemoteConnections
-                        .FirstOrDefaultAsync(r => r.TaxAccountId == currentAccount.Id && r.ProviderName == model.ProviderName);
+                        .Where(r => r.ProviderName == model.ProviderName && (r.TaxAccountId == currentAccount.Id || r.Username == currentAccount.TaxCode))
+                        .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                        .FirstOrDefaultAsync();
 
-                    if (savedConn != null && savedConn.RememberPassword && !string.IsNullOrEmpty(savedConn.EncryptedPassword))
+                    if (savedConn != null && !string.IsNullOrEmpty(savedConn.EncryptedPassword))
                     {
                         passwordToUse = _credentialProtector.Unprotect(savedConn.EncryptedPassword) ?? string.Empty;
                     }
@@ -398,7 +427,7 @@ namespace InvoiceManager.Controllers
                 userId,
                 CancellationToken.None));
 
-            return Json(new { success = true, jobId = jobId, message = "Đã khởi chạy tiến trình lấy hóa đơn chạy nền." });
+            return Json(new { success = true, jobId = jobId, message = "Đã khởi chạy tiến trình đồng bộ hóa đơn và tự động tải toàn bộ tệp gốc." });
         }
 
         [HttpGet]
@@ -427,6 +456,12 @@ namespace InvoiceManager.Controllers
                 successCount = info.SuccessCount,
                 duplicateCount = info.DuplicateCount,
                 failedCount = info.FailedCount,
+                newCount = info.NewCount,
+                updatedCount = info.UpdatedCount,
+                filesDownloadedCount = info.FilesDownloadedCount,
+                filesFailedCount = info.FilesFailedCount,
+                missingFilesCount = info.MissingFilesCount,
+                errors = info.Errors,
                 logs = info.Logs,
                 isFinished = info.IsFinished,
                 errorMessage = info.ErrorMessage
@@ -446,6 +481,325 @@ namespace InvoiceManager.Controllers
             _jobTracker.CancelJob(req.JobId);
             return Json(new { success = true, message = "Đã gửi lệnh hủy tiến trình thành công." });
         }
+
+        #region Automatic One-Click Sync & Quick Download (No Captcha / Password Prompt)
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AutoSync([FromBody] AutoSyncRequest? request)
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp làm việc." });
+            }
+
+            // 1. Kiểm tra Token còn hạn trong cache hoặc Password đã lưu
+            var activeToken = GdtPortalProvider.GetCachedToken(currentAccount.TaxCode, currentAccount.Id);
+            bool hasValidToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
+
+            string? plainPassword = null;
+            var conn = await _db.RemoteConnections
+                .Where(r => r.ProviderName == "Gdt" && (r.TaxAccountId == currentAccount.Id || r.Username == currentAccount.TaxCode))
+                .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                .FirstOrDefaultAsync();
+
+            if (conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword))
+            {
+                plainPassword = _credentialProtector.Unprotect(conn.EncryptedPassword);
+            }
+
+            if (!hasValidToken && string.IsNullOrEmpty(plainPassword))
+            {
+                return Json(new
+                {
+                    success = false,
+                    needSetup = true,
+                    taxCode = currentAccount.TaxCode,
+                    companyName = currentAccount.CompanyName,
+                    hasSavedPassword = false,
+                    message = "Doanh nghiệp chưa cấu hình mật khẩu Cổng Thuế. Vui lòng thiết lập mật khẩu 1 lần để hệ thống tự động giải Captcha và đồng bộ vĩnh viễn."
+                });
+            }
+
+            // 2. Thiết lập khoảng thời gian: Mặc định từ đầu quý hiện tại đến hôm nay, hoặc theo request
+            var now = DateTime.Today;
+            int quarter = (now.Month - 1) / 3 + 1;
+            var defaultFrom = new DateTime(now.Year, (quarter - 1) * 3 + 1, 1);
+            var fromDate = request?.FromDate ?? defaultFrom;
+            var toDate = request?.ToDate ?? now;
+            var invoiceType = string.IsNullOrWhiteSpace(request?.InvoiceType) ? "All" : request.InvoiceType;
+
+            var cred = new ProviderCredentials
+            {
+                TaxCode = currentAccount.TaxCode,
+                Username = conn?.Username ?? currentAccount.TaxCode,
+                Password = plainPassword ?? string.Empty,
+                BearerToken = hasValidToken ? activeToken : null
+            };
+
+            var fetchReq = new FetchRequest
+            {
+                TaxCode = currentAccount.TaxCode,
+                FromDate = fromDate,
+                ToDate = toDate,
+                InvoiceType = invoiceType
+            };
+
+            var jobId = Guid.NewGuid().ToString("N");
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            _jobTracker.CreateJob(jobId, out _);
+
+            await _auditLogService.LogActionAsync("AutoSync_Started", "Gdt",
+                $"Tự động đồng bộ hóa đơn không cần nhập mật khẩu cho {currentAccount.CompanyName} ({currentAccount.TaxCode}) từ {fromDate:dd/MM/yyyy} đến {toDate:dd/MM/yyyy}.", currentAccount.Id);
+
+            BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+                jobId,
+                currentAccount.Id,
+                "Gdt",
+                cred,
+                fetchReq,
+                true,
+                userId,
+                CancellationToken.None));
+
+            return Json(new
+            {
+                success = true,
+                jobId = jobId,
+                companyName = currentAccount.CompanyName,
+                taxCode = currentAccount.TaxCode,
+                message = $"Đã tự động kết nối Cổng Tổng cục Thuế và khởi chạy đồng bộ cho {currentAccount.CompanyName}."
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AutoQuickDownload([FromBody] AutoSyncRequest? request)
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp làm việc." });
+            }
+
+            // Kiểm tra Token còn hạn trong cache hoặc Password đã lưu
+            var activeToken = GdtPortalProvider.GetCachedToken(currentAccount.TaxCode, currentAccount.Id);
+            bool hasValidToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
+
+            string? plainPassword = null;
+            var conn = await _db.RemoteConnections
+                .Where(r => r.ProviderName == "Gdt" && (r.TaxAccountId == currentAccount.Id || r.Username == currentAccount.TaxCode))
+                .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                .FirstOrDefaultAsync();
+
+            if (conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword))
+            {
+                plainPassword = _credentialProtector.Unprotect(conn.EncryptedPassword);
+            }
+
+            if (!hasValidToken && string.IsNullOrEmpty(plainPassword))
+            {
+                return Json(new
+                {
+                    success = false,
+                    needSetup = true,
+                    taxCode = currentAccount.TaxCode,
+                    companyName = currentAccount.CompanyName,
+                    hasSavedPassword = false,
+                    message = "Doanh nghiệp chưa cấu hình mật khẩu Cổng Thuế. Vui lòng thiết lập mật khẩu 1 lần để hệ thống tự động giải Captcha và tải nhanh vĩnh viễn."
+                });
+            }
+
+            // Tải nhanh: Lấy 30 ngày gần nhất
+            var now = DateTime.Today;
+            var fromDate = request?.FromDate ?? now.AddDays(-30);
+            var toDate = request?.ToDate ?? now;
+            var invoiceType = string.IsNullOrWhiteSpace(request?.InvoiceType) ? "All" : request.InvoiceType;
+
+            var cred = new ProviderCredentials
+            {
+                TaxCode = currentAccount.TaxCode,
+                Username = conn?.Username ?? currentAccount.TaxCode,
+                Password = plainPassword ?? string.Empty,
+                BearerToken = hasValidToken ? activeToken : null
+            };
+
+            var fetchReq = new FetchRequest
+            {
+                TaxCode = currentAccount.TaxCode,
+                FromDate = fromDate,
+                ToDate = toDate,
+                InvoiceType = invoiceType
+            };
+
+            var jobId = Guid.NewGuid().ToString("N");
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            _jobTracker.CreateJob(jobId, out _);
+
+            await _auditLogService.LogActionAsync("AutoQuickDownload_Started", "Gdt",
+                $"Tải nhanh dữ liệu hóa đơn 30 ngày ({fromDate:dd/MM/yyyy} - {toDate:dd/MM/yyyy}) kèm tệp gốc cho {currentAccount.CompanyName}.", currentAccount.Id);
+
+            BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+                jobId,
+                currentAccount.Id,
+                "Gdt",
+                cred,
+                fetchReq,
+                true,
+                userId,
+                CancellationToken.None));
+
+            return Json(new
+            {
+                success = true,
+                jobId = jobId,
+                companyName = currentAccount.CompanyName,
+                taxCode = currentAccount.TaxCode,
+                message = $"Đang tự động tải nhanh hóa đơn và toàn bộ tệp gốc cho {currentAccount.CompanyName}."
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AutoMultiCompanySync()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Json(new { success = false, message = "Phiên làm việc hết hạn." });
+            }
+
+            var userAccounts = await _db.UserTaxAccounts
+                .Include(u => u.TaxAccount)
+                .Where(u => u.UserId == userId && u.TaxAccount != null)
+                .Select(u => u.TaxAccount!)
+                .ToListAsync();
+
+            if (!userAccounts.Any())
+            {
+                return Json(new { success = false, message = "Không tìm thấy danh sách doanh nghiệp." });
+            }
+
+            int launchedCount = 0;
+            var now = DateTime.Today;
+            int quarter = (now.Month - 1) / 3 + 1;
+            var defaultFrom = new DateTime(now.Year, (quarter - 1) * 3 + 1, 1);
+
+            foreach (var acc in userAccounts)
+            {
+                var activeToken = GdtPortalProvider.GetCachedToken(acc.TaxCode, acc.Id);
+                bool hasToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
+
+                string? plainPassword = null;
+                var conn = await _db.RemoteConnections
+                    .Where(r => r.ProviderName == "Gdt" && (r.TaxAccountId == acc.Id || r.Username == acc.TaxCode))
+                    .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                    .FirstOrDefaultAsync();
+
+                if (conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword))
+                {
+                    plainPassword = _credentialProtector.Unprotect(conn.EncryptedPassword);
+                }
+
+                if (!hasToken && string.IsNullOrEmpty(plainPassword))
+                {
+                    continue; // Bỏ qua cty chưa cấu hình
+                }
+
+                var cred = new ProviderCredentials
+                {
+                    TaxCode = acc.TaxCode,
+                    Username = conn?.Username ?? acc.TaxCode,
+                    Password = plainPassword ?? string.Empty,
+                    BearerToken = hasToken ? activeToken : null
+                };
+
+                var fetchReq = new FetchRequest
+                {
+                    TaxCode = acc.TaxCode,
+                    FromDate = defaultFrom,
+                    ToDate = now,
+                    InvoiceType = "All"
+                };
+
+                var jobId = Guid.NewGuid().ToString("N");
+                _jobTracker.CreateJob(jobId, out _);
+
+                BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+                    jobId,
+                    acc.Id,
+                    "Gdt",
+                    cred,
+                    fetchReq,
+                    true,
+                    userId,
+                    CancellationToken.None));
+
+                launchedCount++;
+            }
+
+            return Json(new
+            {
+                success = true,
+                count = launchedCount,
+                message = launchedCount > 0
+                    ? $"Đã tự động khởi chạy đồng bộ ngầm cho {launchedCount}/{userAccounts.Count} doanh nghiệp có cấu hình Cổng Thuế."
+                    : "Chưa có doanh nghiệp nào được lưu thông tin kết nối Cổng Thuế."
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveGovConfig([FromBody] SaveGovConfigRequest req)
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp." });
+            }
+
+            if (string.IsNullOrWhiteSpace(req?.Password))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập mật khẩu Cổng Thuế." });
+            }
+
+            var conn = await _db.RemoteConnections
+                .FirstOrDefaultAsync(r => r.TaxAccountId == currentAccount.Id && r.ProviderName == "Gdt");
+
+            if (conn == null)
+            {
+                conn = new RemoteConnection
+                {
+                    TaxAccountId = currentAccount.Id,
+                    ProviderName = "Gdt",
+                    Username = !string.IsNullOrWhiteSpace(req.Username) ? req.Username.Trim() : currentAccount.TaxCode,
+                    RememberPassword = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _db.RemoteConnections.Add(conn);
+            }
+
+            conn.Username = !string.IsNullOrWhiteSpace(req.Username) ? req.Username.Trim() : currentAccount.TaxCode;
+            conn.RememberPassword = true;
+            conn.EncryptedPassword = _credentialProtector.Protect(req.Password.Trim());
+            conn.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            await _auditLogService.LogActionAsync("SaveGovConfig", "Gdt",
+                $"Đã lưu thông tin kết nối Cổng Tổng cục Thuế cho {currentAccount.CompanyName}.", currentAccount.Id);
+
+            return Json(new { success = true, message = "Đã lưu thông tin kết nối thành công. Từ giờ hệ thống sẽ tự động đồng bộ hóa đơn!" });
+        }
+
+        #endregion
         #endregion
     }
 
@@ -458,5 +812,18 @@ namespace InvoiceManager.Controllers
     {
         public string Provider { get; set; } = "Gdt";
         public bool Remember { get; set; }
+    }
+
+    public class AutoSyncRequest
+    {
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public string? InvoiceType { get; set; } = "All";
+    }
+
+    public class SaveGovConfigRequest
+    {
+        public string? Username { get; set; }
+        public string Password { get; set; } = string.Empty;
     }
 }

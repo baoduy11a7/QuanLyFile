@@ -52,3 +52,16 @@ tools/*.log
 ## Node
 node_modules/
 
+## Python cache
+__pycache__/
+*.pyc
+
+## Databases & Tokens
+*.db
+*.db-shm
+*.db-wal
+**/App_Data/*.db
+**/gdt_tokens.json
+App_Data/
+
+
