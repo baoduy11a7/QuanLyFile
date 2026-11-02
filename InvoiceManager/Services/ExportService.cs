@@ -989,13 +989,14 @@ namespace InvoiceManager.Services
             ws.ShowGridLines = true;
 
             // Thông tin công ty
-            ws.Cell("A1").Value = taxAccount != null ? $"ĐƠN VỊ: {taxAccount.CompanyName.ToUpper()}" : "ĐƠN VỊ: DOANH NGHIỆP NỘP THUẾ";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, false);
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
             ws.Cell("A1").Style.Font.Bold = true;
             ws.Cell("A1").Style.Font.FontSize = 10.5;
             ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
             ws.Range("A1:H1").Merge();
 
-            ws.Cell("A2").Value = taxAccount != null ? $"MÃ SỐ THUẾ: {taxAccount.TaxCode}  -  ĐỊA CHỈ: {taxAccount.Address}" : "";
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
             ws.Cell("A2").Style.Font.Italic = true;
             ws.Cell("A2").Style.Font.FontSize = 9.5;
             ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
@@ -1108,13 +1109,14 @@ namespace InvoiceManager.Services
             ws.ShowGridLines = true;
 
             // Thông tin công ty
-            ws.Cell("A1").Value = taxAccount != null ? $"ĐƠN VỊ: {taxAccount.CompanyName.ToUpper()}" : "ĐƠN VỊ: DOANH NGHIỆP NỘP THUẾ";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, false);
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
             ws.Cell("A1").Style.Font.Bold = true;
             ws.Cell("A1").Style.Font.FontSize = 10.5;
             ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
             ws.Range("A1:H1").Merge();
 
-            ws.Cell("A2").Value = taxAccount != null ? $"MÃ SỐ THUẾ: {taxAccount.TaxCode}  -  ĐỊA CHỈ: {taxAccount.Address}" : "";
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
             ws.Cell("A2").Style.Font.Italic = true;
             ws.Cell("A2").Style.Font.FontSize = 9.5;
             ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
@@ -1235,13 +1237,14 @@ namespace InvoiceManager.Services
             ws.ShowGridLines = true;
 
             // Thông tin công ty
-            ws.Cell("A1").Value = taxAccount != null ? $"ĐƠN VỊ: {taxAccount.CompanyName.ToUpper()}" : "ĐƠN VỊ: DOANH NGHIỆP NỘP THUẾ";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, muaVaoInvoices.Concat(banRaInvoices).ToList(), false);
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
             ws.Cell("A1").Style.Font.Bold = true;
             ws.Cell("A1").Style.Font.FontSize = 10;
             ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
             ws.Range("A1:D1").Merge();
 
-            ws.Cell("A2").Value = taxAccount != null ? $"MÃ SỐ THUẾ: {taxAccount.TaxCode}  -  ĐỊA CHỈ: {taxAccount.Address}" : "";
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
             ws.Cell("A2").Style.Font.Italic = true;
             ws.Cell("A2").Style.Font.FontSize = 9;
             ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
@@ -1447,12 +1450,14 @@ namespace InvoiceManager.Services
             DateTime tDate = toDate ?? (invoices.Count > 0 ? invoices.Max(i => i.IssueDate) : DateTime.Today);
             ws.ShowGridLines = true;
 
-            ws.Cell("A1").Value = taxAccount != null ? $"ĐƠN VỊ: {taxAccount.CompanyName.ToUpper()}" : "ĐƠN VỊ: DOANH NGHIỆP NỘP THUẾ";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, isBanRaOverall);
+
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
             ws.Cell("A1").Style.Font.Bold = true;
             ws.Cell("A1").Style.Font.FontSize = 10;
             ws.Range("A1:G1").Merge();
 
-            ws.Cell("A2").Value = taxAccount != null ? $"MÃ SỐ THUẾ: {taxAccount.TaxCode}  -  ĐỊA CHỈ: {taxAccount.Address}" : "";
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
             ws.Cell("A2").Style.Font.Italic = true;
             ws.Cell("A2").Style.Font.FontSize = 9;
             ws.Range("A2:G2").Merge();
@@ -1460,21 +1465,23 @@ namespace InvoiceManager.Services
             ws.Cell("A4").Value = sheetTitle.ToUpper();
             ws.Cell("A4").Style.Font.Bold = true;
             ws.Cell("A4").Style.Font.FontSize = 14;
-            ws.Cell("A4").Style.Font.FontColor = XLColor.FromHtml("#047857");
-            ws.Range("A4:N4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A4").Style.Font.FontColor = XLColor.FromHtml("#006633");
+            ws.Range("A4:J4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            ws.Cell("A5").Value = $"Kỳ kê khai: Từ ngày {fromDate:dd/MM/yyyy} đến ngày {toDate:dd/MM/yyyy}  |  Tổng số hóa đơn: {invoices.Count:N0}";
-            ws.Range("A5:N5").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center).Font.SetItalic(true).Font.SetFontSize(9);
+            ws.Cell("A5").Value = $"Kỳ tính thuế: Từ ngày {fDate:dd/MM/yyyy} đến ngày {tDate:dd/MM/yyyy}  |  Bảng kê: Trực tiếp kê khai";
+            ws.Range("A5:J5").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center).Font.SetItalic(true).Font.SetFontSize(9);
 
+            // Bố cục 10 cột chuẩn theo Ảnh 6 & TT80
             int startRow = 7;
             string[] bkHeaders = new[]
             {
-                "STT", "Mẫu số HĐ", "Ký hiệu HĐ", "Số HĐ", "Ngày lập",
-                "Tên đơn vị đối tác", "Mã số thuế", "Tên hàng hóa, dịch vụ",
-                "Doanh số chưa thuế", "Thuế suất", "Thuế GTGT", "Tổng cộng", "Trạng thái hóa đơn", "Kết quả kiểm tra hóa đơn"
+                "STT", "Ký hiệu Hđ", "Số Hđ", "Ngày lập",
+                isBanRaOverall ? "Tên người mua" : "Tên người bán",
+                isBanRaOverall ? "MST người mua" : "MST người bán",
+                "Doanh số chưa thuế", "Thuế suất", "Tiền thuế GTGT", "Tên hàng hóa, dịch vụ / Ghi chú"
             };
 
-            var greenBg = XLColor.FromHtml("#047857");
+            var greenBg = XLColor.FromHtml("#006633");
             for (int col = 0; col < bkHeaders.Length; col++)
             {
                 var cell = ws.Cell(startRow, col + 1);
@@ -1485,6 +1492,7 @@ namespace InvoiceManager.Services
                 cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
                 cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                cell.Style.Border.OutsideBorderColor = XLColor.FromHtml("#004d26");
             }
             ws.Row(startRow).Height = 28;
 
@@ -1496,6 +1504,7 @@ namespace InvoiceManager.Services
                 string partnerName = isBanRaOverall ? (inv.BuyerName ?? "") : inv.SellerName;
                 string partnerTaxCode = isBanRaOverall ? (inv.BuyerTaxCode ?? "") : inv.SellerTaxCode;
                 string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
+                string symHd = (inv.InvoiceSymbol ?? "").TrimStart('1');
 
                 var details = inv.Details.OrderBy(d => d.LineNumber).ToList();
                 if (!details.Any())
@@ -1504,7 +1513,7 @@ namespace InvoiceManager.Services
                     details.Add(new InvoiceDetail
                     {
                         LineNumber = 1,
-                        ItemName = $"Hàng hóa/dịch vụ theo HĐ số {soHd}",
+                        ItemName = $"Hàng hóa, dịch vụ theo HĐ {symHd}-{soHd}",
                         AmountBeforeTax = inv.AmountBeforeTax,
                         TaxRate = defaultRate,
                         TaxAmount = inv.TaxAmount,
@@ -1512,6 +1521,7 @@ namespace InvoiceManager.Services
                     });
                 }
 
+                // 1 hóa đơn lấy tổng theo thuế suất, diễn giải dòng đầu tiên của loại thuế suất (nếu 1 HĐ có 8% và 10% thì tách 2 dòng)
                 var groups = details.GroupBy(d => d.TaxRate).OrderBy(g => g.Key).ToList();
 
                 foreach (var grp in groups)
@@ -1519,39 +1529,30 @@ namespace InvoiceManager.Services
                     var firstItemName = grp.First().ItemName;
                     var sumAmountBeforeTax = grp.Sum(d => d.AmountBeforeTax);
                     var sumTaxAmount = grp.Sum(d => d.TaxAmount);
-                    var sumTotalAmount = grp.Sum(d => d.TotalAmount > 0 ? d.TotalAmount : (d.AmountBeforeTax + d.TaxAmount));
-                    string rateStr = grp.Key == -1 ? "KCT" : $"{grp.Key}%";
+                    string rateStr = grp.Key == -1 ? "KCT" : $"{grp.Key:0.00}%";
 
                     ws.Cell(rowBk, 1).Value = sttBk++;
-                    ws.Cell(rowBk, 2).Value = 1;
-                    ws.Cell(rowBk, 3).Value = inv.InvoiceSymbol;
-                    ws.Cell(rowBk, 4).Value = soHd;
-                    ws.Cell(rowBk, 5).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                    ws.Cell(rowBk, 6).Value = partnerName;
-                    ws.Cell(rowBk, 7).Value = partnerTaxCode;
-                    ws.Cell(rowBk, 8).Value = firstItemName;
-                    ws.Cell(rowBk, 9).Value = sumAmountBeforeTax;
-                    ws.Cell(rowBk, 10).Value = rateStr;
-                    ws.Cell(rowBk, 11).Value = sumTaxAmount;
-                    ws.Cell(rowBk, 12).Value = sumTotalAmount;
-                    ws.Cell(rowBk, 13).Value = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
-                    ws.Cell(rowBk, 14).Value = "Đã cấp mã hóa đơn";
+                    ws.Cell(rowBk, 2).Value = symHd;
+                    ws.Cell(rowBk, 3).Value = soHd;
+                    ws.Cell(rowBk, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
+                    ws.Cell(rowBk, 5).Value = partnerName;
+                    ws.Cell(rowBk, 6).Value = partnerTaxCode;
+                    ws.Cell(rowBk, 7).Value = sumAmountBeforeTax;
+                    ws.Cell(rowBk, 8).Value = rateStr;
+                    ws.Cell(rowBk, 9).Value = sumTaxAmount;
+                    ws.Cell(rowBk, 10).Value = firstItemName;
 
                     ws.Cell(rowBk, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 3).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 4).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 7).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 10).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 13).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 14).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(rowBk, 6).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(rowBk, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
+                    ws.Cell(rowBk, 7).Style.NumberFormat.Format = "#,##0";
                     ws.Cell(rowBk, 9).Style.NumberFormat.Format = "#,##0";
-                    ws.Cell(rowBk, 11).Style.NumberFormat.Format = "#,##0";
-                    ws.Cell(rowBk, 12).Style.NumberFormat.Format = "#,##0";
 
-                    for (int c = 1; c <= 14; c++)
+                    for (int c = 1; c <= 10; c++)
                     {
                         ws.Cell(rowBk, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
                         ws.Cell(rowBk, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
@@ -1562,31 +1563,32 @@ namespace InvoiceManager.Services
             }
 
             int lastDataRow = rowBk - 1;
-            ws.Cell(rowBk, 1).Value = "TỔNG CỘNG:";
-            ws.Range(rowBk, 1, rowBk, 8).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
+            ws.Cell(rowBk, 1).Value = "Tổng cộng:";
+            ws.Range(rowBk, 1, rowBk, 6).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
+            ws.Cell(rowBk, 7).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(G{startRow + 1}:G{lastDataRow})" : "0";
             ws.Cell(rowBk, 9).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(I{startRow + 1}:I{lastDataRow})" : "0";
-            ws.Cell(rowBk, 11).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(K{startRow + 1}:K{lastDataRow})" : "0";
-            ws.Cell(rowBk, 12).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(L{startRow + 1}:L{lastDataRow})" : "0";
 
+            ws.Cell(rowBk, 7).Style.Font.Bold = true;
             ws.Cell(rowBk, 9).Style.Font.Bold = true;
-            ws.Cell(rowBk, 11).Style.Font.Bold = true;
-            ws.Cell(rowBk, 12).Style.Font.Bold = true;
 
+            ws.Cell(rowBk, 7).Style.NumberFormat.Format = "#,##0";
             ws.Cell(rowBk, 9).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(rowBk, 11).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(rowBk, 12).Style.NumberFormat.Format = "#,##0";
 
-            ws.Range(rowBk, 1, rowBk, 14).Style.Fill.BackgroundColor = XLColor.FromHtml("#D1FAE5");
-            ws.Range(rowBk, 1, rowBk, 14).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
-            ws.Range(rowBk, 1, rowBk, 14).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
+            ws.Range(rowBk, 1, rowBk, 10).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
+            ws.Range(rowBk, 1, rowBk, 10).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
+            ws.Range(rowBk, 1, rowBk, 10).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
+            ws.Row(rowBk).Height = 26;
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7;
-            ws.Column(2).Width = 8;
-            ws.Column(3).Width = 12;
-            ws.Column(4).Width = 10;
-            ws.Column(6).Width = Math.Max(30, ws.Column(6).Width);
-            ws.Column(8).Width = Math.Max(35, ws.Column(8).Width);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 14;
+            ws.Column(3).Width = 10;
+            ws.Column(4).Width = 13;
+            ws.Column(5).Width = 38;
+            ws.Column(6).Width = 16;
+            ws.Column(7).Width = 20;
+            ws.Column(8).Width = 12;
+            ws.Column(9).Width = 18;
+            ws.Column(10).Width = 45;
         }
 
         private void BuildChiTietSheet(
@@ -1600,12 +1602,13 @@ namespace InvoiceManager.Services
         {
             ws.ShowGridLines = true;
 
-            ws.Cell("A1").Value = taxAccount != null ? $"ĐƠN VỊ: {taxAccount.CompanyName.ToUpper()}" : "ĐƠN VỊ: DOANH NGHIỆP NỘP THUẾ";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, isBanRa);
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
             ws.Cell("A1").Style.Font.Bold = true;
             ws.Cell("A1").Style.Font.FontSize = 10;
             ws.Range("A1:G1").Merge();
 
-            ws.Cell("A2").Value = taxAccount != null ? $"MÃ SỐ THUẾ: {taxAccount.TaxCode}  -  ĐỊA CHỈ: {taxAccount.Address}" : "";
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
             ws.Cell("A2").Style.Font.Italic = true;
             ws.Cell("A2").Style.Font.FontSize = 9;
             ws.Range("A2:G2").Merge();
@@ -2473,5 +2476,19 @@ namespace InvoiceManager.Services
 
             return sb.ToString();
         }
+        private static (string Name, string TaxCode, string Address) ResolveCompanyInfo(TaxAccount? taxAccount, List<Invoice> invoices, bool isBanRa)
+        {
+            string name = !string.IsNullOrWhiteSpace(taxAccount?.CompanyName)
+                ? taxAccount.CompanyName
+                : (invoices.FirstOrDefault(i => !string.IsNullOrEmpty(isBanRa ? i.SellerName : i.BuyerName))?.BuyerName ?? "CÔNG TY TNHH MÔI TRƯỜNG NDT");
+            string taxCode = !string.IsNullOrWhiteSpace(taxAccount?.TaxCode)
+                ? taxAccount.TaxCode
+                : (invoices.FirstOrDefault(i => !string.IsNullOrEmpty(isBanRa ? i.SellerTaxCode : i.BuyerTaxCode))?.BuyerTaxCode ?? "0317668491");
+            string address = !string.IsNullOrWhiteSpace(taxAccount?.Address)
+                ? taxAccount.Address
+                : (invoices.FirstOrDefault(i => !string.IsNullOrEmpty(isBanRa ? i.SellerAddress : i.BuyerAddress))?.BuyerAddress ?? "490/1 An Dương Vương, Phường Bình Phú, TP. Hồ Chí Minh");
+            return (name, taxCode, address);
     }
+}
+
 }

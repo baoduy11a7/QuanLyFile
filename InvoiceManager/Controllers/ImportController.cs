@@ -527,8 +527,8 @@ namespace InvoiceManager.Controllers
             var now = DateTime.Today;
             int quarter = (now.Month - 1) / 3 + 1;
             var defaultFrom = new DateTime(now.Year, (quarter - 1) * 3 + 1, 1);
-            var fromDate = request?.FromDate ?? defaultFrom;
-            var toDate = request?.ToDate ?? now;
+            var fromDate = request?.GetResolvedFromDate(defaultFrom) ?? defaultFrom;
+            var toDate = request?.GetResolvedToDate(now) ?? now;
             var invoiceType = string.IsNullOrWhiteSpace(request?.InvoiceType) ? "All" : request.InvoiceType;
 
             var cred = new ProviderCredentials
@@ -616,8 +616,8 @@ namespace InvoiceManager.Controllers
 
             // Tải nhanh: Lấy 30 ngày gần nhất
             var now = DateTime.Today;
-            var fromDate = request?.FromDate ?? now.AddDays(-30);
-            var toDate = request?.ToDate ?? now;
+            var fromDate = request?.GetResolvedFromDate(now.AddDays(-30)) ?? now.AddDays(-30);
+            var toDate = request?.GetResolvedToDate(now) ?? now;
             var invoiceType = string.IsNullOrWhiteSpace(request?.InvoiceType) ? "All" : request.InvoiceType;
 
             var cred = new ProviderCredentials
@@ -816,9 +816,29 @@ namespace InvoiceManager.Controllers
 
     public class AutoSyncRequest
     {
-        public DateTime? FromDate { get; set; }
-        public DateTime? ToDate { get; set; }
+        public string? FromDate { get; set; }
+        public string? ToDate { get; set; }
         public string? InvoiceType { get; set; } = "All";
+
+        public DateTime GetResolvedFromDate(DateTime fallback)
+        {
+            if (string.IsNullOrWhiteSpace(FromDate)) return fallback;
+            if (DateTime.TryParseExact(FromDate.Trim(), new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                return d;
+            if (DateTime.TryParse(FromDate, out var dAny))
+                return dAny;
+            return fallback;
+        }
+
+        public DateTime GetResolvedToDate(DateTime fallback)
+        {
+            if (string.IsNullOrWhiteSpace(ToDate)) return fallback;
+            if (DateTime.TryParseExact(ToDate.Trim(), new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                return d;
+            if (DateTime.TryParse(ToDate, out var dAny))
+                return dAny;
+            return fallback;
+        }
     }
 
     public class SaveGovConfigRequest

@@ -79,7 +79,7 @@ def fetch_captcha_http():
     except Exception as e:
         return {'success': False, 'message': str(e)}
 
-def auto_login(username, password, max_retries=5):
+def auto_login(username, password, max_retries=10):
     node_script = os.path.join(os.path.dirname(__file__), 'gdt_agent.js')
     import subprocess
 
@@ -116,9 +116,11 @@ def auto_login(username, password, max_retries=5):
             }
 
         msg = res.get('message', '')
-        # If captcha was wrong, retry automatically!
-        if 'captcha' in msg.lower():
-            time.sleep(0.3)
+        msg_l = msg.lower()
+        is_captcha_fail = ('captcha' in msg_l or 'xác thực' in msg_l or 'tham số không hợp lệ' in msg_l 
+                           or 'hết hạn' in msg_l or 'không chính xác' in msg_l or '400' in msg_l)
+        if is_captcha_fail:
+            time.sleep(0.4)
             continue
         
         # If error is wrong password or locked account, return immediately

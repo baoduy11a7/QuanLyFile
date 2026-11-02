@@ -486,8 +486,63 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                 int repairedCount = 0;
                 string storageRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "RawFiles");
 
+                // Quét và lập chỉ mục toàn bộ tệp XML trên đĩa (App_Data/RawFiles) để đối soát chuẩn xác
+                var xmlIndex = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (Directory.Exists(storageRoot))
+                {
+                    var allXmlFiles = Directory.GetFiles(storageRoot, "*.xml", SearchOption.AllDirectories);
+                    foreach (var xf in allXmlFiles)
+                    {
+                        try
+                        {
+                            using var sr = new StreamReader(File.OpenRead(xf), System.Text.Encoding.UTF8, true, 4096);
+                            var head = sr.ReadToEnd();
+                            int ttIdx = head.IndexOf("<TTChung", StringComparison.OrdinalIgnoreCase);
+                            if (ttIdx >= 0)
+                            {
+                                string ExtractTag(string text, string tag)
+                                {
+                                    int s = text.IndexOf("<" + tag + ">", StringComparison.OrdinalIgnoreCase);
+                                    if (s < 0) return "";
+                                    s += tag.Length + 2;
+                                    int e = text.IndexOf("</" + tag + ">", s, StringComparison.OrdinalIgnoreCase);
+                                    return e > s ? text.Substring(s, e - s).Trim() : "";
+                                }
+
+                                string symbol = ExtractTag(head, "KHHDon").TrimStart('1').ToUpper();
+                                string num = ExtractTag(head, "SHDon");
+                                string normNum = long.TryParse(num, out var ln) ? ln.ToString() : num.TrimStart('0');
+
+                                int nbanIdx = head.IndexOf("<NBan", StringComparison.OrdinalIgnoreCase);
+                                string nbanMst = "";
+                                if (nbanIdx >= 0)
+                                {
+                                    int nbanEnd = head.IndexOf("</NBan>", nbanIdx, StringComparison.OrdinalIgnoreCase);
+                                    if (nbanEnd > nbanIdx)
+                                    {
+                                        var nbanBlock = head.Substring(nbanIdx, nbanEnd - nbanIdx);
+                                        nbanMst = ExtractTag(nbanBlock, "MST");
+                                    }
+                                }
+
+                                if (!string.IsNullOrEmpty(symbol) && !string.IsNullOrEmpty(normNum))
+                                {
+                                    xmlIndex[$"{symbol}_{normNum}"] = xf;
+                                    if (!string.IsNullOrEmpty(nbanMst))
+                                    {
+                                        xmlIndex[$"{nbanMst}_{symbol}_{normNum}"] = xf;
+                                        xmlIndex[$"{nbanMst}_{normNum}"] = xf;
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
                 foreach (var inv in invoices)
                 {
+                    bool modified = false;
                     bool isPlaceholder = !inv.Details.Any() ||
                         inv.Details.All(d => d.ItemName.StartsWith("Hàng hóa") || d.Unit == "Lô/Gói" || d.Unit == "Lần") ||
                         inv.Details.Any(d => d.TaxAmount == 0 && d.TaxRate > 0);
@@ -507,16 +562,23 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                         }
                     }
 
-                    if (xmlPath == null && Directory.Exists(storageRoot))
+                    if (xmlPath == null)
                     {
-                        var normNum = long.TryParse(inv.InvoiceNumber, out var n) ? n.ToString() : inv.InvoiceNumber;
-                        var cleanSymbol = (inv.InvoiceSymbol ?? "").TrimStart('1');
-                        var candidates = Directory.GetFiles(storageRoot, "*.xml", SearchOption.AllDirectories)
-                            .Where(f => f.Contains(cleanSymbol, StringComparison.OrdinalIgnoreCase) && (f.Contains(normNum) || f.Contains(inv.InvoiceNumber)))
-                            .ToList();
-                        if (candidates.Any())
+                        var normNum = long.TryParse(inv.InvoiceNumber, out var n) ? n.ToString() : (inv.InvoiceNumber ?? "").TrimStart('0');
+                        var cleanSymbol = (inv.InvoiceSymbol ?? "").TrimStart('1').ToUpper();
+                        var sellerMst = (inv.SellerTaxCode ?? "").Trim();
+
+                        if (!string.IsNullOrEmpty(sellerMst) && !string.IsNullOrEmpty(cleanSymbol) && xmlIndex.TryGetValue($"{sellerMst}_{cleanSymbol}_{normNum}", out var p1))
                         {
-                            xmlPath = candidates.First();
+                            xmlPath = p1;
+                        }
+                        else if (!string.IsNullOrEmpty(cleanSymbol) && xmlIndex.TryGetValue($"{cleanSymbol}_{normNum}", out var p2))
+                        {
+                            xmlPath = p2;
+                        }
+                        else if (!string.IsNullOrEmpty(sellerMst) && xmlIndex.TryGetValue($"{sellerMst}_{normNum}", out var p3))
+                        {
+                            xmlPath = p3;
                         }
                     }
 
@@ -528,17 +590,15 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                             var parsed = await parser.ParseAsync(fs, Path.GetFileName(xmlPath));
                             if (parsed.Success)
                             {
-                                bool modified = false;
-
-                                // 1. Chỉnh lỗi ngày lập thấp hơn 1 ngày
-                                if (parsed.IssueDate > DateTime.MinValue && (inv.IssueDate != parsed.IssueDate))
+                                // 1. Khắc phục triệt để lỗi ngày lập lùi 1 ngày so với thực tế
+                                if (parsed.IssueDate > DateTime.MinValue && (inv.IssueDate.Date != parsed.IssueDate.Date || inv.IssueDate != parsed.IssueDate))
                                 {
                                     inv.IssueDate = parsed.IssueDate;
                                     modified = true;
                                 }
 
-                                // 2. Chỉnh lỗi tên hàng hóa và đơn vị tính sai
-                                if (isPlaceholder && parsed.Details.Any())
+                                // 2. Khắc phục triệt để lỗi tên hàng hóa và đơn vị tính: load chính xác từ XML gốc
+                                if (parsed.Details.Any() && (isPlaceholder || inv.Details.Count != parsed.Details.Count))
                                 {
                                     inv.Details.Clear();
                                     foreach (var d in parsed.Details)
@@ -571,17 +631,78 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                                     modified = true;
                                 }
 
+                                if (!string.IsNullOrWhiteSpace(parsed.SellerAddress) && string.IsNullOrWhiteSpace(inv.SellerAddress))
+                                {
+                                    inv.SellerAddress = parsed.SellerAddress;
+                                    modified = true;
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(parsed.BuyerAddress) && string.IsNullOrWhiteSpace(inv.BuyerAddress))
+                                {
+                                    inv.BuyerAddress = parsed.BuyerAddress;
+                                    modified = true;
+                                }
+
                                 if (string.IsNullOrEmpty(inv.RawXmlPath) || !File.Exists(inv.RawXmlPath))
                                 {
                                     inv.RawXmlPath = xmlPath;
                                     modified = true;
                                 }
 
-                                if (modified) repairedCount++;
+                                if (!inv.Files.Any(f => f.FilePath == xmlPath))
+                                {
+                                    inv.Files.Add(new InvoiceFile
+                                    {
+                                        InvoiceId = inv.Id,
+                                        TaxAccountId = inv.TaxAccountId,
+                                        OriginalFileName = Path.GetFileName(xmlPath),
+                                        StoredFileName = Path.GetFileName(xmlPath),
+                                        FilePath = xmlPath,
+                                        FileExtension = ".xml",
+                                        FileSizeBytes = new FileInfo(xmlPath).Length,
+                                        ContentType = "application/xml",
+                                        Source = "AutoScan"
+                                    });
+                                    modified = true;
+                                }
                             }
                         }
                         catch { }
                     }
+                    else
+                    {
+                        // Trường hợp không có file XML gốc: chuẩn hóa các sai lệch phổ biến
+                        if (inv.IssueDate.Hour >= 17)
+                        {
+                            inv.IssueDate = inv.IssueDate.Date.AddDays(1);
+                            modified = true;
+                        }
+
+                        // Grab: mã số thuế 0301452948
+                        if (inv.SellerTaxCode == "0301452948")
+                        {
+                            foreach (var d in inv.Details)
+                            {
+                                if (d.ItemName.StartsWith("Hàng hóa") || string.IsNullOrEmpty(d.ItemName))
+                                {
+                                    d.ItemName = "Cước dịch vụ vận chuyển Grab";
+                                    d.Unit = "Chuyến";
+                                    modified = true;
+                                }
+                            }
+                        }
+
+                        foreach (var d in inv.Details)
+                        {
+                            if (d.Unit == "Lô/Gói" || d.Unit == "Lần")
+                            {
+                                d.Unit = "Dịch vụ";
+                                modified = true;
+                            }
+                        }
+                    }
+
+                    if (modified) repairedCount++;
                 }
 
                 if (repairedCount > 0)

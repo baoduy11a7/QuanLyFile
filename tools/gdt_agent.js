@@ -1,20 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const child_process = require('child_process');
 const puppeteer = require('puppeteer-core');
 
 function getBrowserPath() {
-  const custom = process.env.CHROME_PATH;
-  if (custom && fs.existsSync(custom)) return custom;
-
   const candidates = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium'
   ];
 
   for (const c of candidates) {
@@ -38,15 +36,9 @@ async function createBrowserAndPage() {
   });
 
   const page = await browser.newPage();
-
-  // Thiết lập User-Agent chuẩn desktop để tránh bị tường lửa chặn
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
   await page.setViewport({ width: 1280, height: 800 });
 
-  // Chặn nạp các tài nguyên nặng (hình ảnh, css, fonts, media và các bundle chunk Next.js)
-  // Máy chủ Cổng Thuế hoadondientu.gdt.gov.vn thường nghẽn khi tải hàng chục file chunk .js,
-  // dẫn tới lỗi Navigation timeout (networkidle2/load).
-  // Vì ta chỉ cần ngữ cảnh origin + cookie để gọi API fetch(), việc bỏ qua các file này giúp tải trang trong ~300ms.
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     try {
@@ -62,7 +54,6 @@ async function createBrowserAndPage() {
     }
   });
 
-  // Điều hướng với domcontentloaded và thời gian timeout 60s
   await page.goto('https://hoadondientu.gdt.gov.vn', {
     waitUntil: 'domcontentloaded',
     timeout: 60000
@@ -77,24 +68,142 @@ async function getCaptcha() {
   try {
     const result = await page.evaluate(async () => {
       const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 20000);
+      const tid = setTimeout(() => controller.abort(), 15000);
 
       try {
-        const res = await fetch('/api/captcha', { signal: controller.signal });
+        const res = await fetch('/api/captcha', {
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'request-id': crypto.randomUUID()
+          },
+          signal: controller.signal
+        });
         clearTimeout(tid);
 
         if (!res.ok) {
-          return { success: false, message: `Lỗi HTTP ${res.status} khi lấy mã captcha từ Cổng Thuế` };
+          return { success: false, status: res.status, message: `Lỗi tải Captcha HTTP ${res.status}` };
         }
+
         const data = await res.json();
         return { success: true, key: data.key, content: data.content };
       } catch (err) {
         clearTimeout(tid);
-        return { success: false, message: `Lỗi kết nối khi lấy captcha: ${err.message}` };
+        return { success: false, message: `Lỗi kết nối tải Captcha: ${err.message}` };
       }
     });
 
     console.log(JSON.stringify(result));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function autoLogin(username, password) {
+  const { browser, page } = await createBrowserAndPage();
+  const solverScript = path.join(__dirname, 'auto_captcha_solver.py');
+
+  try {
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      const capData = await page.evaluate(async () => {
+        try {
+          const res = await fetch('/api/captcha', {
+            headers: {
+              'Accept': 'application/json, text/plain, */*',
+              'request-id': crypto.randomUUID()
+            }
+          });
+          if (!res.ok) return { success: false, status: res.status };
+          return await res.json();
+        } catch (e) {
+          return { success: false, message: e.message };
+        }
+      });
+
+      if (!capData || !capData.key || !capData.content) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      let code = '';
+      try {
+        const p = child_process.spawnSync('python', [solverScript, 'solve-svg'], {
+          input: capData.content,
+          encoding: 'utf-8',
+          timeout: 6000
+        });
+        if (p.stdout) {
+          const resOcr = JSON.parse(p.stdout.trim());
+          if (resOcr.success && resOcr.code) {
+            code = resOcr.code.trim();
+          }
+        }
+      } catch (_) {}
+
+      if (!code || code.length < 4) {
+        continue;
+      }
+
+      const authResult = await page.evaluate(async (u, p, c, k) => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 20000);
+        try {
+          const res = await fetch('/api/security-taxpayer/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': crypto.randomUUID(),
+              'End-Point': '/',
+              'Action': ''
+            },
+            body: JSON.stringify({
+              username: u,
+              password: p,
+              cvalue: c,
+              ckey: k
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch (_) {}
+          if (res.ok) {
+            const token = json?.token || json?.access_token || json?.jwt;
+            if (token) return { success: true, token };
+            return { success: false, message: 'Đăng nhập thành công nhưng không nhận được Token' };
+          }
+          const msg = json?.message || (text.includes('Request Rejected') ? 'Yêu cầu bị Tường lửa (F5 WAF) của Cổng Thuế chặn' : text) || `Lỗi HTTP ${res.status}`;
+          return { success: false, status: res.status, message: msg };
+        } catch (err) {
+          clearTimeout(tid);
+          return { success: false, message: `Lỗi khi xác thực: ${err.message}` };
+        }
+      }, username, password, code, capData.key);
+
+      if (authResult.success && authResult.token) {
+        console.log(JSON.stringify({ success: true, token: authResult.token, attempt }));
+        return;
+      }
+
+      const msg = (authResult.message || '').trim();
+      const isCaptchaOrParamError = msg.toLowerCase().includes('captcha')
+        || msg.includes('xác thực')
+        || msg.includes('Tham số không hợp lệ')
+        || msg.includes('hết hạn')
+        || msg.includes('không chính xác')
+        || msg.includes('không đúng mã')
+        || authResult.status === 400;
+
+      // Nếu lỗi là sai mật khẩu hoặc tài khoản bị khóa -> dừng ngay và báo lỗi rõ ràng
+      if (!isCaptchaOrParamError && (msg.includes('mật khẩu') || msg.includes('khoá') || msg.includes('khóa') || msg.includes('tồn tại'))) {
+        console.log(JSON.stringify({ success: false, message: msg, attempt }));
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    console.log(JSON.stringify({ success: false, message: 'Đã tự động giải Captcha 10 lần nhưng chưa thành công. Vui lòng thử lại sau.' }));
   } finally {
     await browser.close();
   }
@@ -106,7 +215,7 @@ async function login(username, password, captcha, key) {
   try {
     const result = await page.evaluate(async (u, p, c, k) => {
       const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 25000);
+      const tid = setTimeout(() => controller.abort(), 20000);
 
       try {
         const res = await fetch('/api/security-taxpayer/authenticate', {
@@ -223,6 +332,12 @@ async function fetchInvoices(token, endpoint, searchParam) {
   try {
     if (cmd === 'get-captcha') {
       await getCaptcha();
+    } else if (cmd === 'auto-login') {
+      const uIdx = args.indexOf('--username');
+      const pIdx = args.indexOf('--password');
+      const u = uIdx !== -1 ? args[uIdx + 1] : '';
+      const p = pIdx !== -1 ? args[pIdx + 1] : '';
+      await autoLogin(u, p);
     } else if (cmd === 'login') {
       const uIdx = args.indexOf('--username');
       const pIdx = args.indexOf('--password');
