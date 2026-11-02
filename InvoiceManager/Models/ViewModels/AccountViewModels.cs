@@ -20,24 +20,41 @@ namespace InvoiceManager.Models.ViewModels
         public bool RememberMe { get; set; } = true;
 
         public string? ReturnUrl { get; set; }
+
+        [Display(Name = "Công ty / Hộ kinh doanh làm việc")]
+        public int? SelectedTaxAccountId { get; set; }
     }
 
     public class CreateTaxAccountViewModel
     {
+        public string BusinessType { get; set; } = "DoanhNghiep"; // "DoanhNghiep" hoặc "HoKinhDoanh"
+
         [Required(ErrorMessage = "Mã số thuế là bắt buộc")]
         [StringLength(20, MinimumLength = 10, ErrorMessage = "Mã số thuế phải có từ 10 đến 14 ký tự")]
-        [Display(Name = "Mã số thuế")]
+        [Display(Name = "Mã số thuế (*)")]
         public string TaxCode { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Tên công ty là bắt buộc")]
+        [Required(ErrorMessage = "Tên gợi nhớ là bắt buộc")]
+        [StringLength(150)]
+        [Display(Name = "Tên gợi nhớ (*)")]
+        public string ShortName { get; set; } = string.Empty;
+
+        [StringLength(100)]
+        [Display(Name = "Tên kế toán")]
+        public string? AccountantName { get; set; }
+
+        [Required(ErrorMessage = "Tên công ty / hộ kinh doanh là bắt buộc")]
         [StringLength(255)]
-        [Display(Name = "Tên công ty / Đơn vị")]
+        [Display(Name = "Tên công ty")]
         public string CompanyName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Địa chỉ trụ sở là bắt buộc")]
+        [StringLength(100)]
+        [Display(Name = "Tên giám đốc")]
+        public string? Representative { get; set; }
+
         [StringLength(500)]
-        [Display(Name = "Địa chỉ đăng ký")]
-        public string Address { get; set; } = string.Empty;
+        [Display(Name = "Địa chỉ công ty / hộ kinh doanh")]
+        public string? Address { get; set; }
 
         [EmailAddress(ErrorMessage = "Email không hợp lệ")]
         [Display(Name = "Email nhận thông báo hóa đơn")]
@@ -47,8 +64,15 @@ namespace InvoiceManager.Models.ViewModels
         [Display(Name = "Số điện thoại")]
         public string? PhoneNumber { get; set; }
 
-        [Display(Name = "Người đại diện")]
-        public string? Representative { get; set; }
+        // Thông tin kết nối Tài khoản Hóa đơn điện tử (hoadondientu.gdt.gov.vn)
+        public string? EInvoiceUsername { get; set; }
+        public string? EInvoicePassword { get; set; }
+
+        // Thông tin kết nối Tài khoản Thuế điện tử (thuedientu.gdt.gov.vn)
+        public string? ETaxUsername { get; set; }
+        public string? ETaxPassword { get; set; }
+
+        public string? ReturnUrl { get; set; }
     }
 
     public class UpdateProfileViewModel

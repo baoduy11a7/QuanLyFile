@@ -3,6 +3,7 @@ using InvoiceManager.Models.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
@@ -44,7 +45,7 @@ namespace InvoiceManager.Services
                     return sessionVal.Value;
             }
 
-            // 2. Kiểm tra Cookie
+            // 2. Kiểm tra Cookie ghi nhớ lâu dài (365 ngày)
             if (context.Request.Cookies.TryGetValue(CookieKeyCurrentTaxAccountId, out var cookieVal) 
                 && int.TryParse(cookieVal, out var taxId) && taxId > 0)
             {
@@ -55,7 +56,25 @@ namespace InvoiceManager.Services
                 }
             }
 
-            // 3. Fallback lấy tài khoản mặc định hoặc đầu tiên của người dùng
+            // 3. Kiểm tra tài khoản được đánh dấu IsDefault trong CSDL của người dùng
+            var userId = context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var defaultMapping = await _db.UserTaxAccounts
+                    .AsNoTracking()
+                    .Include(u => u.TaxAccount)
+                    .Where(u => u.UserId == userId && u.IsDefault && u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .OrderByDescending(u => u.AssignedAt)
+                    .FirstOrDefaultAsync();
+
+                if (defaultMapping != null)
+                {
+                    await SetCurrentTaxAccountAsync(defaultMapping.TaxAccountId);
+                    return defaultMapping.TaxAccountId;
+                }
+            }
+
+            // 4. Fallback lấy công ty đầu tiên trong danh sách được phép truy cập
             var accessible = await GetAccessibleTaxAccountsAsync();
             if (accessible.Any())
             {
@@ -78,7 +97,7 @@ namespace InvoiceManager.Services
             return await _db.TaxAccounts.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id.Value);
         }
 
-        public Task SetCurrentTaxAccountAsync(int taxAccountId)
+        public async Task SetCurrentTaxAccountAsync(int taxAccountId)
         {
             var context = HttpContext;
             if (context != null)
@@ -95,12 +114,38 @@ namespace InvoiceManager.Services
                     {
                         HttpOnly = true,
                         SameSite = SameSiteMode.Lax,
-                        Expires = DateTimeOffset.UtcNow.AddDays(30)
+                        IsEssential = true,
+                        Expires = DateTimeOffset.UtcNow.AddDays(365)
                     });
+
+                    // Đồng bộ lưu trạng thái công ty đang chọn (IsDefault = true) vào CSDL để ghi nhớ vĩnh viễn
+                    var userId = context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    if (!string.IsNullOrEmpty(userId))
+                    {
+                        var userMappings = await _db.UserTaxAccounts
+                            .Where(u => u.UserId == userId)
+                            .ToListAsync();
+
+                        if (userMappings.Any())
+                        {
+                            bool changed = false;
+                            foreach (var m in userMappings)
+                            {
+                                bool shouldBeDefault = (m.TaxAccountId == taxAccountId);
+                                if (m.IsDefault != shouldBeDefault)
+                                {
+                                    m.IsDefault = shouldBeDefault;
+                                    changed = true;
+                                }
+                            }
+                            if (changed)
+                            {
+                                await _db.SaveChangesAsync();
+                            }
+                        }
+                    }
                 }
             }
-
-            return Task.CompletedTask;
         }
 
         public async Task<List<TaxAccount>> GetAccessibleTaxAccountsAsync()
@@ -108,8 +153,12 @@ namespace InvoiceManager.Services
             var context = HttpContext;
             if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
             {
-                // Nếu chưa đăng nhập, trả về tài khoản kích hoạt đầu tiên (để hiển thị mẫu nếu cần)
-                return await _db.TaxAccounts.Where(t => t.IsActive).Take(5).ToListAsync();
+                // Nếu chưa đăng nhập (từ ngoài màn hình Login), trả về danh sách các công ty đang hoạt động
+                return await _db.TaxAccounts
+                    .AsNoTracking()
+                    .Where(t => t.IsActive)
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
             }
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -118,12 +167,13 @@ namespace InvoiceManager.Services
                 return new List<TaxAccount>();
             }
 
-            // Mỗi tài khoản (kể cả Admin) chỉ quản lý các công ty được phân quyền cho chính mình
-            return await _db.UserTaxAccounts
-                .Where(u => u.UserId == userId && u.TaxAccount!.IsActive)
+            var userAccounts = await _db.UserTaxAccounts
+                .Where(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.IsActive)
                 .Select(u => u.TaxAccount!)
-                .OrderBy(t => t.TaxCode)
+                .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
+
+            return userAccounts;
         }
 
         public async Task<bool> HasAccessToTaxAccountAsync(int taxAccountId)
@@ -131,7 +181,7 @@ namespace InvoiceManager.Services
             var context = HttpContext;
             if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
             {
-                return true; // Cho phép chế độ xem trước nếu chưa đăng nhập
+                return await _db.TaxAccounts.AnyAsync(t => t.Id == taxAccountId && t.IsActive);
             }
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);

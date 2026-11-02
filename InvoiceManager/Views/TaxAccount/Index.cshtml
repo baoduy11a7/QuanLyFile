@@ -1,6 +1,6 @@
 @model List<InvoiceManager.Models.ViewModels.TaxAccountListItemViewModel>
 @{
-    ViewData["Title"] = "Quản lý Tài khoản thuế (Doanh nghiệp)";
+    ViewData["Title"] = "Quản lý Công ty / Hộ kinh doanh";
     int? currentId = ViewBag.CurrentTaxAccountId as int?;
     int totalPurchaseAll = Model.Sum(m => m.PurchaseInvoiceCount);
     int totalSoldAll = Model.Sum(m => m.SoldInvoiceCount);
@@ -10,20 +10,17 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h4 class="fw-bold text-primary mb-1">
-            <i class="bi bi-buildings me-2"></i> Quản lý Doanh nghiệp & Tài khoản thuế
+            <i class="bi bi-buildings me-2"></i> Quản lý Công ty & Hộ kinh doanh
         </h4>
-        <p class="text-muted small mb-0">Danh sách các doanh nghiệp quản lý trên hệ thống theo dõi hóa đơn mua vào, bán ra</p>
+        <p class="text-muted small mb-0">Tạo công ty 1 lần duy nhất, hệ thống tự động ghi nhớ thông tin và tài khoản kết nối cho các lần làm việc sau</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a asp-action="Lookup" class="btn btn-outline-primary btn-sm fw-semibold">
             <i class="bi bi-search me-1"></i> Tra cứu & Cào MST
         </a>
-        @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
-        {
-            <a asp-action="Create" class="btn btn-warning btn-sm fw-semibold text-white shadow-sm" style="background: linear-gradient(135deg, #FF6B4A, #FF4500); border: none;">
-                <i class="bi bi-plus-lg me-1"></i> Thêm Doanh nghiệp
-            </a>
-        }
+        <button type="button" class="btn btn-primary btn-sm fw-semibold px-3 shadow-sm" style="background-color: #1d64f2; border-color: #1d64f2;" onclick="openAddCompanyModal()">
+            <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+        </button>
     </div>
 </div>
 
@@ -33,8 +30,8 @@
         <div class="card border-0 shadow-sm rounded-3 bg-white p-3 border-start border-4 border-primary">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <div class="text-muted small fw-semibold text-uppercase">Doanh nghiệp</div>
-                    <div class="fs-4 fw-bold text-dark mt-1">@Model.Count <span class="fs-6 fw-normal text-muted">công ty</span></div>
+                    <div class="text-muted small fw-semibold text-uppercase">Công ty / HKD đã lưu</div>
+                    <div class="fs-4 fw-bold text-dark mt-1">@Model.Count <span class="fs-6 fw-normal text-muted">đơn vị</span></div>
                 </div>
                 <div class="bg-primary-subtle text-primary p-2 rounded-3">
                     <i class="bi bi-buildings fs-4"></i>
@@ -83,17 +80,17 @@
     </div>
 </div>
 
-<!-- Bảng Danh sách Doanh nghiệp chuẩn theo bố cục yêu cầu -->
+<!-- Bảng Danh sách Doanh nghiệp & Hộ kinh doanh -->
 <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
     <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="fw-bold text-dark d-flex align-items-center gap-2">
-            <i class="bi bi-table text-primary"></i> Danh sách Doanh nghiệp quản lý
+            <i class="bi bi-table text-primary"></i> Danh sách Công ty / Hộ kinh doanh đã ghi nhớ
             <span class="badge bg-secondary-subtle text-secondary rounded-pill">@Model.Count</span>
         </div>
         <div class="d-flex gap-2">
             <div class="input-group input-group-sm" style="width: 280px;">
                 <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" id="filterInput" class="form-control border-start-0" placeholder="Lọc theo Tên hoặc MST..." onkeyup="filterCompanyTable()" />
+                <input type="text" id="filterInput" class="form-control border-start-0" placeholder="Tìm theo Tên, Tên gợi nhớ hoặc MST..." onkeyup="filterCompanyTable()" />
             </div>
         </div>
     </div>
@@ -103,12 +100,12 @@
             <thead class="table-light text-secondary small fw-semibold border-bottom">
                 <tr>
                     <th class="text-center" style="width: 48px; white-space: nowrap;">STT</th>
-                    <th style="min-width: 280px;">Doanh nghiệp & MST</th>
-                    <th class="text-center" style="width: 130px; white-space: nowrap;">Phần mềm KT</th>
+                    <th style="min-width: 280px;">Công ty / Hộ kinh doanh & MST</th>
+                    <th style="min-width: 150px;">Giám đốc / Kế toán</th>
+                    <th class="text-center" style="width: 150px; white-space: nowrap;">Tài khoản kết nối</th>
                     <th class="text-center" style="width: 105px; white-space: nowrap;">Ngày tạo</th>
-                    <th class="text-end" style="width: 115px; white-space: nowrap;">HĐ Mua vào</th>
-                    <th class="text-end" style="width: 115px; white-space: nowrap;">HĐ Bán ra</th>
-                    <th class="text-end" style="width: 95px; white-space: nowrap;">Tổng HĐ</th>
+                    <th class="text-end" style="width: 100px; white-space: nowrap;">HĐ Mua vào</th>
+                    <th class="text-end" style="width: 100px; white-space: nowrap;">HĐ Bán ra</th>
                     <th class="text-center" style="width: 210px; white-space: nowrap;">Thao tác</th>
                 </tr>
             </thead>
@@ -118,7 +115,7 @@
                     <tr>
                         <td colspan="8" class="text-center py-5 text-muted">
                             <i class="bi bi-buildings fs-1 d-block mb-2 text-secondary opacity-50"></i>
-                            Chưa có doanh nghiệp nào trong hệ thống. Bấm nút <strong>"+ Thêm Doanh nghiệp"</strong> để bắt đầu.
+                            Chưa có công ty hoặc hộ kinh doanh nào. Bấm nút <strong>"+ Thêm công ty / Hộ kinh doanh"</strong> để tạo mới.
                         </td>
                     </tr>
                 }
@@ -129,57 +126,87 @@
                 {
                     bool isCurrent = acc.IsCurrent;
                     <tr class="@(isCurrent ? "table-primary bg-primary-subtle bg-opacity-25" : "")">
-                        <!-- 1. STT -->
                         <td class="text-center text-muted fw-semibold">@stt</td>
 
-                        <!-- 2. Doanh nghiệp (Tên + MST trong ngoặc) -->
                         <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <div>
+                            <div>
+                                <div class="d-flex align-items-center flex-wrap gap-1">
                                     <span class="fw-bold text-dark company-name">@acc.CompanyName</span>
-                                    <span class="company-mst text-primary font-monospace ms-1" style="font-size: 0.875rem;">(@acc.TaxCode)</span>
-                                    
+                                    <span class="company-mst text-primary font-monospace" style="font-size: 0.85rem;">(@acc.TaxCode)</span>
+                                    @if (!string.IsNullOrWhiteSpace(acc.ShortName) && !string.Equals(acc.ShortName, acc.CompanyName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.68rem;">@acc.ShortName</span>
+                                    }
+                                    @if (acc.BusinessType == "HoKinhDoanh")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;">Hộ kinh doanh</span>
+                                    }
                                     @if (isCurrent)
                                     {
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 0.7rem;">
-                                            <i class="bi bi-check-circle-fill me-1"></i>Đang làm việc
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.68rem;">
+                                            <i class="bi bi-check-circle-fill me-1"></i>Đang chọn
                                         </span>
                                     }
-                                    <div class="text-muted small text-truncate mt-1" style="max-width: 450px;" title="@acc.Address">
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(acc.Address))
+                                {
+                                    <div class="text-muted small text-truncate mt-1" style="max-width: 440px;" title="@acc.Address">
                                         <i class="bi bi-geo-alt text-danger me-1"></i>@acc.Address
                                     </div>
-                                </div>
+                                }
                             </div>
                         </td>
 
-                        <!-- 3. Phần mềm Kế toán -->
-                        <td class="text-center" style="white-space: nowrap;">
-                            <span class="badge bg-primary text-white font-monospace px-2 py-1 shadow-sm" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-                                @acc.AccountingSoftware
-                            </span>
+                        <td>
+                            <div class="small">
+                                @if (!string.IsNullOrWhiteSpace(acc.Representative))
+                                {
+                                    <div><span class="text-muted">GĐ:</span> <strong class="text-dark">@acc.Representative</strong></div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(acc.AccountantName))
+                                {
+                                    <div><span class="text-muted">KT:</span> <span class="text-secondary fw-medium">@acc.AccountantName</span></div>
+                                }
+                                @if (string.IsNullOrWhiteSpace(acc.Representative) && string.IsNullOrWhiteSpace(acc.AccountantName))
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </div>
                         </td>
 
-                        <!-- 4. Ngày tạo (Ngày thêm vào hệ thống) -->
+                        <td class="text-center" style="white-space: nowrap;">
+                            <div class="d-flex flex-column gap-1 align-items-center">
+                                @if (acc.HasEInvoiceConnected)
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.68rem;">
+                                        <i class="bi bi-link-45deg"></i> HĐĐT: Đã kết nối
+                                    </span>
+                                }
+                                @if (acc.HasETaxConnected)
+                                {
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;">
+                                        <i class="bi bi-link-45deg"></i> Thuế ĐT: Đã kết nối
+                                    </span>
+                                }
+                                @if (!acc.HasEInvoiceConnected && !acc.HasETaxConnected)
+                                {
+                                    <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;">Chưa liên kết</span>
+                                }
+                            </div>
+                        </td>
+
                         <td class="text-center text-secondary small font-monospace" style="white-space: nowrap;">
                             @acc.CreatedAt.ToString("dd/MM/yyyy")
                         </td>
 
-                        <!-- 5. Tổng HĐ Mua vào -->
                         <td class="text-end font-monospace" style="white-space: nowrap;">
                             <span class="fw-semibold text-info">@acc.PurchaseInvoiceCount.ToString("N0")</span>
                         </td>
 
-                        <!-- 6. Tổng HĐ Bán ra -->
                         <td class="text-end font-monospace" style="white-space: nowrap;">
                             <span class="fw-semibold text-success">@acc.SoldInvoiceCount.ToString("N0")</span>
                         </td>
 
-                        <!-- 7. Tổng HĐ -->
-                        <td class="text-end font-monospace" style="white-space: nowrap;">
-                            <strong class="text-primary fs-6">@acc.TotalInvoiceCount.ToString("N0")</strong>
-                        </td>
-
-                        <!-- 8. Thao tác -->
                         <td class="text-center" style="white-space: nowrap;">
                             <div class="d-inline-flex gap-1 align-items-center flex-nowrap">
                                 @if (isCurrent)
@@ -196,8 +223,8 @@
                                     <form asp-action="Switch" method="post" class="m-0 d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@acc.Id" />
-                                        <button type="submit" class="btn btn-outline-primary btn-sm px-2 fw-semibold" title="Chuyển sang làm việc với công ty này">
-                                            <i class="bi bi-arrow-left-right me-1"></i> Chọn
+                                        <button type="submit" class="btn btn-outline-primary btn-sm px-2 fw-semibold" title="Chọn làm việc với công ty này">
+                                            <i class="bi bi-check2-circle me-1"></i> Chọn
                                         </button>
                                     </form>
                                     <form asp-action="Switch" method="post" class="m-0 d-inline">
@@ -210,9 +237,9 @@
                                     </form>
                                 }
 
-                                <button type="button" class="btn btn-outline-danger btn-sm px-2 fw-semibold" title="Xóa doanh nghiệp khỏi hệ thống" 
+                                <button type="button" class="btn btn-outline-danger btn-sm px-2 fw-semibold" title="Xóa công ty khỏi hệ thống" 
                                         onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
-                                    <i class="bi bi-trash me-1"></i> Xóa
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </div>
                         </td>
@@ -223,55 +250,51 @@
         </table>
     </div>
 
-    <!-- Nút Thêm Doanh nghiệp nổi bật bên dưới bảng theo mẫu hình 1 -->
     <div class="card-footer bg-white py-3 text-center border-top">
-        @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
-        {
-            <a asp-action="Create" class="btn text-white fw-bold px-4 py-2 shadow-sm rounded-pill" style="background: linear-gradient(135deg, #FF6B4A, #FF4500); border: none; font-size: 0.95rem;">
-                <i class="bi bi-plus-lg me-1"></i> Thêm Doanh nghiệp
-            </a>
-        }
+        <button type="button" class="btn text-white fw-bold px-4 py-2 shadow-sm rounded-3" style="background-color: #1d64f2; border: none; font-size: 0.9rem;" onclick="openAddCompanyModal()">
+            <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+        </button>
     </div>
 </div>
 
 <!-- Modal Xác nhận xóa Doanh nghiệp -->
 <div class="modal fade" id="deleteTaxAccountModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow border-0">
-                <div class="modal-header bg-danger text-white py-3">
-                    <h6 class="modal-title fw-bold" id="deleteModalLabel">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i> Xác nhận xóa Tài khoản thuế
-                    </h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form asp-action="Delete" method="post" id="deleteForm">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="id" id="deleteTaxAccountId" value="" />
-                    <div class="modal-body p-4">
-                        <p class="mb-2">Bạn có chắc chắn muốn xóa tài khoản thuế doanh nghiệp sau:</p>
-                        <div class="p-3 bg-light rounded border mb-3">
-                            <div class="fw-bold text-dark fs-6" id="deleteCompanyName"></div>
-                            <div class="font-monospace text-primary small mt-1">
-                                <i class="bi bi-card-heading me-1"></i> MST: <span id="deleteTaxCode"></span>
-                            </div>
-                        </div>
-                        <div class="alert alert-danger border-danger-subtle small mb-0">
-                            <i class="bi bi-shield-exclamation me-1"></i>
-                            <strong>Cảnh báo:</strong> Thao tác này <u>không thể hoàn tác</u>. Toàn bộ hóa đơn, dòng hàng chi tiết và dữ liệu đồng bộ của doanh nghiệp này sẽ bị xóa khỏi hệ thống.
-                        </div>
-                    </div>
-                    <div class="modal-footer bg-light py-2 px-4">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
-                            <i class="bi bi-x-lg me-1"></i> Hủy bỏ
-                        </button>
-                        <button type="submit" class="btn btn-danger btn-sm fw-bold">
-                            <i class="bi bi-trash me-1"></i> Xác nhận xóa vĩnh viễn
-                        </button>
-                    </div>
-                </form>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header bg-danger text-white py-3">
+                <h6 class="modal-title fw-bold" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i> Xác nhận xóa Công ty / Hộ kinh doanh
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form asp-action="Delete" method="post" id="deleteForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="deleteTaxAccountId" value="" />
+                <div class="modal-body p-4">
+                    <p class="mb-2">Bạn có chắc chắn muốn xóa công ty / hộ kinh doanh sau:</p>
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="fw-bold text-dark fs-6" id="deleteCompanyName"></div>
+                        <div class="font-monospace text-primary small mt-1">
+                            <i class="bi bi-card-heading me-1"></i> MST: <span id="deleteTaxCode"></span>
+                        </div>
+                    </div>
+                    <div class="alert alert-danger border-danger-subtle small mb-0">
+                        <i class="bi bi-shield-exclamation me-1"></i>
+                        <strong>Cảnh báo:</strong> Thao tác này <u>không thể hoàn tác</u>. Toàn bộ hóa đơn, dòng hàng chi tiết và dữ liệu đồng bộ của đơn vị này sẽ bị xóa khỏi hệ thống.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2 px-4">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i> Hủy bỏ
+                    </button>
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                        <i class="bi bi-trash me-1"></i> Xác nhận xóa vĩnh viễn
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
 
 @section Scripts {
     <script>
@@ -290,16 +313,11 @@
             var tr = table.getElementsByTagName("tr");
 
             for (var i = 1; i < tr.length; i++) {
-                var nameEl = tr[i].querySelector(".company-name");
-                var mstEl = tr[i].querySelector(".company-mst");
-                if (nameEl || mstEl) {
-                    var nameText = nameEl ? nameEl.textContent || nameEl.innerText : "";
-                    var mstText = mstEl ? mstEl.textContent || mstEl.innerText : "";
-                    if (nameText.toUpperCase().indexOf(filter) > -1 || mstText.toUpperCase().indexOf(filter) > -1) {
-                        tr[i].style.display = "";
-                    } else {
-                        tr[i].style.display = "none";
-                    }
+                var rowText = tr[i].textContent || tr[i].innerText || "";
+                if (rowText.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
                 }
             }
         }

@@ -2,10 +2,12 @@ using InvoiceManager.Data;
 using InvoiceManager.Models.Entities;
 using InvoiceManager.Models.ViewModels;
 using InvoiceManager.Services;
+using InvoiceManager.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -18,17 +20,20 @@ namespace InvoiceManager.Controllers
         private readonly ITaxAccountContext _taxAccountContext;
         private readonly IAuditLogService _auditLog;
         private readonly ITaxCodeLookupService _taxCodeLookupService;
+        private readonly ICredentialProtector? _credentialProtector;
 
         public TaxAccountController(
             ApplicationDbContext db,
             ITaxAccountContext taxAccountContext,
             IAuditLogService auditLog,
-            ITaxCodeLookupService taxCodeLookupService)
+            ITaxCodeLookupService taxCodeLookupService,
+            ICredentialProtector? credentialProtector = null)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
             _auditLog = auditLog;
             _taxCodeLookupService = taxCodeLookupService;
+            _credentialProtector = credentialProtector;
         }
 
         public async Task<IActionResult> Index()
@@ -51,10 +56,18 @@ namespace InvoiceManager.Controllers
                 })
                 .ToListAsync();
 
+            var remoteConns = await _db.RemoteConnections
+                .AsNoTracking()
+                .Where(r => accountIds.Contains(r.TaxAccountId))
+                .ToListAsync();
+
             var viewModels = accounts.Select(a => new TaxAccountListItemViewModel
             {
                 Id = a.Id,
                 TaxCode = a.TaxCode,
+                BusinessType = string.IsNullOrWhiteSpace(a.BusinessType) ? "DoanhNghiep" : a.BusinessType,
+                ShortName = a.ShortName,
+                AccountantName = a.AccountantName,
                 CompanyName = a.CompanyName,
                 Address = a.Address,
                 Email = a.Email,
@@ -65,7 +78,9 @@ namespace InvoiceManager.Controllers
                 AccountingSoftware = "SMART PRO",
                 PurchaseInvoiceCount = invoiceCounts.FirstOrDefault(x => x.TaxAccountId == a.Id && x.InvoiceType == "MuaVao")?.Count ?? 0,
                 SoldInvoiceCount = invoiceCounts.FirstOrDefault(x => x.TaxAccountId == a.Id && x.InvoiceType == "BanRa")?.Count ?? 0,
-                IsCurrent = a.Id == currentId
+                IsCurrent = a.Id == currentId,
+                HasEInvoiceConnected = remoteConns.Any(r => r.TaxAccountId == a.Id && r.ProviderName == "Gdt" && !string.IsNullOrEmpty(r.Username)),
+                HasETaxConnected = remoteConns.Any(r => r.TaxAccountId == a.Id && r.ProviderName == "Etax" && !string.IsNullOrEmpty(r.Username))
             }).ToList();
 
             return View(viewModels);
@@ -79,12 +94,13 @@ namespace InvoiceManager.Controllers
             {
                 await _taxAccountContext.SetCurrentTaxAccountAsync(id);
                 var account = await _db.TaxAccounts.FindAsync(id);
-                await _auditLog.LogActionAsync("Chuyển đổi Tài khoản thuế", $"MST: {account?.TaxCode} ({account?.CompanyName})", null, id);
-                TempData["SuccessMessage"] = $"Đã chuyển sang quản lý: {account?.CompanyName} (MST: {account?.TaxCode})";
+                var displayName = !string.IsNullOrWhiteSpace(account?.ShortName) ? $"{account.CompanyName} ({account.ShortName})" : account?.CompanyName;
+                await _auditLog.LogActionAsync("Chuyển đổi Công ty / HKD", $"MST: {account?.TaxCode} ({displayName})", null, id);
+                TempData["SuccessMessage"] = $"Đã chuyển sang làm việc với: {account?.CompanyName} (MST: {account?.TaxCode})";
             }
             else
             {
-                TempData["ErrorMessage"] = "Bạn không có quyền truy cập tài khoản thuế này.";
+                TempData["ErrorMessage"] = "Bạn không có quyền truy cập công ty / hộ kinh doanh này.";
             }
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
@@ -96,12 +112,13 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,Accountant")]
-        public IActionResult Create(string? taxCode = null, string? companyName = null, string? address = null)
+        public IActionResult Create(string? taxCode = null, string? companyName = null, string? address = null, string? shortName = null)
         {
             return View(new CreateTaxAccountViewModel
             {
+                BusinessType = "DoanhNghiep",
                 TaxCode = taxCode ?? "",
+                ShortName = shortName ?? companyName ?? "",
                 CompanyName = companyName ?? "",
                 Address = address ?? ""
             });
@@ -109,66 +126,269 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Accountant")]
         public async Task<IActionResult> Create(CreateTaxAccountViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
-
-            // Kiểm tra xem chính tài khoản hiện tại đã có công ty này chưa
-            var userAcc = await _db.UserTaxAccounts
-                .Include(u => u.TaxAccount)
-                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == model.TaxCode.Trim());
-
-            if (userAcc?.TaxAccount != null)
+            if (string.IsNullOrWhiteSpace(model.ShortName) && !string.IsNullOrWhiteSpace(model.CompanyName))
             {
-                var existing = userAcc.TaxAccount;
-                existing.IsActive = true;
-                existing.CompanyName = model.CompanyName.Trim();
-                existing.Address = model.Address.Trim();
-                if (!string.IsNullOrEmpty(model.Email)) existing.Email = model.Email.Trim();
-                if (!string.IsNullOrEmpty(model.PhoneNumber)) existing.PhoneNumber = model.PhoneNumber.Trim();
-                if (!string.IsNullOrEmpty(model.Representative)) existing.Representative = model.Representative.Trim();
-
-                await _db.SaveChangesAsync();
-                await _taxAccountContext.SetCurrentTaxAccountAsync(existing.Id);
-                TempData["SuccessMessage"] = $"Đã cập nhật/kích hoạt lại công ty {existing.CompanyName} (MST: {existing.TaxCode}) thành công!";
-                return RedirectToAction(nameof(Index));
+                model.ShortName = model.CompanyName.Trim();
+                ModelState.Remove(nameof(model.ShortName));
+            }
+            if (string.IsNullOrWhiteSpace(model.CompanyName) && !string.IsNullOrWhiteSpace(model.ShortName))
+            {
+                model.CompanyName = model.ShortName.Trim();
+                ModelState.Remove(nameof(model.CompanyName));
             }
 
-            // Nếu người dùng hiện tại chưa quản lý công ty này -> tạo mới riêng biệt để đảm bảo bảo mật dữ liệu độc lập
-            var account = new TaxAccount
-            {
-                TaxCode = model.TaxCode.Trim(),
-                CompanyName = model.CompanyName.Trim(),
-                Address = model.Address.Trim(),
-                Email = model.Email?.Trim(),
-                PhoneNumber = model.PhoneNumber?.Trim(),
-                Representative = model.Representative?.Trim(),
-                IsActive = true,
-                CreatedAt = DateTime.Now
-            };
+            if (!ModelState.IsValid) return View(model);
 
-            _db.TaxAccounts.Add(account);
-            await _db.SaveChangesAsync();
+            var account = await UpsertCompanyAndConnectionsAsync(model);
 
-            _db.UserTaxAccounts.Add(new UserTaxAccount
+            TempData["SuccessMessage"] = $"Đã lưu và ghi nhớ công ty / hộ kinh doanh '{account.CompanyName}' (MST: {account.TaxCode}) thành công! Lần sau bạn chỉ cần chọn từ danh sách.";
+
+            if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
             {
-                UserId = currentUserId,
-                TaxAccountId = account.Id,
-                IsDefault = true,
-                CanManage = true,
-                AssignedAt = DateTime.Now
-            });
-            await _db.SaveChangesAsync();
+                return Redirect(model.ReturnUrl);
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateAjax([FromBody] CreateTaxAccountViewModel model)
+        {
+            if (model == null || string.IsNullOrWhiteSpace(model.TaxCode))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập Mã số thuế (*)." });
+            }
+
+            var cleanTaxCode = model.TaxCode.Trim();
+            if (cleanTaxCode.Length < 10)
+            {
+                return Json(new { success = false, message = "Mã số thuế phải từ 10 đến 14 ký tự." });
+            }
+
+            if (string.IsNullOrWhiteSpace(model.ShortName) && string.IsNullOrWhiteSpace(model.CompanyName))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập Tên gợi nhớ (*) hoặc Tên công ty / hộ kinh doanh." });
+            }
+
+            if (string.IsNullOrWhiteSpace(model.ShortName))
+            {
+                model.ShortName = model.CompanyName!.Trim();
+            }
+            if (string.IsNullOrWhiteSpace(model.CompanyName))
+            {
+                model.CompanyName = model.ShortName!.Trim();
+            }
+
+            try
+            {
+                var account = await UpsertCompanyAndConnectionsAsync(model);
+
+                return Json(new
+                {
+                    success = true,
+                    id = account.Id,
+                    taxCode = account.TaxCode,
+                    businessType = account.BusinessType,
+                    shortName = account.ShortName,
+                    companyName = account.CompanyName,
+                    accountantName = account.AccountantName,
+                    representative = account.Representative,
+                    address = account.Address,
+                    message = $"Đã lưu và ghi nhớ '{account.CompanyName}' (MST: {account.TaxCode}) thành công! Lần sau bạn chỉ cần chọn công ty trong danh sách."
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Lỗi khi lưu công ty: {ex.Message}" });
+            }
+        }
+
+        private async Task<TaxAccount> UpsertCompanyAndConnectionsAsync(CreateTaxAccountViewModel model)
+        {
+            var cleanTaxCode = model.TaxCode.Trim();
+            var businessType = string.Equals(model.BusinessType, "HoKinhDoanh", StringComparison.OrdinalIgnoreCase)
+                ? "HoKinhDoanh"
+                : "DoanhNghiep";
+            var companyName = !string.IsNullOrWhiteSpace(model.CompanyName)
+                ? model.CompanyName.Trim()
+                : model.ShortName.Trim();
+            var shortName = !string.IsNullOrWhiteSpace(model.ShortName)
+                ? model.ShortName.Trim()
+                : companyName;
+            var address = model.Address?.Trim() ?? "";
+            var accountantName = model.AccountantName?.Trim();
+            var representative = model.Representative?.Trim();
+
+            var currentUserId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            TaxAccount? account = null;
+
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var userAcc = await _db.UserTaxAccounts
+                    .Include(u => u.TaxAccount)
+                    .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
+                account = userAcc?.TaxAccount;
+            }
+
+            if (account == null)
+            {
+                account = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.TaxCode == cleanTaxCode);
+            }
+
+            bool isNew = false;
+            if (account != null)
+            {
+                account.IsActive = true;
+                account.BusinessType = businessType;
+                account.ShortName = shortName;
+                account.CompanyName = companyName;
+                if (!string.IsNullOrEmpty(address)) account.Address = address;
+                if (!string.IsNullOrEmpty(accountantName)) account.AccountantName = accountantName;
+                if (!string.IsNullOrEmpty(representative)) account.Representative = representative;
+                if (!string.IsNullOrEmpty(model.Email)) account.Email = model.Email.Trim();
+                if (!string.IsNullOrEmpty(model.PhoneNumber)) account.PhoneNumber = model.PhoneNumber.Trim();
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                isNew = true;
+                account = new TaxAccount
+                {
+                    TaxCode = cleanTaxCode,
+                    BusinessType = businessType,
+                    ShortName = shortName,
+                    AccountantName = accountantName,
+                    CompanyName = companyName,
+                    Representative = representative,
+                    Address = address,
+                    Email = model.Email?.Trim(),
+                    PhoneNumber = model.PhoneNumber?.Trim(),
+                    IsActive = true,
+                    CreatedAt = DateTime.Now
+                };
+                _db.TaxAccounts.Add(account);
+                await _db.SaveChangesAsync();
+            }
+
+            // Liên kết công ty vào tài khoản người dùng để ghi nhớ vĩnh viễn cho các lần sau
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                await EnsureUserCompanyMappingAsync(currentUserId, account.Id, setAsDefault: true);
+            }
+            else
+            {
+                // Nếu tạo công ty từ ngoài (trước khi đăng nhập), tự động gán cho các user hoạt động trong hệ thống để khi đăng nhập vào chỉ cần chọn
+                var activeUserIds = await _db.Users
+                    .Where(u => u.IsActive)
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var uid in activeUserIds)
+                {
+                    await EnsureUserCompanyMappingAsync(uid, account.Id, setAsDefault: true);
+                }
+            }
+
+            // Lưu kết nối Tài khoản Hóa đơn điện tử (Provider = "Gdt") nếu có nhập
+            if (!string.IsNullOrWhiteSpace(model.EInvoiceUsername) || !string.IsNullOrWhiteSpace(model.EInvoicePassword))
+            {
+                var einvUser = !string.IsNullOrWhiteSpace(model.EInvoiceUsername) ? model.EInvoiceUsername.Trim() : cleanTaxCode;
+                await UpsertRemoteConnectionAsync(account.Id, "Gdt", einvUser, model.EInvoicePassword);
+            }
+
+            // Lưu kết nối Tài khoản Thuế điện tử (Provider = "Etax") nếu có nhập
+            if (!string.IsNullOrWhiteSpace(model.ETaxUsername) || !string.IsNullOrWhiteSpace(model.ETaxPassword))
+            {
+                var etaxUser = !string.IsNullOrWhiteSpace(model.ETaxUsername) ? model.ETaxUsername.Trim() : $"{cleanTaxCode}-QL";
+                await UpsertRemoteConnectionAsync(account.Id, "Etax", etaxUser, model.ETaxPassword);
+            }
 
             await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
 
-            await _auditLog.LogActionAsync("Thêm mới Tài khoản thuế", $"MST: {account.TaxCode}", account.CompanyName, account.Id);
-            TempData["SuccessMessage"] = $"Thêm mới công ty {account.CompanyName} thành công!";
-            return RedirectToAction(nameof(Index));
+            if (User?.Identity?.IsAuthenticated == true)
+            {
+                await _auditLog.LogActionAsync(
+                    isNew ? "Thêm mới Công ty / Hộ kinh doanh" : "Cập nhật Công ty / Hộ kinh doanh",
+                    $"MST: {account.TaxCode} ({account.ShortName})",
+                    account.CompanyName,
+                    account.Id);
+            }
+
+            return account;
+        }
+
+        private async Task EnsureUserCompanyMappingAsync(string userId, int taxAccountId, bool setAsDefault)
+        {
+            var userMappings = await _db.UserTaxAccounts
+                .Where(u => u.UserId == userId)
+                .ToListAsync();
+
+            var targetMapping = userMappings.FirstOrDefault(u => u.TaxAccountId == taxAccountId);
+            if (targetMapping == null)
+            {
+                targetMapping = new UserTaxAccount
+                {
+                    UserId = userId,
+                    TaxAccountId = taxAccountId,
+                    IsDefault = setAsDefault,
+                    CanManage = true,
+                    AssignedAt = DateTime.Now
+                };
+                _db.UserTaxAccounts.Add(targetMapping);
+                userMappings.Add(targetMapping);
+            }
+
+            if (setAsDefault)
+            {
+                foreach (var m in userMappings)
+                {
+                    m.IsDefault = (m.TaxAccountId == taxAccountId);
+                }
+            }
+
+            await _db.SaveChangesAsync();
+        }
+
+        private async Task UpsertRemoteConnectionAsync(int taxAccountId, string providerName, string username, string? plainPassword)
+        {
+            var conn = await _db.RemoteConnections
+                .FirstOrDefaultAsync(r => r.TaxAccountId == taxAccountId && r.ProviderName == providerName);
+
+            var encrypted = (!string.IsNullOrWhiteSpace(plainPassword) && _credentialProtector != null)
+                ? _credentialProtector.Protect(plainPassword)
+                : plainPassword;
+
+            if (conn == null)
+            {
+                conn = new RemoteConnection
+                {
+                    TaxAccountId = taxAccountId,
+                    ProviderName = providerName,
+                    Username = username,
+                    RememberPassword = true,
+                    EncryptedPassword = encrypted,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.RemoteConnections.Add(conn);
+            }
+            else
+            {
+                conn.Username = username;
+                conn.RememberPassword = true;
+                if (!string.IsNullOrWhiteSpace(plainPassword))
+                {
+                    conn.EncryptedPassword = encrypted;
+                }
+                conn.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync();
         }
 
         [HttpPost]
@@ -292,6 +512,7 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> LookupApi(string taxCode)
         {
             var result = await _taxCodeLookupService.LookupAsync(taxCode);
@@ -312,7 +533,6 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Accountant")]
         public async Task<IActionResult> QuickAddFromTaxCode(string taxCode, string? returnUrl = null)
         {
             var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
@@ -322,50 +542,16 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction(nameof(Lookup), new { taxCode });
             }
 
-            var cleanTaxCode = lookup.TaxCode!.Trim();
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
-
-            var userAcc = await _db.UserTaxAccounts
-                .Include(u => u.TaxAccount)
-                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
-
-            TaxAccount account;
-            if (userAcc?.TaxAccount != null)
+            var account = await UpsertCompanyAndConnectionsAsync(new CreateTaxAccountViewModel
             {
-                account = userAcc.TaxAccount;
-                account.IsActive = true;
-                if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
-                if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
-            }
-            else
-            {
-                account = new TaxAccount
-                {
-                    TaxCode = cleanTaxCode,
-                    CompanyName = lookup.CompanyName?.Trim() ?? "Công ty mới",
-                    Address = lookup.Address?.Trim() ?? "",
-                    IsActive = true,
-                    CreatedAt = DateTime.Now
-                };
-                _db.TaxAccounts.Add(account);
-                await _db.SaveChangesAsync();
+                BusinessType = "DoanhNghiep",
+                TaxCode = lookup.TaxCode!.Trim(),
+                ShortName = lookup.ShortName?.Trim() ?? lookup.CompanyName?.Trim() ?? "Công ty mới",
+                CompanyName = lookup.CompanyName?.Trim() ?? "Công ty mới",
+                Address = lookup.Address?.Trim() ?? ""
+            });
 
-                _db.UserTaxAccounts.Add(new UserTaxAccount
-                {
-                    UserId = currentUserId,
-                    TaxAccountId = account.Id,
-                    IsDefault = true,
-                    CanManage = true,
-                    AssignedAt = DateTime.Now
-                });
-            }
-
-            await _db.SaveChangesAsync();
-            await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
-
-            await _auditLog.LogActionAsync("Thêm/Kích hoạt từ Cổng Thuế", $"MST: {account.TaxCode}", account.CompanyName, account.Id);
-            TempData["SuccessMessage"] = $"Đã thêm và kích hoạt thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode}) vào tài khoản của bạn!";
+            TempData["SuccessMessage"] = $"Đã thêm và ghi nhớ thành công doanh nghiệp {account.CompanyName} (MST: {account.TaxCode})! Lần sau bạn chỉ cần chọn công ty trong danh sách.";
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
@@ -377,7 +563,6 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Accountant")]
         public async Task<IActionResult> UpdateFromTaxCode(string taxCode, string? returnUrl = null)
         {
             var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
@@ -387,31 +572,16 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction(nameof(Lookup), new { taxCode });
             }
 
-            var cleanTaxCode = lookup.TaxCode!.Trim();
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(currentUserId)) return Challenge();
-
-            var userAcc = await _db.UserTaxAccounts
-                .Include(u => u.TaxAccount)
-                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
-
-            if (userAcc?.TaxAccount == null)
+            var account = await UpsertCompanyAndConnectionsAsync(new CreateTaxAccountViewModel
             {
-                TempData["ErrorMessage"] = $"Bạn chưa quản lý tài khoản thuế {cleanTaxCode} trong danh sách của mình.";
-                return RedirectToAction(nameof(Lookup), new { taxCode });
-            }
+                BusinessType = "DoanhNghiep",
+                TaxCode = lookup.TaxCode!.Trim(),
+                ShortName = lookup.ShortName?.Trim() ?? lookup.CompanyName?.Trim() ?? "",
+                CompanyName = lookup.CompanyName?.Trim() ?? "",
+                Address = lookup.Address?.Trim() ?? ""
+            });
 
-            var existingAccount = userAcc.TaxAccount;
-            var oldName = existingAccount.CompanyName;
-            existingAccount.IsActive = true;
-            existingAccount.CompanyName = lookup.CompanyName?.Trim() ?? existingAccount.CompanyName;
-            existingAccount.Address = lookup.Address?.Trim() ?? existingAccount.Address;
-
-            await _db.SaveChangesAsync();
-            await _taxAccountContext.SetCurrentTaxAccountAsync(existingAccount.Id);
-
-            await _auditLog.LogActionAsync("Cập nhật lại từ Cổng Thuế", $"MST: {existingAccount.TaxCode}", $"Đổi từ '{oldName}' thành '{existingAccount.CompanyName}'", existingAccount.Id);
-            TempData["SuccessMessage"] = $"Đã cập nhật lại thông tin doanh nghiệp '{existingAccount.CompanyName}' (MST: {existingAccount.TaxCode}) thành công từ Cổng Thuế!";
+            TempData["SuccessMessage"] = $"Đã cập nhật lại thông tin doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công từ Cổng Thuế!";
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
@@ -423,7 +593,6 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Accountant")]
         public async Task<IActionResult> QuickCrawlAndSelect([FromBody] QuickCrawlRequest model)
         {
             if (string.IsNullOrWhiteSpace(model?.TaxCode))
@@ -437,73 +606,25 @@ namespace InvoiceManager.Controllers
                 return Json(new { success = false, message = lookup.Message ?? "Không thể cào thông tin từ mã số thuế này." });
             }
 
-            var cleanTaxCode = lookup.TaxCode!.Trim();
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(currentUserId))
+            var account = await UpsertCompanyAndConnectionsAsync(new CreateTaxAccountViewModel
             {
-                return Json(new { success = false, message = "Phiên làm việc hết hạn. Vui lòng đăng nhập lại." });
-            }
-
-            var userAcc = await _db.UserTaxAccounts
-                .Include(u => u.TaxAccount)
-                .FirstOrDefaultAsync(u => u.UserId == currentUserId && u.TaxAccount != null && u.TaxAccount.TaxCode == cleanTaxCode);
-
-            bool isNew = false;
-            TaxAccount account;
-
-            if (userAcc?.TaxAccount == null)
-            {
-                isNew = true;
-                account = new TaxAccount
-                {
-                    TaxCode = cleanTaxCode,
-                    CompanyName = lookup.CompanyName?.Trim() ?? "Doanh nghiệp mới",
-                    Address = lookup.Address?.Trim() ?? "",
-                    IsActive = true,
-                    CreatedAt = DateTime.Now
-                };
-                _db.TaxAccounts.Add(account);
-                await _db.SaveChangesAsync();
-
-                _db.UserTaxAccounts.Add(new UserTaxAccount
-                {
-                    UserId = currentUserId,
-                    TaxAccountId = account.Id,
-                    IsDefault = true,
-                    CanManage = true,
-                    AssignedAt = DateTime.Now
-                });
-                await _db.SaveChangesAsync();
-            }
-            else
-            {
-                account = userAcc.TaxAccount;
-                account.IsActive = true;
-                if (!string.IsNullOrWhiteSpace(lookup.CompanyName)) account.CompanyName = lookup.CompanyName.Trim();
-                if (!string.IsNullOrWhiteSpace(lookup.Address)) account.Address = lookup.Address.Trim();
-                await _db.SaveChangesAsync();
-            }
-
-            await _taxAccountContext.SetCurrentTaxAccountAsync(account.Id);
-
-            await _auditLog.LogActionAsync(
-                isNew ? "Cào và thêm Doanh nghiệp mới" : "Cào và kích hoạt lại Doanh nghiệp",
-                $"MST: {account.TaxCode}",
-                account.CompanyName,
-                account.Id);
+                BusinessType = "DoanhNghiep",
+                TaxCode = lookup.TaxCode!.Trim(),
+                ShortName = lookup.ShortName?.Trim() ?? lookup.CompanyName?.Trim() ?? "Doanh nghiệp mới",
+                CompanyName = lookup.CompanyName?.Trim() ?? "Doanh nghiệp mới",
+                Address = lookup.Address?.Trim() ?? ""
+            });
 
             return Json(new
             {
                 success = true,
-                isNew = isNew,
+                isNew = true,
                 taxAccountId = account.Id,
                 taxCode = account.TaxCode,
                 companyName = account.CompanyName,
                 address = account.Address,
                 status = lookup.Status ?? "Đang hoạt động",
-                message = isNew
-                    ? $"Đã cào thông tin và thêm doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) vào tài khoản của bạn thành công!"
-                    : $"Đã cào thông tin và cập nhật doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
+                message = $"Đã cào thông tin và ghi nhớ doanh nghiệp '{account.CompanyName}' (MST: {account.TaxCode}) thành công!"
             });
         }
     }

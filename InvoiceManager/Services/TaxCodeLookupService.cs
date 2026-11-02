@@ -3,6 +3,7 @@ using InvoiceManager.Models.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -108,7 +109,8 @@ namespace InvoiceManager.Services
 
                     // Kiểm tra xem MST này đã có trong danh sách công ty mà người dùng hiện tại được phân quyền hay chưa
                     var accessibleAccounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
-                    var existingAccount = accessibleAccounts
+                    var list = accessibleAccounts ?? await _db.TaxAccounts.Where(t => t.IsActive).ToListAsync(cancellationToken);
+                    var existingAccount = list
                         .FirstOrDefault(t => (t.TaxCode == cleanTaxCode || t.TaxCode == id) && t.IsActive);
 
                     return new TaxCodeLookupResult
@@ -204,7 +206,7 @@ namespace InvoiceManager.Services
             if (cleanTaxCode.Length > 10)
             {
                 var parentTaxCode = cleanTaxCode.Substring(0, 10);
-                var parentAccount = accessibleAccounts
+                var parentAccount = list
                     .FirstOrDefault(t => t.TaxCode == parentTaxCode);
 
                 if (parentAccount != null)

@@ -1,7 +1,8 @@
 @model InvoiceManager.Models.ViewModels.LoginViewModel
 @{
     ViewData["Title"] = "Đăng nhập hệ thống";
-    Layout = null; // Trang đăng nhập độc lập cực đẹp
+    Layout = null;
+    var companies = ViewBag.Companies as List<InvoiceManager.Models.Entities.TaxAccount> ?? new List<InvoiceManager.Models.Entities.TaxAccount>();
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -30,23 +31,23 @@
             backdrop-filter: blur(12px);
             border-radius: 16px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
-            max-width: 440px;
+            max-width: 470px;
             width: 100%;
-            padding: 40px;
+            padding: 36px 38px;
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .brand-badge {
-            width: 56px;
-            height: 56px;
+            width: 54px;
+            height: 54px;
             background: linear-gradient(135deg, #2563eb, #1e40af);
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 28px;
-            margin: 0 auto 16px;
+            font-size: 26px;
+            margin: 0 auto 14px;
             box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
         }
 
@@ -73,7 +74,7 @@
         </div>
         <div class="text-center mb-4">
             <h4 class="fw-bold text-dark mb-1">Phần mềm kế toán</h4>
-            <p class="text-muted small">Hệ thống Quản lý Hóa đơn & Kế toán Doanh nghiệp</p>
+            <p class="text-muted small mb-0">Hệ thống Quản lý Hóa đơn & Kế toán Doanh nghiệp</p>
         </div>
 
         <form asp-action="Login" method="post">
@@ -81,6 +82,38 @@
             <input type="hidden" asp-for="ReturnUrl" />
 
             <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small" role="alert"></div>
+
+            <!-- Chọn Công ty / Hộ kinh doanh đã ghi nhớ hoặc Tạo mới từ ngoài -->
+            <div class="mb-3 p-2.5 rounded-3 border bg-light bg-opacity-50" style="padding: 10px 12px;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label asp-for="SelectedTaxAccountId" class="form-label small fw-bold text-dark mb-0">
+                        <i class="bi bi-buildings text-primary me-1"></i>Công ty / Hộ kinh doanh
+                    </label>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none fw-semibold" style="font-size: 0.78rem; color: #1d64f2;" onclick="openAddCompanyModal()">
+                        <i class="bi bi-plus-lg"></i> Thêm công ty / Hộ kinh doanh
+                    </button>
+                </div>
+                <select asp-for="SelectedTaxAccountId" id="loginCompanySelect" class="form-select form-select-sm fw-semibold text-dark">
+                    @if (!companies.Any())
+                    {
+                        <option value="">-- Chưa có công ty (Bấm + Thêm công ty ở trên) --</option>
+                    }
+                    else
+                    {
+                        foreach (var comp in companies)
+                        {
+                            var label = !string.IsNullOrWhiteSpace(comp.ShortName) && !string.Equals(comp.ShortName, comp.CompanyName, StringComparison.OrdinalIgnoreCase)
+                                ? $"{comp.CompanyName} ({comp.ShortName} - {comp.TaxCode})"
+                                : $"{comp.CompanyName} (MST: {comp.TaxCode})";
+                            <option value="@comp.Id">@label</option>
+                        }
+                    }
+                </select>
+                <div class="text-muted mt-1" style="font-size: 0.7rem;">
+                    <i class="bi bi-check2-circle text-success me-1"></i>Tạo công ty 1 lần duy nhất, hệ thống tự động ghi nhớ cho các lần sau chỉ cần chọn.
+                </div>
+                <div id="loginCompanySavedNotice" class="d-none"></div>
+            </div>
 
             <div class="mb-3">
                 <label asp-for="UserNameOrEmail" class="form-label small fw-semibold">Email hoặc Tên đăng nhập</label>
@@ -132,7 +165,11 @@
         </form>
     </div>
 
+    <!-- Modal Thêm công ty / Hộ kinh doanh mới ngay từ màn hình bên ngoài -->
+    <partial name="_AddCompanyModalPartial" />
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function fillCreds(user, pass) {
             $('#inputUsername').val(user);

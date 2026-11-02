@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -36,20 +37,49 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpGet]
-        public IActionResult Login(string? returnUrl = null)
+        public async Task<IActionResult> Login(string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
             {
                 return RedirectToAction("Index", "Invoice");
             }
 
-            return View(new LoginViewModel { ReturnUrl = returnUrl });
+            var companies = await _db.TaxAccounts
+                .AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            ViewBag.Companies = companies;
+
+            int? rememberedId = null;
+            if (Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var parsedId))
+            {
+                if (companies.Any(c => c.Id == parsedId))
+                {
+                    rememberedId = parsedId;
+                }
+            }
+            rememberedId ??= companies.FirstOrDefault()?.Id;
+
+            return View(new LoginViewModel
+            {
+                ReturnUrl = returnUrl,
+                SelectedTaxAccountId = rememberedId
+            });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model)
         {
+            var companies = await _db.TaxAccounts
+                .AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+            ViewBag.Companies = companies;
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -69,11 +99,52 @@ namespace InvoiceManager.Controllers
             {
                 await _auditLog.LogActionAsync("Đăng nhập hệ thống", user.UserName!);
 
-                // Đặt tài khoản thuế mặc định cho user
-                var accounts = await _taxAccountContext.GetAccessibleTaxAccountsAsync();
-                if (accounts.Any())
+                // Xác định công ty đang được chọn từ ngoài hoặc đã được ghi nhớ từ lần trước
+                int? targetTaxAccountId = model.SelectedTaxAccountId;
+
+                if (!targetTaxAccountId.HasValue && Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var cookieTaxId))
                 {
-                    await _taxAccountContext.SetCurrentTaxAccountAsync(accounts.First().Id);
+                    targetTaxAccountId = cookieTaxId;
+                }
+
+                var userMappings = await _db.UserTaxAccounts
+                    .Include(u => u.TaxAccount)
+                    .Where(u => u.UserId == user.Id && u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .ToListAsync();
+
+                // Nếu người dùng chọn 1 công ty đã tạo từ ngoài nhưng chưa có trong mapping của user này, tự động gán quyền để nhớ luôn
+                if (targetTaxAccountId.HasValue && !userMappings.Any(m => m.TaxAccountId == targetTaxAccountId.Value))
+                {
+                    var selectedAcc = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.Id == targetTaxAccountId.Value && t.IsActive);
+                    if (selectedAcc != null)
+                    {
+                        var newMapping = new UserTaxAccount
+                        {
+                            UserId = user.Id,
+                            TaxAccountId = selectedAcc.Id,
+                            IsDefault = true,
+                            CanManage = true,
+                            AssignedAt = DateTime.Now
+                        };
+                        _db.UserTaxAccounts.Add(newMapping);
+                        userMappings.Add(newMapping);
+                    }
+                }
+
+                if (!targetTaxAccountId.HasValue || !userMappings.Any(m => m.TaxAccountId == targetTaxAccountId.Value))
+                {
+                    var defaultMapping = userMappings.FirstOrDefault(m => m.IsDefault) ?? userMappings.FirstOrDefault();
+                    targetTaxAccountId = defaultMapping?.TaxAccountId;
+                }
+
+                if (targetTaxAccountId.HasValue)
+                {
+                    foreach (var m in userMappings)
+                    {
+                        m.IsDefault = (m.TaxAccountId == targetTaxAccountId.Value);
+                    }
+                    await _db.SaveChangesAsync();
+                    await _taxAccountContext.SetCurrentTaxAccountAsync(targetTaxAccountId.Value);
                 }
 
                 if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))

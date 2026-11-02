@@ -6,6 +6,9 @@ namespace InvoiceManager.Models.ViewModels
     {
         public int Id { get; set; }
         public string TaxCode { get; set; } = string.Empty;
+        public string BusinessType { get; set; } = "DoanhNghiep";
+        public string? ShortName { get; set; }
+        public string? AccountantName { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string? Email { get; set; }
@@ -18,5 +21,7 @@ namespace InvoiceManager.Models.ViewModels
         public int SoldInvoiceCount { get; set; }
         public int TotalInvoiceCount => PurchaseInvoiceCount + SoldInvoiceCount;
         public bool IsCurrent { get; set; }
+        public bool HasEInvoiceConnected { get; set; }
+        public bool HasETaxConnected { get; set; }
     }
 }

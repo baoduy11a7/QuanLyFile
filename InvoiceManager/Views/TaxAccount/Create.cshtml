@@ -1,88 +1,214 @@
 @model InvoiceManager.Models.ViewModels.CreateTaxAccountViewModel
 @{
-    ViewData["Title"] = "Thêm Tài khoản thuế mới";
+    ViewData["Title"] = "Thêm công ty / Hộ kinh doanh mới";
 }
 
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-7">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-building-add me-2"></i> Thêm Doanh nghiệp / Tài khoản thuế
-                </h5>
-                <a asp-action="Lookup" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-search me-1"></i> Trang Tra cứu MST
-                </a>
-            </div>
-            <div class="card-body p-4">
-                <form asp-action="Create" method="post" id="createTaxAccountForm">
-                    @Html.AntiForgeryToken()
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small"></div>
+<style>
+    .create-company-card {
+        max-width: 740px;
+        margin: 1rem auto;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.12);
+    }
 
-                    <!-- MST & Tra cứu Cổng Thuế -->
-                    <div class="mb-3">
-                        <label asp-for="TaxCode" class="form-label fw-bold"></label>
-                        <div class="input-group">
-                            <input asp-for="TaxCode" id="taxCodeInput" class="form-control font-monospace fs-5 fw-bold text-primary" placeholder="Ví dụ: 0105880697" autofocus required />
-                            <button type="button" id="btnLookup" class="btn btn-primary px-3 fw-semibold d-flex align-items-center gap-2">
-                                <span id="btnLookupSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                                <i id="btnLookupIcon" class="bi bi-cloud-arrow-down-fill"></i>
-                                <span>Cào thông tin Cổng Thuế</span>
+    .create-company-header {
+        padding: 1.15rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .create-company-body {
+        padding: 1.35rem 1.5rem;
+    }
+
+    .create-company-footer {
+        padding: 0.95rem 1.5rem 1.25rem;
+        border-top: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+</style>
+
+<div class="create-company-card">
+    <div class="create-company-header">
+        <h5 class="mb-0 fw-bold text-dark" style="font-size: 1.05rem;">Thêm công ty / Hộ kinh doanh mới</h5>
+        <a asp-action="Index" class="btn-close" aria-label="Đóng"></a>
+    </div>
+
+    <form asp-action="Create" method="post" id="createTaxAccountForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="BusinessType" id="pageBusinessType" />
+
+        <div class="create-company-body">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small"></div>
+
+            <!-- Chuyển đổi Công ty / Doanh nghiệp | Hộ kinh doanh -->
+            <div class="business-type-switcher">
+                <button type="button" class="btn-biz-type @(Model.BusinessType != "HoKinhDoanh" ? "active" : "")" id="pageBtnDoanhNghiep" onclick="setPageBusinessType('DoanhNghiep')">
+                    Công ty / Doanh nghiệp
+                </button>
+                <button type="button" class="btn-biz-type @(Model.BusinessType == "HoKinhDoanh" ? "active" : "")" id="pageBtnHoKinhDoanh" onclick="setPageBusinessType('HoKinhDoanh')">
+                    Hộ kinh doanh
+                </button>
+            </div>
+
+            <div id="lookupAlert" class="mb-3" style="display:none;"></div>
+
+            <!-- Lưới 6 trường thông tin (3 hàng x 2 cột) chuẩn theo ảnh -->
+            <div class="row g-3">
+                <!-- Hàng 1: Mã số thuế (*) & Tên gợi nhớ (*) -->
+                <div class="col-12 col-md-6">
+                    <label asp-for="TaxCode" class="form-label small fw-semibold text-dark d-flex justify-content-between align-items-center mb-1">
+                        <span>Mã số thuế <span class="text-danger">(*)</span></span>
+                        <a href="javascript:void(0)" id="btnLookup" class="text-primary text-decoration-none fw-normal" style="font-size: 0.75rem;">
+                            <span id="btnLookupSpinner" class="spinner-border spinner-border-sm d-none me-1" style="width: 0.7rem; height: 0.7rem;"></span>
+                            <i id="btnLookupIcon" class="bi bi-search me-1"></i>Tra cứu MST
+                        </a>
+                    </label>
+                    <input asp-for="TaxCode" id="taxCodeInput" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Tìm theo mã hoặc tên tài sản..." autofocus required />
+                    <span asp-validation-for="TaxCode" class="text-danger small"></span>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label asp-for="ShortName" class="form-label small fw-semibold text-dark mb-1">
+                        Tên gợi nhớ <span class="text-danger">(*)</span>
+                    </label>
+                    <input asp-for="ShortName" id="shortNameInput" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Nhập tên gợi nhớ công ty / Hộ kinh doanh" required />
+                    <span asp-validation-for="ShortName" class="text-danger small"></span>
+                </div>
+
+                <!-- Hàng 2: Tên kế toán & Tên công ty -->
+                <div class="col-12 col-md-6">
+                    <label asp-for="AccountantName" class="form-label small fw-semibold text-dark mb-1">
+                        Tên kế toán
+                    </label>
+                    <input asp-for="AccountantName" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Nhập tên kế toán" />
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label asp-for="CompanyName" class="form-label small fw-semibold text-dark mb-1" id="pageLblCompanyName">
+                        Tên công ty
+                    </label>
+                    <input asp-for="CompanyName" id="companyNameInput" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Nhập tên công ty" required />
+                    <span asp-validation-for="CompanyName" class="text-danger small"></span>
+                </div>
+
+                <!-- Hàng 3: Tên giám đốc & Địa chỉ công ty / hộ kinh doanh -->
+                <div class="col-12 col-md-6">
+                    <label asp-for="Representative" class="form-label small fw-semibold text-dark mb-1">
+                        Tên giám đốc
+                    </label>
+                    <input asp-for="Representative" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Nhập tên công ty" />
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label asp-for="Address" class="form-label small fw-semibold text-dark mb-1">
+                        Địa chỉ công ty / hộ kinh doanh
+                    </label>
+                    <input asp-for="Address" id="addressInput" class="form-control" style="font-size: 0.85rem; padding: 0.52rem 0.75rem;" placeholder="Nhập địa chỉ..." />
+                    <span asp-validation-for="Address" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <!-- Khối 1: Tài khoản Hóa đơn điện tử -->
+            <div class="account-connect-box mt-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-dark" style="font-size: 0.86rem;">Tài khoản Hóa đơn điện tử</span>
+                        <span id="pageBadgeEinv" class="badge bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.7rem;">
+                            <i class="bi bi-check-circle-fill me-1"></i>Đã thiết lập
+                        </span>
+                    </div>
+                    <button type="button" class="btn-connect-account" onclick="$('#pageSecEinv').toggleClass('d-none');">
+                        <i class="bi bi-link-45deg fs-6"></i>
+                        <span id="pageTxtEinv">Kết nối tài khoản</span>
+                    </button>
+                </div>
+
+                <div id="pageSecEinv" class="mt-3 pt-3 border-top d-none">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-sm-5">
+                            <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Tên đăng nhập HĐĐT (gdt.gov.vn)</label>
+                            <input asp-for="EInvoiceUsername" id="pageEinvUser" class="form-control form-control-sm" placeholder="Mặc định là Mã số thuế" />
+                        </div>
+                        <div class="col-12 col-sm-5">
+                            <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Mật khẩu HĐĐT</label>
+                            <input asp-for="EInvoicePassword" type="password" id="pageEinvPass" class="form-control form-control-sm" placeholder="Nhập mật khẩu HĐĐT..." />
+                        </div>
+                        <div class="col-12 col-sm-2 d-grid">
+                            <button type="button" class="btn btn-success btn-sm fw-semibold" onclick="$('#pageSecEinv').addClass('d-none'); $('#pageBadgeEinv').removeClass('d-none');">
+                                Xong
                             </button>
                         </div>
-                        <span asp-validation-for="TaxCode" class="text-danger small"></span>
-                        <div class="form-text small">Nhập 10 số (hoặc 14 số đối với chi nhánh), hệ thống sẽ tự động cào tên công ty và địa chỉ chính thức từ Tổng cục Thuế.</div>
-                        
-                        <!-- Khu vực thông báo cào dữ liệu -->
-                        <div id="lookupAlert" class="mt-2" style="display:none;"></div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="mb-3">
-                        <label asp-for="CompanyName" class="form-label fw-bold"></label>
-                        <input asp-for="CompanyName" id="companyNameInput" class="form-control" placeholder="Tên công ty theo ĐKKD..." required />
-                        <span asp-validation-for="CompanyName" class="text-danger small"></span>
+            <!-- Khối 2: Tài khoản Thuế điện tử -->
+            <div class="account-connect-box mt-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-dark" style="font-size: 0.86rem;">Tài khoản Thuế điện tử</span>
+                        <span id="pageBadgeEtax" class="badge bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.7rem;">
+                            <i class="bi bi-check-circle-fill me-1"></i>Đã thiết lập
+                        </span>
                     </div>
+                    <button type="button" class="btn-connect-account" onclick="$('#pageSecEtax').toggleClass('d-none');">
+                        <i class="bi bi-link-45deg fs-6"></i>
+                        <span id="pageTxtEtax">Kết nối tài khoản</span>
+                    </button>
+                </div>
 
-                    <div class="mb-3">
-                        <label asp-for="Address" class="form-label fw-bold"></label>
-                        <input asp-for="Address" id="addressInput" class="form-control" placeholder="Địa chỉ trụ sở chính..." required />
-                        <span asp-validation-for="Address" class="text-danger small"></span>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="Email" class="form-label fw-semibold"></label>
-                            <input asp-for="Email" class="form-control" placeholder="ketoan@company.vn" />
-                            <span asp-validation-for="Email" class="text-danger small"></span>
+                <div id="pageSecEtax" class="mt-3 pt-3 border-top d-none">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-sm-5">
+                            <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Tên đăng nhập Thuế điện tử</label>
+                            <input asp-for="ETaxUsername" id="pageEtaxUser" class="form-control form-control-sm" placeholder="VD: MST-QL" />
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="PhoneNumber" class="form-label fw-semibold"></label>
-                            <input asp-for="PhoneNumber" class="form-control" placeholder="0243.xxx.xxxx" />
-                            <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                        <div class="col-12 col-sm-5">
+                            <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Mật khẩu Thuế điện tử</label>
+                            <input asp-for="ETaxPassword" type="password" id="pageEtaxPass" class="form-control form-control-sm" placeholder="Nhập mật khẩu Thuế điện tử..." />
+                        </div>
+                        <div class="col-12 col-sm-2 d-grid">
+                            <button type="button" class="btn btn-success btn-sm fw-semibold" onclick="$('#pageSecEtax').addClass('d-none'); $('#pageBadgeEtax').removeClass('d-none');">
+                                Xong
+                            </button>
                         </div>
                     </div>
-
-                    <div class="mb-4">
-                        <label asp-for="Representative" class="form-label fw-semibold"></label>
-                        <input asp-for="Representative" class="form-control" placeholder="Họ tên người đại diện pháp luật..." />
-                        <span asp-validation-for="Representative" class="text-danger small"></span>
-                    </div>
-
-                    <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                        <a asp-action="Index" class="btn btn-outline-secondary">Hủy bỏ</a>
-                        <button type="submit" class="btn btn-success px-4 fw-semibold">
-                            <i class="bi bi-check2-circle me-1"></i> Lưu thông tin Doanh nghiệp
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
-    </div>
+
+        <div class="create-company-footer">
+            <a asp-action="Index" class="btn-fdi-back text-decoration-none">Quay lại</a>
+            <button type="submit" class="btn-fdi-save">Lưu công ty</button>
+        </div>
+    </form>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        function setPageBusinessType(type) {
+            $('#pageBusinessType').val(type);
+            if (type === 'HoKinhDoanh') {
+                $('#pageBtnDoanhNghiep').removeClass('active');
+                $('#pageBtnHoKinhDoanh').addClass('active');
+                $('#pageLblCompanyName').text('Tên hộ kinh doanh');
+                $('#companyNameInput').attr('placeholder', 'Nhập tên hộ kinh doanh');
+            } else {
+                $('#pageBtnHoKinhDoanh').removeClass('active');
+                $('#pageBtnDoanhNghiep').addClass('active');
+                $('#pageLblCompanyName').text('Tên công ty');
+                $('#companyNameInput').attr('placeholder', 'Nhập tên công ty');
+            }
+        }
+
         $(document).ready(function () {
             var $taxInput = $('#taxCodeInput');
             var $btnLookup = $('#btnLookup');
@@ -90,19 +216,15 @@
             var $icon = $('#btnLookupIcon');
             var $alert = $('#lookupAlert');
             var $companyName = $('#companyNameInput');
+            var $shortName = $('#shortNameInput');
             var $address = $('#addressInput');
 
             function performLookup() {
                 var taxCode = $taxInput.val().trim();
-                if (!taxCode || taxCode.length < 10) {
-                    $alert.show().html('<div class="alert alert-warning py-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i> Vui lòng nhập mã số thuế hợp lệ (10 - 14 ký tự).</div>');
-                    return;
-                }
+                if (!taxCode || taxCode.length < 10) return;
 
-                $btnLookup.prop('disabled', true);
                 $spinner.removeClass('d-none');
                 $icon.addClass('d-none');
-                $alert.show().html('<div class="alert alert-info py-2 small mb-0 d-flex align-items-center"><span class="spinner-border spinner-border-sm me-2"></span> Đang cào dữ liệu từ Cổng Tổng cục Thuế...</div>');
 
                 $.ajax({
                     url: '@Url.Action("LookupApi", "TaxAccount")',
@@ -110,36 +232,21 @@
                     data: { taxCode: taxCode },
                     success: function (res) {
                         if (res.success) {
-                            $companyName.val(res.companyName || '');
-                            $address.val(res.address || '');
-
-                            // Highlight feedback
-                            $companyName.addClass('border-success bg-success-subtle');
-                            $address.addClass('border-success bg-success-subtle');
-                            setTimeout(function() {
-                                $companyName.removeClass('bg-success-subtle');
-                                $address.removeClass('bg-success-subtle');
-                            }, 1200);
-
-                            var statusBadge = res.status ? '<span class="badge bg-success ms-2"><i class="bi bi-check-circle me-1"></i>' + res.status + '</span>' : '';
-                            var existWarning = res.existsInSystem ? '<div class="text-danger fw-bold mt-1"><i class="bi bi-exclamation-octagon-fill me-1"></i> Mã số thuế này đã tồn tại trong hệ thống!</div>' : '';
+                            if (res.companyName) $companyName.val(res.companyName);
+                            if (!$shortName.val().trim()) {
+                                $shortName.val(res.shortName || res.companyName || taxCode);
+                            }
+                            if (res.address) $address.val(res.address);
+                            if (!$('#pageEinvUser').val()) $('#pageEinvUser').val(res.taxCode || taxCode);
 
                             $alert.show().html(
                                 '<div class="alert alert-success py-2 small mb-0">' +
-                                    '<div class="fw-bold d-flex align-items-center"><i class="bi bi-patch-check-fill text-success me-1"></i> Đã lấy dữ liệu thành công từ Tổng cục Thuế ' + statusBadge + '</div>' +
-                                    (res.internationalName ? '<div class="text-muted">' + res.internationalName + '</div>' : '') +
-                                    existWarning +
+                                    '<i class="bi bi-check-circle-fill text-success me-1"></i> Đã lấy dữ liệu từ Tổng cục Thuế: <strong>' + (res.companyName || taxCode) + '</strong>' +
                                 '</div>'
                             );
-                        } else {
-                            $alert.show().html('<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-x-circle-fill me-1"></i> ' + (res.message || 'Không tìm thấy dữ liệu.') + '</div>');
                         }
                     },
-                    error: function () {
-                        $alert.show().html('<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi kết nối khi cào dữ liệu từ Cổng Thuế. Vui lòng thử lại.</div>');
-                    },
                     complete: function () {
-                        $btnLookup.prop('disabled', false);
                         $spinner.addClass('d-none');
                         $icon.removeClass('d-none');
                     }
@@ -150,7 +257,6 @@
                 performLookup();
             });
 
-            // Tự động cào khi nhấn Enter ở ô MST
             $taxInput.on('keypress', function (e) {
                 if (e.which === 13) {
                     e.preventDefault();
@@ -158,7 +264,15 @@
                 }
             });
 
-            // Nếu ô MST đã có sẵn giá trị khi load trang và chưa có tên công ty thì tự động tra cứu
+            var pageLookupTimer = null;
+            $taxInput.on('input', function () {
+                clearTimeout(pageLookupTimer);
+                var v = $(this).val().trim();
+                if (v.length >= 10 && v.length <= 14 && !$companyName.val().trim()) {
+                    pageLookupTimer = setTimeout(performLookup, 550);
+                }
+            });
+
             if ($taxInput.val().trim().length >= 10 && !$companyName.val().trim()) {
                 performLookup();
             }

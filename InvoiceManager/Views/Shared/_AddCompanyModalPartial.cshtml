@@ -1,0 +1,657 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
+@{
+    var antiXsrfTokenModal = Xsrf.GetAndStoreTokens(Context).RequestToken ?? "";
+}
+
+<style>
+    /* Giao diện chuẩn Modal Thêm công ty / Hộ kinh doanh mới theo mẫu FDI Accounting & Tax Pro */
+    #modalAddCompany .modal-content {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.25);
+    }
+
+    #modalAddCompany .modal-header {
+        padding: 1.1rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    #modalAddCompany .modal-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    #modalAddCompany .modal-body {
+        padding: 1.25rem 1.5rem;
+    }
+
+    #modalAddCompany .modal-footer {
+        padding: 0.9rem 1.5rem 1.25rem;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    /* Segmented Toggle: Công ty / Doanh nghiệp | Hộ kinh doanh */
+    .business-type-switcher {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .btn-biz-type {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        background-color: #ffffff;
+        color: #475569;
+        transition: all 0.15s ease;
+        text-align: center;
+    }
+
+    .btn-biz-type:hover {
+        background-color: #f8fafc;
+        color: #1d4ed8;
+    }
+
+    .btn-biz-type.active {
+        background-color: #1d64f2;
+        border-color: #1d64f2;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(29, 100, 242, 0.25);
+    }
+
+    /* Form Labels & Inputs trong Modal */
+    #modalAddCompany .form-label-fdi {
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    #modalAddCompany .form-control-fdi {
+        font-size: 0.85rem;
+        padding: 0.52rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+        background-color: #ffffff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #modalAddCompany .form-control-fdi:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+        outline: none;
+    }
+
+    #modalAddCompany .form-control-fdi::placeholder {
+        color: #94a3b8 !important;
+        font-size: 0.82rem !important;
+        font-weight: 400 !important;
+    }
+
+    /* Khối kết nối tài khoản Hóa đơn điện tử & Thuế điện tử */
+    .account-connect-box {
+        border: 1px solid #eef2f6;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        background-color: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+        transition: border-color 0.15s ease;
+    }
+
+    .account-connect-box:hover {
+        border-color: #cbd5e1;
+    }
+
+    .btn-connect-account {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #10b981;
+        background-color: #ffffff;
+        border: 1px solid #a7f3d0;
+        border-radius: 6px;
+        padding: 0.35rem 0.75rem;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .btn-connect-account:hover {
+        background-color: #ecfdf5;
+        color: #059669;
+        border-color: #6ee7b7;
+    }
+
+    .btn-connect-account.connected {
+        background-color: #ecfdf5;
+        color: #059669;
+        border-color: #34d399;
+    }
+
+    .btn-fdi-back {
+        background-color: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.48rem 1.15rem;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+    }
+
+    .btn-fdi-back:hover {
+        background-color: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .btn-fdi-save {
+        background-color: #1d64f2;
+        border: 1px solid #1d64f2;
+        color: #ffffff;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.48rem 1.25rem;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+    }
+
+    .btn-fdi-save:hover {
+        background-color: #1550c8;
+        border-color: #1550c8;
+        color: #ffffff;
+    }
+</style>
+
+<!-- Modal Thêm công ty / Hộ kinh doanh mới -->
+<div class="modal fade" id="modalAddCompany" tabindex="-1" aria-labelledby="modalAddCompanyLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 720px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAddCompanyLabel">Thêm công ty / Hộ kinh doanh mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+
+            <form id="formModalAddCompany" onsubmit="submitModalAddCompany(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="addCompBusinessType" value="DoanhNghiep" />
+
+                    <!-- Chuyển đổi Công ty / Doanh nghiệp | Hộ kinh doanh -->
+                    <div class="business-type-switcher">
+                        <button type="button" class="btn-biz-type active" id="btnTypeDoanhNghiep" onclick="switchAddCompBusinessType('DoanhNghiep')">
+                            Công ty / Doanh nghiệp
+                        </button>
+                        <button type="button" class="btn-biz-type" id="btnTypeHoKinhDoanh" onclick="switchAddCompBusinessType('HoKinhDoanh')">
+                            Hộ kinh doanh
+                        </button>
+                    </div>
+
+                    <!-- Thông báo trạng thái tra cứu / lỗi -->
+                    <div id="addCompAlertBox" class="alert d-none py-2 px-3 small mb-3"></div>
+
+                    <!-- Lưới 6 trường thông tin (3 hàng x 2 cột) chuẩn theo ảnh -->
+                    <div class="row g-3">
+                        <!-- Hàng 1: Mã số thuế (*) & Tên gợi nhớ (*) -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompTaxCode">
+                                <span>Mã số thuế <span class="text-danger">(*)</span></span>
+                                <a href="javascript:void(0)" onclick="triggerModalTaxLookup()" class="text-primary text-decoration-none fw-normal" style="font-size: 0.75rem;" title="Tự động điền tên & địa chỉ từ Cổng Thuế">
+                                    <span id="addCompLookupSpinner" class="spinner-border spinner-border-sm d-none me-1" style="width: 0.7rem; height: 0.7rem;"></span>
+                                    <i class="bi bi-search me-1" id="addCompLookupIcon"></i>Tra cứu MST
+                                </a>
+                            </label>
+                            <input type="text" id="addCompTaxCode" class="form-control form-control-fdi" placeholder="Tìm theo mã hoặc tên tài sản..." maxlength="20" required />
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompShortName">
+                                <span>Tên gợi nhớ <span class="text-danger">(*)</span></span>
+                            </label>
+                            <input type="text" id="addCompShortName" class="form-control form-control-fdi" placeholder="Nhập tên gợi nhớ công ty / Hộ kinh doanh" maxlength="150" required />
+                        </div>
+
+                        <!-- Hàng 2: Tên kế toán & Tên công ty -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompAccountant">
+                                <span>Tên kế toán</span>
+                            </label>
+                            <input type="text" id="addCompAccountant" class="form-control form-control-fdi" placeholder="Nhập tên kế toán" maxlength="100" />
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompCompanyName">
+                                <span id="lblAddCompCompanyName">Tên công ty</span>
+                            </label>
+                            <input type="text" id="addCompCompanyName" class="form-control form-control-fdi" placeholder="Nhập tên công ty" maxlength="255" />
+                        </div>
+
+                        <!-- Hàng 3: Tên giám đốc & Địa chỉ công ty / hộ kinh doanh -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompRepresentative">
+                                <span id="lblAddCompRepresentative">Tên giám đốc</span>
+                            </label>
+                            <input type="text" id="addCompRepresentative" class="form-control form-control-fdi" placeholder="Nhập tên công ty" maxlength="100" />
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label-fdi" for="addCompAddress">
+                                <span>Địa chỉ công ty / hộ kinh doanh</span>
+                            </label>
+                            <input type="text" id="addCompAddress" class="form-control form-control-fdi" placeholder="Nhập địa chỉ..." maxlength="500" />
+                        </div>
+                    </div>
+
+                    <!-- Khối 1: Tài khoản Hóa đơn điện tử -->
+                    <div class="account-connect-box mt-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-dark" style="font-size: 0.86rem;">Tài khoản Hóa đơn điện tử</span>
+                                <span id="badgeEinvConnected" class="badge bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.7rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Đã lưu kết nối
+                                </span>
+                            </div>
+                            <button type="button" class="btn-connect-account" id="btnConnectEinv" onclick="toggleAccountConnectSection('einv')">
+                                <i class="bi bi-link-45deg fs-6"></i>
+                                <span id="txtConnectEinv">Kết nối tài khoản</span>
+                            </button>
+                        </div>
+
+                        <div id="sectionConnectEinv" class="mt-3 pt-3 border-top d-none">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-12 col-sm-5">
+                                    <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Tên đăng nhập HĐĐT (gdt.gov.vn)</label>
+                                    <input type="text" id="addCompEinvUser" class="form-control form-control-fdi" placeholder="Mặc định là Mã số thuế" />
+                                </div>
+                                <div class="col-12 col-sm-5">
+                                    <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Mật khẩu HĐĐT</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" id="addCompEinvPass" class="form-control form-control-fdi" placeholder="Nhập mật khẩu HĐĐT..." />
+                                        <button type="button" class="btn btn-outline-secondary border-subtle" onclick="togglePassVisibility('addCompEinvPass', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-sm-2 d-grid">
+                                    <button type="button" class="btn btn-success btn-sm fw-semibold" style="padding: 0.48rem 0.5rem;" onclick="confirmAccountConnect('einv')">
+                                        Xong
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-muted mt-1" style="font-size: 0.72rem;">
+                                <i class="bi bi-shield-lock text-success me-1"></i>Mật khẩu được mã hóa và ghi nhớ tự động cho những lần đồng bộ hóa đơn sau.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Khối 2: Tài khoản Thuế điện tử -->
+                    <div class="account-connect-box mt-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-dark" style="font-size: 0.86rem;">Tài khoản Thuế điện tử</span>
+                                <span id="badgeEtaxConnected" class="badge bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.7rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Đã lưu kết nối
+                                </span>
+                            </div>
+                            <button type="button" class="btn-connect-account" id="btnConnectEtax" onclick="toggleAccountConnectSection('etax')">
+                                <i class="bi bi-link-45deg fs-6"></i>
+                                <span id="txtConnectEtax">Kết nối tài khoản</span>
+                            </button>
+                        </div>
+
+                        <div id="sectionConnectEtax" class="mt-3 pt-3 border-top d-none">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-12 col-sm-5">
+                                    <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Tên đăng nhập Thuế điện tử</label>
+                                    <input type="text" id="addCompEtaxUser" class="form-control form-control-fdi" placeholder="VD: MST-QL" />
+                                </div>
+                                <div class="col-12 col-sm-5">
+                                    <label class="form-label small fw-semibold text-secondary mb-1" style="font-size: 0.76rem;">Mật khẩu Thuế điện tử</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" id="addCompEtaxPass" class="form-control form-control-fdi" placeholder="Nhập mật khẩu Thuế điện tử..." />
+                                        <button type="button" class="btn btn-outline-secondary border-subtle" onclick="togglePassVisibility('addCompEtaxPass', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-sm-2 d-grid">
+                                    <button type="button" class="btn btn-success btn-sm fw-semibold" style="padding: 0.48rem 0.5rem;" onclick="confirmAccountConnect('etax')">
+                                        Xong
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-muted mt-1" style="font-size: 0.72rem;">
+                                <i class="bi bi-shield-lock text-success me-1"></i>Ghi nhớ tài khoản Thuế điện tử đi kèm công ty này.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-fdi-back" data-bs-dismiss="modal">Quay lại</button>
+                    <button type="submit" class="btn-fdi-save" id="btnSubmitAddCompany">
+                        <span id="addCompSaveSpinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                        <span>Lưu công ty</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const addCompanyXsrfToken = '@antiXsrfTokenModal';
+    let addCompLookupTimer = null;
+
+    function openAddCompanyModal(prefillTaxCode) {
+        const modalEl = document.getElementById('modalAddCompany');
+        if (!modalEl) return;
+
+        // Reset form nếu mở mới
+        const form = document.getElementById('formModalAddCompany');
+        if (form) form.reset();
+        switchAddCompBusinessType('DoanhNghiep');
+
+        const alertBox = document.getElementById('addCompAlertBox');
+        if (alertBox) alertBox.className = 'alert d-none py-2 px-3 small mb-3';
+
+        document.getElementById('sectionConnectEinv')?.classList.add('d-none');
+        document.getElementById('sectionConnectEtax')?.classList.add('d-none');
+        document.getElementById('badgeEinvConnected')?.classList.add('d-none');
+        document.getElementById('badgeEtaxConnected')?.classList.add('d-none');
+        document.getElementById('btnConnectEinv')?.classList.remove('connected');
+        document.getElementById('btnConnectEtax')?.classList.remove('connected');
+        const txtEinv = document.getElementById('txtConnectEinv');
+        if (txtEinv) txtEinv.textContent = 'Kết nối tài khoản';
+        const txtEtax = document.getElementById('txtConnectEtax');
+        if (txtEtax) txtEtax.textContent = 'Kết nối tài khoản';
+
+        if (prefillTaxCode) {
+            const taxInput = document.getElementById('addCompTaxCode');
+            if (taxInput) {
+                taxInput.value = prefillTaxCode;
+                setTimeout(() => triggerModalTaxLookup(), 200);
+            }
+        }
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    function switchAddCompBusinessType(type) {
+        const hiddenInput = document.getElementById('addCompBusinessType');
+        const btnDN = document.getElementById('btnTypeDoanhNghiep');
+        const btnHKD = document.getElementById('btnTypeHoKinhDoanh');
+        const lblName = document.getElementById('lblAddCompCompanyName');
+        const inputName = document.getElementById('addCompCompanyName');
+
+        if (hiddenInput) hiddenInput.value = type;
+
+        if (type === 'HoKinhDoanh') {
+            btnDN?.classList.remove('active');
+            btnHKD?.classList.add('active');
+            if (lblName) lblName.textContent = 'Tên hộ kinh doanh';
+            if (inputName) inputName.placeholder = 'Nhập tên hộ kinh doanh';
+        } else {
+            btnHKD?.classList.remove('active');
+            btnDN?.classList.add('active');
+            if (lblName) lblName.textContent = 'Tên công ty';
+            if (inputName) inputName.placeholder = 'Nhập tên công ty';
+        }
+    }
+
+    function toggleAccountConnectSection(which) {
+        const secId = which === 'einv' ? 'sectionConnectEinv' : 'sectionConnectEtax';
+        const sec = document.getElementById(secId);
+        if (!sec) return;
+
+        const isHidden = sec.classList.contains('d-none');
+        if (isHidden) {
+            sec.classList.remove('d-none');
+            const taxCode = document.getElementById('addCompTaxCode')?.value.trim() || '';
+            if (which === 'einv') {
+                const einvUser = document.getElementById('addCompEinvUser');
+                if (einvUser && !einvUser.value && taxCode) einvUser.value = taxCode;
+                einvUser?.focus();
+            } else {
+                const etaxUser = document.getElementById('addCompEtaxUser');
+                if (etaxUser && !etaxUser.value && taxCode) etaxUser.value = taxCode + '-QL';
+                etaxUser?.focus();
+            }
+        } else {
+            sec.classList.add('d-none');
+        }
+    }
+
+    function confirmAccountConnect(which) {
+        if (which === 'einv') {
+            const user = document.getElementById('addCompEinvUser')?.value.trim();
+            const pass = document.getElementById('addCompEinvPass')?.value;
+            const badge = document.getElementById('badgeEinvConnected');
+            const btn = document.getElementById('btnConnectEinv');
+            const txt = document.getElementById('txtConnectEinv');
+            if (user || pass) {
+                badge?.classList.remove('d-none');
+                btn?.classList.add('connected');
+                if (txt) txt.textContent = 'Đã kết nối (' + (user || 'HĐĐT') + ')';
+            }
+            document.getElementById('sectionConnectEinv')?.classList.add('d-none');
+        } else {
+            const user = document.getElementById('addCompEtaxUser')?.value.trim();
+            const pass = document.getElementById('addCompEtaxPass')?.value;
+            const badge = document.getElementById('badgeEtaxConnected');
+            const btn = document.getElementById('btnConnectEtax');
+            const txt = document.getElementById('txtConnectEtax');
+            if (user || pass) {
+                badge?.classList.remove('d-none');
+                btn?.classList.add('connected');
+                if (txt) txt.textContent = 'Đã kết nối (' + (user || 'Thuế ĐT') + ')';
+            }
+            document.getElementById('sectionConnectEtax')?.classList.add('d-none');
+        }
+    }
+
+    function togglePassVisibility(inputId, btn) {
+        const inp = document.getElementById(inputId);
+        if (!inp) return;
+        const icon = btn.querySelector('i');
+        if (inp.type === 'password') {
+            inp.type = 'text';
+            if (icon) icon.className = 'bi bi-eye-slash';
+        } else {
+            inp.type = 'password';
+            if (icon) icon.className = 'bi bi-eye';
+        }
+    }
+
+    async function triggerModalTaxLookup() {
+        const taxInput = document.getElementById('addCompTaxCode');
+        if (!taxInput) return;
+        const rawCode = taxInput.value.trim();
+        if (rawCode.length < 10) return;
+
+        const spinner = document.getElementById('addCompLookupSpinner');
+        const icon = document.getElementById('addCompLookupIcon');
+        const alertBox = document.getElementById('addCompAlertBox');
+
+        spinner?.classList.remove('d-none');
+        icon?.classList.add('d-none');
+
+        try {
+            const res = await fetch('/TaxAccount/LookupApi?taxCode=' + encodeURIComponent(rawCode));
+            const data = await res.json();
+            if (data && data.success) {
+                const compNameInput = document.getElementById('addCompCompanyName');
+                const shortNameInput = document.getElementById('addCompShortName');
+                const addrInput = document.getElementById('addCompAddress');
+                const einvUser = document.getElementById('addCompEinvUser');
+
+                if (compNameInput && data.companyName) {
+                    compNameInput.value = data.companyName;
+                }
+                if (shortNameInput && !shortNameInput.value.trim()) {
+                    shortNameInput.value = data.shortName || data.companyName || rawCode;
+                }
+                if (addrInput && data.address) {
+                    addrInput.value = data.address;
+                }
+                if (einvUser && !einvUser.value.trim()) {
+                    einvUser.value = data.taxCode || rawCode;
+                }
+
+                if (alertBox) {
+                    alertBox.className = 'alert alert-success py-2 px-3 small mb-3';
+                    alertBox.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Đã tự động điền thông tin từ Cổng Thuế: <strong>' + (data.companyName || rawCode) + '</strong>';
+                }
+            }
+        } catch (err) {
+            // Không chặn người dùng nhập tay nếu offline
+        } finally {
+            spinner?.classList.add('d-none');
+            icon?.classList.remove('d-none');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const taxInput = document.getElementById('addCompTaxCode');
+        if (taxInput) {
+            taxInput.addEventListener('input', function () {
+                const val = this.value.trim();
+                if (addCompLookupTimer) clearTimeout(addCompLookupTimer);
+                if (val.length >= 10 && val.length <= 14) {
+                    addCompLookupTimer = setTimeout(() => {
+                        const compName = document.getElementById('addCompCompanyName')?.value.trim();
+                        if (!compName) {
+                            triggerModalTaxLookup();
+                        }
+                    }, 550);
+                }
+            });
+
+            taxInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    triggerModalTaxLookup();
+                }
+            });
+        }
+    });
+
+    async function submitModalAddCompany(e) {
+        e.preventDefault();
+
+        const taxCode = document.getElementById('addCompTaxCode')?.value.trim() || '';
+        let shortName = document.getElementById('addCompShortName')?.value.trim() || '';
+        let companyName = document.getElementById('addCompCompanyName')?.value.trim() || '';
+        const accountantName = document.getElementById('addCompAccountant')?.value.trim() || '';
+        const representative = document.getElementById('addCompRepresentative')?.value.trim() || '';
+        const address = document.getElementById('addCompAddress')?.value.trim() || '';
+        const businessType = document.getElementById('addCompBusinessType')?.value || 'DoanhNghiep';
+
+        const einvUser = document.getElementById('addCompEinvUser')?.value.trim() || '';
+        const einvPass = document.getElementById('addCompEinvPass')?.value || '';
+        const etaxUser = document.getElementById('addCompEtaxUser')?.value.trim() || '';
+        const etaxPass = document.getElementById('addCompEtaxPass')?.value || '';
+
+        const alertBox = document.getElementById('addCompAlertBox');
+
+        if (!taxCode || taxCode.length < 10) {
+            if (alertBox) {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+                alertBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>Vui lòng nhập Mã số thuế hợp lệ (từ 10 đến 14 ký tự).';
+            }
+            document.getElementById('addCompTaxCode')?.focus();
+            return;
+        }
+
+        if (!shortName && !companyName) {
+            if (alertBox) {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+                alertBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>Vui lòng nhập Tên gợi nhớ (*) hoặc Tên công ty.';
+            }
+            document.getElementById('addCompShortName')?.focus();
+            return;
+        }
+
+        if (!companyName) companyName = shortName;
+        if (!shortName) shortName = companyName;
+
+        const btnSubmit = document.getElementById('btnSubmitAddCompany');
+        const spinner = document.getElementById('addCompSaveSpinner');
+        if (btnSubmit) btnSubmit.disabled = true;
+        spinner?.classList.remove('d-none');
+
+        try {
+            const res = await fetch('/TaxAccount/CreateAjax', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': addCompanyXsrfToken
+                },
+                body: JSON.stringify({
+                    businessType: businessType,
+                    taxCode: taxCode,
+                    shortName: shortName,
+                    accountantName: accountantName,
+                    companyName: companyName,
+                    representative: representative,
+                    address: address,
+                    eInvoiceUsername: einvUser,
+                    eInvoicePassword: einvPass,
+                    eTaxUsername: etaxUser,
+                    eTaxPassword: etaxPass
+                })
+            });
+
+            const data = await res.json();
+            if (data && data.success) {
+                // Nếu đang ở trang Login (bên ngoài), thêm ngay vào danh sách chọn công ty trên trang Login và chọn luôn
+                const loginSelect = document.getElementById('loginCompanySelect');
+                if (loginSelect) {
+                    let existingOpt = Array.from(loginSelect.options).find(o => parseInt(o.value) === data.id);
+                    const labelText = data.companyName + ' (MST: ' + data.taxCode + ')';
+                    if (existingOpt) {
+                        existingOpt.textContent = labelText;
+                        loginSelect.value = data.id;
+                    } else {
+                        const newOpt = new Option(labelText, data.id, true, true);
+                        loginSelect.add(newOpt, 0);
+                        loginSelect.value = data.id;
+                    }
+                    const loginModalEl = document.getElementById('modalAddCompany');
+                    if (loginModalEl) {
+                        bootstrap.Modal.getInstance(loginModalEl)?.hide();
+                    }
+                    const loginNotice = document.getElementById('loginCompanySavedNotice');
+                    if (loginNotice) {
+                        loginNotice.className = 'alert alert-success py-2 px-3 small mt-2 mb-0';
+                        loginNotice.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Đã tạo và ghi nhớ <strong>' + data.companyName + '</strong>. Lần sau bạn chỉ cần chọn công ty này!';
+                    }
+                } else {
+                    // Đang ở trong hệ thống -> reload để chuyển sang công ty vừa tạo
+                    window.location.reload();
+                }
+            } else {
+                if (alertBox) {
+                    alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+                    alertBox.textContent = (data && data.message) ? data.message : 'Không thể lưu công ty. Vui lòng kiểm tra lại.';
+                }
+            }
+        } catch (err) {
+            if (alertBox) {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+                alertBox.textContent = 'Lỗi kết nối máy chủ: ' + err.message;
+            }
+        } finally {
+            if (btnSubmit) btnSubmit.disabled = false;
+            spinner?.classList.add('d-none');
+        }
+    }
+</script>

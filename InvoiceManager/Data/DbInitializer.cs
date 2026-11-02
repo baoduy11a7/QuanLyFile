@@ -24,6 +24,9 @@ namespace InvoiceManager.Data
                 await context.Database.EnsureCreatedAsync();
             }
 
+            // Đảm bảo các cột mới (BusinessType, ShortName, AccountantName) luôn tồn tại trên mọi hệ CSDL (SQL Server, SQLite, PostgreSQL)
+            await EnsureTaxAccountColumnsAsync(context);
+
             // 1. Seed Roles
             string[] roles = { "Admin", "Accountant", "Viewer" };
             foreach (var role in roles)
@@ -98,6 +101,9 @@ namespace InvoiceManager.Data
                 var company1 = new TaxAccount
                 {
                     TaxCode = "0101234567",
+                    BusinessType = "DoanhNghiep",
+                    ShortName = "AN PHÁT TECH",
+                    AccountantName = "Trần Thị Mai",
                     CompanyName = "CÔNG TY TNHH CÔNG NGHỆ VÀ DỊCH VỤ AN PHÁT",
                     Address = "Tầng 8, Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Phường Mễ Trì, Quận Nam Từ Liêm, TP Hà Nội",
                     Email = "ketoan@anphat-tech.vn",
@@ -110,6 +116,9 @@ namespace InvoiceManager.Data
                 var company2 = new TaxAccount
                 {
                     TaxCode = "0312987654",
+                    BusinessType = "DoanhNghiep",
+                    ShortName = "VIỆT THÀNH CORP",
+                    AccountantName = "Trần Thị Mai",
                     CompanyName = "CÔNG TY CỔ PHẦN THƯƠNG MẠI SẢN XUẤT VIỆT THÀNH",
                     Address = "Số 120 Đường Nguyễn Thị Minh Khai, Phường Võ Thị Sáu, Quận 3, TP Hồ Chí Minh",
                     Email = "contact@vietthanhcorp.vn",
@@ -122,6 +131,9 @@ namespace InvoiceManager.Data
                 var company3 = new TaxAccount
                 {
                     TaxCode = "0314094922",
+                    BusinessType = "DoanhNghiep",
+                    ShortName = "BẢO DUY TECH",
+                    AccountantName = "Trần Thị Mai",
                     CompanyName = "CÔNG TY TNHH GIẢI PHÁP CÔNG NGHỆ BẢO DUY",
                     Address = "Khu Phố 6, Phường Linh Trung, Thành phố Thủ Đức, TP Hồ Chí Minh",
                     Email = "contact@baoduytech.vn",
@@ -134,7 +146,16 @@ namespace InvoiceManager.Data
                 context.TaxAccounts.AddRange(company1, company2, company3);
                 await context.SaveChangesAsync();
 
-                // Gán quyền truy cập TaxAccount cho accountant và viewer
+                // Gán quyền truy cập TaxAccount cho admin, accountant và viewer
+                if (adminUser != null)
+                {
+                    context.UserTaxAccounts.AddRange(
+                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company1.Id, IsDefault = false, CanManage = true },
+                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company2.Id, IsDefault = false, CanManage = true },
+                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company3.Id, IsDefault = true, CanManage = true }
+                    );
+                }
+
                 if (accountantUser != null)
                 {
                     context.UserTaxAccounts.AddRange(
@@ -158,6 +179,56 @@ namespace InvoiceManager.Data
                 await SeedSampleInvoicesAsync(context, company1.Id, company1.TaxCode, company1.CompanyName);
                 await SeedSampleInvoicesAsync(context, company2.Id, company2.TaxCode, company2.CompanyName);
                 await SeedSampleInvoicesAsync(context, company3.Id, company3.TaxCode, company3.CompanyName);
+            }
+            else if (adminUser != null)
+            {
+                // Đảm bảo tài khoản Admin có quyền truy cập các công ty đang active nếu chưa được gán
+                var hasAdminMappings = await context.UserTaxAccounts.AnyAsync(u => u.UserId == adminUser.Id);
+                if (!hasAdminMappings)
+                {
+                    var allActiveCompanies = await context.TaxAccounts.Where(t => t.IsActive).ToListAsync();
+                    for (int idx = 0; idx < allActiveCompanies.Count; idx++)
+                    {
+                        context.UserTaxAccounts.Add(new UserTaxAccount
+                        {
+                            UserId = adminUser.Id,
+                            TaxAccountId = allActiveCompanies[idx].Id,
+                            IsDefault = idx == allActiveCompanies.Count - 1,
+                            CanManage = true,
+                            AssignedAt = DateTime.Now
+                        });
+                    }
+                    await context.SaveChangesAsync();
+                }
+            }
+        }
+
+        private static async Task EnsureTaxAccountColumnsAsync(ApplicationDbContext context)
+        {
+            if (context.Database.IsSqlServer())
+            {
+                var sql = @"
+IF COL_LENGTH('TaxAccounts', 'BusinessType') IS NULL
+    ALTER TABLE [TaxAccounts] ADD [BusinessType] nvarchar(30) NOT NULL DEFAULT 'DoanhNghiep';
+IF COL_LENGTH('TaxAccounts', 'ShortName') IS NULL
+    ALTER TABLE [TaxAccounts] ADD [ShortName] nvarchar(150) NULL;
+IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
+    ALTER TABLE [TaxAccounts] ADD [AccountantName] nvarchar(100) NULL;
+";
+                try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
+            }
+            else if (context.Database.IsSqlite())
+            {
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE TaxAccounts ADD COLUMN BusinessType TEXT NOT NULL DEFAULT 'DoanhNghiep';"); } catch { }
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE TaxAccounts ADD COLUMN ShortName TEXT NULL;"); } catch { }
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE TaxAccounts ADD COLUMN AccountantName TEXT NULL;"); } catch { }
+            }
+            else
+            {
+                // PostgreSQL
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"BusinessType\" varchar(30) NOT NULL DEFAULT 'DoanhNghiep';"); } catch { }
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"ShortName\" varchar(150) NULL;"); } catch { }
+                try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"AccountantName\" varchar(100) NULL;"); } catch { }
             }
         }
 

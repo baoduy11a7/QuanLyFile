@@ -13,6 +13,18 @@ namespace InvoiceManager.Models.Entities
         [Display(Name = "Mã số thuế")]
         public string TaxCode { get; set; } = string.Empty;
 
+        [StringLength(30)]
+        [Display(Name = "Loại hình")]
+        public string BusinessType { get; set; } = "DoanhNghiep"; // "DoanhNghiep" (Công ty / Doanh nghiệp) hoặc "HoKinhDoanh" (Hộ kinh doanh)
+
+        [StringLength(150)]
+        [Display(Name = "Tên gợi nhớ")]
+        public string? ShortName { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "Tên kế toán")]
+        public string? AccountantName { get; set; }
+
         [Required]
         [StringLength(255)]
         [Display(Name = "Tên công ty / Đơn vị")]
@@ -32,7 +44,7 @@ namespace InvoiceManager.Models.Entities
         public string? PhoneNumber { get; set; }
 
         [StringLength(100)]
-        [Display(Name = "Người đại diện")]
+        [Display(Name = "Tên giám đốc / Người đại diện")]
         public string? Representative { get; set; }
 
         [Display(Name = "Trạng thái hoạt động")]
