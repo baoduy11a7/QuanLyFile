@@ -119,7 +119,7 @@
                             <div class="d-flex gap-2 flex-wrap">
                                 @if (Model.ExistsInSystem && Model.ExistingAccountId.HasValue)
                                 {
-                                    @if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
+                                    @if (User.IsInRole("Accountant"))
                                     {
                                         <form asp-action="UpdateFromTaxCode" method="post" class="m-0">
                                             @Html.AntiForgeryToken()
@@ -147,7 +147,7 @@
                                         </button>
                                     </form>
                                 }
-                                else if (User.IsInRole("Admin") || User.IsInRole("Accountant"))
+                                else if (User.IsInRole("Accountant"))
                                 {
                                     <form asp-action="QuickAddFromTaxCode" method="post" class="m-0">
                                         @Html.AntiForgeryToken()

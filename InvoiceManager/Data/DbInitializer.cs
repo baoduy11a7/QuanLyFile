@@ -146,13 +146,13 @@ namespace InvoiceManager.Data
                 context.TaxAccounts.AddRange(company1, company2, company3);
                 await context.SaveChangesAsync();
 
-                // Gán quyền truy cập TaxAccount cho admin, accountant và viewer
+                // Gán quyền truy cập TaxAccount:
+                // - Admin công ty: chỉ được xem đúng 1 công ty / hộ kinh doanh của mình
+                // - Kế toán: quản lý tất cả các công ty / hộ kinh doanh
                 if (adminUser != null)
                 {
-                    context.UserTaxAccounts.AddRange(
-                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company1.Id, IsDefault = false, CanManage = true },
-                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company2.Id, IsDefault = false, CanManage = true },
-                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company3.Id, IsDefault = true, CanManage = true }
+                    context.UserTaxAccounts.Add(
+                        new UserTaxAccount { UserId = adminUser.Id, TaxAccountId = company1.Id, IsDefault = true, CanManage = false }
                     );
                 }
 
@@ -180,25 +180,85 @@ namespace InvoiceManager.Data
                 await SeedSampleInvoicesAsync(context, company2.Id, company2.TaxCode, company2.CompanyName);
                 await SeedSampleInvoicesAsync(context, company3.Id, company3.TaxCode, company3.CompanyName);
             }
-            else if (adminUser != null)
+            else
             {
-                // Đảm bảo tài khoản Admin có quyền truy cập các công ty đang active nếu chưa được gán
-                var hasAdminMappings = await context.UserTaxAccounts.AnyAsync(u => u.UserId == adminUser.Id);
-                if (!hasAdminMappings)
+                // Chuẩn hóa phân quyền trên CSDL hiện có:
+                // 1. Tài khoản Admin chỉ giữ lại đúng 1 công ty / hộ kinh doanh của mình
+                if (adminUser != null)
                 {
-                    var allActiveCompanies = await context.TaxAccounts.Where(t => t.IsActive).ToListAsync();
-                    for (int idx = 0; idx < allActiveCompanies.Count; idx++)
+                    var adminMappings = await context.UserTaxAccounts
+                        .Include(u => u.TaxAccount)
+                        .Where(u => u.UserId == adminUser.Id)
+                        .OrderByDescending(u => u.IsDefault)
+                        .ThenByDescending(u => u.AssignedAt)
+                        .ToListAsync();
+
+                    if (adminMappings.Count > 1)
                     {
-                        context.UserTaxAccounts.Add(new UserTaxAccount
-                        {
-                            UserId = adminUser.Id,
-                            TaxAccountId = allActiveCompanies[idx].Id,
-                            IsDefault = idx == allActiveCompanies.Count - 1,
-                            CanManage = true,
-                            AssignedAt = DateTime.Now
-                        });
+                        var primaryMapping = adminMappings.First();
+                        primaryMapping.IsDefault = true;
+                        primaryMapping.CanManage = false;
+                        context.UserTaxAccounts.RemoveRange(adminMappings.Skip(1));
+                        await context.SaveChangesAsync();
                     }
-                    await context.SaveChangesAsync();
+                    else if (adminMappings.Count == 0)
+                    {
+                        var firstActiveCompany = await context.TaxAccounts
+                            .Where(t => t.IsActive)
+                            .OrderBy(t => t.Id)
+                            .FirstOrDefaultAsync();
+                        if (firstActiveCompany != null)
+                        {
+                            context.UserTaxAccounts.Add(new UserTaxAccount
+                            {
+                                UserId = adminUser.Id,
+                                TaxAccountId = firstActiveCompany.Id,
+                                IsDefault = true,
+                                CanManage = false,
+                                AssignedAt = DateTime.Now
+                            });
+                            await context.SaveChangesAsync();
+                        }
+                    }
+                }
+
+                // 2. Tài khoản Kế toán có quyền quản lý tất cả các công ty / hộ kinh doanh đang hoạt động
+                if (accountantUser != null)
+                {
+                    var allActiveIds = await context.TaxAccounts
+                        .Where(t => t.IsActive)
+                        .Select(t => t.Id)
+                        .ToListAsync();
+
+                    var existingAccIds = await context.UserTaxAccounts
+                        .Where(u => u.UserId == accountantUser.Id)
+                        .Select(u => u.TaxAccountId)
+                        .ToListAsync();
+
+                    bool hasAnyDefault = await context.UserTaxAccounts
+                        .AnyAsync(u => u.UserId == accountantUser.Id && u.IsDefault);
+
+                    bool addedAny = false;
+                    foreach (var compId in allActiveIds)
+                    {
+                        if (!existingAccIds.Contains(compId))
+                        {
+                            context.UserTaxAccounts.Add(new UserTaxAccount
+                            {
+                                UserId = accountantUser.Id,
+                                TaxAccountId = compId,
+                                IsDefault = !hasAnyDefault,
+                                CanManage = true,
+                                AssignedAt = DateTime.Now
+                            });
+                            hasAnyDefault = true;
+                            addedAny = true;
+                        }
+                    }
+                    if (addedAny)
+                    {
+                        await context.SaveChangesAsync();
+                    }
                 }
             }
         }

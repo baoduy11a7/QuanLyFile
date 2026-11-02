@@ -612,32 +612,7 @@
 
             const data = await res.json();
             if (data && data.success) {
-                // Nếu đang ở trang Login (bên ngoài), thêm ngay vào danh sách chọn công ty trên trang Login và chọn luôn
-                const loginSelect = document.getElementById('loginCompanySelect');
-                if (loginSelect) {
-                    let existingOpt = Array.from(loginSelect.options).find(o => parseInt(o.value) === data.id);
-                    const labelText = data.companyName + ' (MST: ' + data.taxCode + ')';
-                    if (existingOpt) {
-                        existingOpt.textContent = labelText;
-                        loginSelect.value = data.id;
-                    } else {
-                        const newOpt = new Option(labelText, data.id, true, true);
-                        loginSelect.add(newOpt, 0);
-                        loginSelect.value = data.id;
-                    }
-                    const loginModalEl = document.getElementById('modalAddCompany');
-                    if (loginModalEl) {
-                        bootstrap.Modal.getInstance(loginModalEl)?.hide();
-                    }
-                    const loginNotice = document.getElementById('loginCompanySavedNotice');
-                    if (loginNotice) {
-                        loginNotice.className = 'alert alert-success py-2 px-3 small mt-2 mb-0';
-                        loginNotice.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Đã tạo và ghi nhớ <strong>' + data.companyName + '</strong>. Lần sau bạn chỉ cần chọn công ty này!';
-                    }
-                } else {
-                    // Đang ở trong hệ thống -> reload để chuyển sang công ty vừa tạo
-                    window.location.reload();
-                }
+                window.location.reload();
             } else {
                 if (alertBox) {
                     alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';

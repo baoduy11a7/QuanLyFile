@@ -126,17 +126,27 @@ namespace InvoiceManager.Services
                             .Where(u => u.UserId == userId)
                             .ToListAsync();
 
+                        // Nếu là Kế toán và chọn công ty chưa có trong bảng UserTaxAccounts thì tự tạo mapping để lưu IsDefault
+                        if (context.User!.IsInRole("Accountant") && !userMappings.Any(m => m.TaxAccountId == taxAccountId))
+                        {
+                            var newMapping = new UserTaxAccount
+                            {
+                                UserId = userId,
+                                TaxAccountId = taxAccountId,
+                                IsDefault = true,
+                                CanManage = true,
+                                AssignedAt = DateTime.Now
+                            };
+                            _db.UserTaxAccounts.Add(newMapping);
+                            userMappings.Add(newMapping);
+                        }
+
                         if (userMappings.Any())
                         {
-                            bool changed = false;
+                            bool changed = true;
                             foreach (var m in userMappings)
                             {
-                                bool shouldBeDefault = (m.TaxAccountId == taxAccountId);
-                                if (m.IsDefault != shouldBeDefault)
-                                {
-                                    m.IsDefault = shouldBeDefault;
-                                    changed = true;
-                                }
+                                m.IsDefault = (m.TaxAccountId == taxAccountId);
                             }
                             if (changed)
                             {
@@ -153,7 +163,12 @@ namespace InvoiceManager.Services
             var context = HttpContext;
             if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
             {
-                // Nếu chưa đăng nhập (từ ngoài màn hình Login), trả về danh sách các công ty đang hoạt động
+                return new List<TaxAccount>();
+            }
+
+            // Yêu cầu 2: Tài khoản Kế toán (Accountant) quản lý được tất cả công ty và hộ kinh doanh
+            if (context.User.IsInRole("Accountant"))
+            {
                 return await _db.TaxAccounts
                     .AsNoTracking()
                     .Where(t => t.IsActive)
@@ -167,7 +182,22 @@ namespace InvoiceManager.Services
                 return new List<TaxAccount>();
             }
 
+            // Yêu cầu 1: Tài khoản Admin chỉ được xem đúng 1 công ty hoặc hộ kinh doanh của mình
+            if (context.User.IsInRole("Admin"))
+            {
+                var ownCompany = await _db.UserTaxAccounts
+                    .AsNoTracking()
+                    .Where(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .OrderByDescending(u => u.IsDefault)
+                    .ThenByDescending(u => u.AssignedAt)
+                    .Select(u => u.TaxAccount!)
+                    .FirstOrDefaultAsync();
+
+                return ownCompany != null ? new List<TaxAccount> { ownCompany } : new List<TaxAccount>();
+            }
+
             var userAccounts = await _db.UserTaxAccounts
+                .AsNoTracking()
                 .Where(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.IsActive)
                 .Select(u => u.TaxAccount!)
                 .OrderByDescending(t => t.CreatedAt)
@@ -181,11 +211,31 @@ namespace InvoiceManager.Services
             var context = HttpContext;
             if (context?.User == null || !context.User.Identity?.IsAuthenticated == true)
             {
+                return false;
+            }
+
+            // Kế toán được quyền truy cập và quản lý tất cả công ty / hộ kinh doanh đang hoạt động
+            if (context.User.IsInRole("Accountant"))
+            {
                 return await _db.TaxAccounts.AnyAsync(t => t.Id == taxAccountId && t.IsActive);
             }
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId)) return false;
+
+            // Admin chỉ được truy cập đúng công ty / hộ kinh doanh duy nhất của mình
+            if (context.User.IsInRole("Admin"))
+            {
+                var ownCompanyId = await _db.UserTaxAccounts
+                    .AsNoTracking()
+                    .Where(u => u.UserId == userId && u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .OrderByDescending(u => u.IsDefault)
+                    .ThenByDescending(u => u.AssignedAt)
+                    .Select(u => (int?)u.TaxAccountId)
+                    .FirstOrDefaultAsync();
+
+                return ownCompanyId.HasValue && ownCompanyId.Value == taxAccountId;
+            }
 
             return await _db.UserTaxAccounts
                 .AnyAsync(u => u.UserId == userId && u.TaxAccountId == taxAccountId && u.TaxAccount!.IsActive);

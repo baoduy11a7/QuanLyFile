@@ -111,9 +111,17 @@ namespace InvoiceManager.Controllers
             return RedirectToAction("Index", "Invoice");
         }
 
+        private bool IsRestrictedAdmin() => User?.IsInRole("Admin") == true && User?.IsInRole("Accountant") != true;
+
         [HttpGet]
         public IActionResult Create(string? taxCode = null, string? companyName = null, string? address = null, string? shortName = null)
         {
+            if (IsRestrictedAdmin())
+            {
+                TempData["ErrorMessage"] = "Tài khoản Admin chỉ được xem công ty / hộ kinh doanh của mình, không có quyền thêm mới.";
+                return RedirectToAction(nameof(Index));
+            }
+
             return View(new CreateTaxAccountViewModel
             {
                 BusinessType = "DoanhNghiep",
@@ -128,6 +136,12 @@ namespace InvoiceManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateTaxAccountViewModel model)
         {
+            if (IsRestrictedAdmin())
+            {
+                TempData["ErrorMessage"] = "Tài khoản Admin chỉ được xem công ty / hộ kinh doanh của mình, không có quyền thêm mới.";
+                return RedirectToAction(nameof(Index));
+            }
+
             if (string.IsNullOrWhiteSpace(model.ShortName) && !string.IsNullOrWhiteSpace(model.CompanyName))
             {
                 model.ShortName = model.CompanyName.Trim();
@@ -154,10 +168,14 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpPost]
-        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateAjax([FromBody] CreateTaxAccountViewModel model)
         {
+            if (IsRestrictedAdmin())
+            {
+                return Json(new { success = false, message = "Tài khoản Admin chỉ được xem công ty / hộ kinh doanh của mình, không có quyền thêm mới." });
+            }
+
             if (model == null || string.IsNullOrWhiteSpace(model.TaxCode))
             {
                 return Json(new { success = false, message = "Vui lòng nhập Mã số thuế (*)." });
@@ -275,23 +293,10 @@ namespace InvoiceManager.Controllers
                 await _db.SaveChangesAsync();
             }
 
-            // Liên kết công ty vào tài khoản người dùng để ghi nhớ vĩnh viễn cho các lần sau
+            // Liên kết công ty vào tài khoản Kế toán hiện tại để ghi nhớ vĩnh viễn cho các lần sau
             if (!string.IsNullOrEmpty(currentUserId))
             {
                 await EnsureUserCompanyMappingAsync(currentUserId, account.Id, setAsDefault: true);
-            }
-            else
-            {
-                // Nếu tạo công ty từ ngoài (trước khi đăng nhập), tự động gán cho các user hoạt động trong hệ thống để khi đăng nhập vào chỉ cần chọn
-                var activeUserIds = await _db.Users
-                    .Where(u => u.IsActive)
-                    .Select(u => u.Id)
-                    .ToListAsync();
-
-                foreach (var uid in activeUserIds)
-                {
-                    await EnsureUserCompanyMappingAsync(uid, account.Id, setAsDefault: true);
-                }
             }
 
             // Lưu kết nối Tài khoản Hóa đơn điện tử (Provider = "Gdt") nếu có nhập
@@ -396,8 +401,7 @@ namespace InvoiceManager.Controllers
         [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
-            var hasAccess = await _taxAccountContext.HasAccessToTaxAccountAsync(id);
-            if (!hasAccess && !User.IsInRole("Admin"))
+            if (IsRestrictedAdmin() || !await _taxAccountContext.HasAccessToTaxAccountAsync(id))
             {
                 TempData["ErrorMessage"] = "Bạn không có quyền xóa doanh nghiệp này.";
                 return RedirectToAction(nameof(Index));
@@ -535,6 +539,12 @@ namespace InvoiceManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> QuickAddFromTaxCode(string taxCode, string? returnUrl = null)
         {
+            if (IsRestrictedAdmin())
+            {
+                TempData["ErrorMessage"] = "Tài khoản Admin chỉ được xem công ty / hộ kinh doanh của mình, không có quyền thêm mới.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
             if (!lookup.Success)
             {
@@ -565,6 +575,12 @@ namespace InvoiceManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateFromTaxCode(string taxCode, string? returnUrl = null)
         {
+            if (IsRestrictedAdmin())
+            {
+                TempData["ErrorMessage"] = "Tài khoản Admin không có quyền thêm hoặc cập nhật công ty khác.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var lookup = await _taxCodeLookupService.LookupAsync(taxCode);
             if (!lookup.Success)
             {
@@ -595,6 +611,11 @@ namespace InvoiceManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> QuickCrawlAndSelect([FromBody] QuickCrawlRequest model)
         {
+            if (IsRestrictedAdmin())
+            {
+                return Json(new { success = false, message = "Tài khoản Admin chỉ được xem công ty / hộ kinh doanh của mình, không có quyền thêm mới." });
+            }
+
             if (string.IsNullOrWhiteSpace(model?.TaxCode))
             {
                 return Json(new { success = false, message = "Vui lòng nhập mã số thuế cần cào thông tin." });

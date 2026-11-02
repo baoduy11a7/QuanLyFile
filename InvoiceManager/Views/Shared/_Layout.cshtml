@@ -878,12 +878,15 @@
                                 }
                             </div>
 
-                            <!-- Nút + Thêm công ty / Hộ kinh doanh ở dưới cùng dropdown -->
-                            <div class="border-top bg-white p-2 text-center">
-                                <button type="button" class="btn btn-link text-decoration-none fw-semibold py-1 px-2 w-100" style="color: #1d64f2; font-size: 0.82rem;" onclick="openAddCompanyModal()">
-                                    <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
-                                </button>
-                            </div>
+                            @if (User.IsInRole("Accountant"))
+                            {
+                                <!-- Nút + Thêm công ty / Hộ kinh doanh ở dưới cùng dropdown (Chỉ dành cho Kế toán) -->
+                                <div class="border-top bg-white p-2 text-center">
+                                    <button type="button" class="btn btn-link text-decoration-none fw-semibold py-1 px-2 w-100" style="color: #1d64f2; font-size: 0.82rem;" onclick="openAddCompanyModal()">
+                                        <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+                                    </button>
+                                </div>
+                            }
                         </div>
                     </div>
 
@@ -1064,8 +1067,11 @@
         </div>
     </div>
 
-    <!-- Modal Thêm công ty / Hộ kinh doanh mới toàn cục -->
-    <partial name="_AddCompanyModalPartial" />
+    @if (User.IsInRole("Accountant"))
+    {
+        <!-- Modal Thêm công ty / Hộ kinh doanh mới toàn cục (Chỉ dành cho Kế toán) -->
+        <partial name="_AddCompanyModalPartial" />
+    }
 
     <!-- Footer -->
     <footer>

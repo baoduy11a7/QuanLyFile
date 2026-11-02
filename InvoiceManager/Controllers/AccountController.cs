@@ -37,35 +37,16 @@ namespace InvoiceManager.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Login(string? returnUrl = null)
+        public IActionResult Login(string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
             {
                 return RedirectToAction("Index", "Invoice");
             }
 
-            var companies = await _db.TaxAccounts
-                .AsNoTracking()
-                .Where(t => t.IsActive)
-                .OrderByDescending(t => t.CreatedAt)
-                .ToListAsync();
-
-            ViewBag.Companies = companies;
-
-            int? rememberedId = null;
-            if (Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var parsedId))
-            {
-                if (companies.Any(c => c.Id == parsedId))
-                {
-                    rememberedId = parsedId;
-                }
-            }
-            rememberedId ??= companies.FirstOrDefault()?.Id;
-
             return View(new LoginViewModel
             {
-                ReturnUrl = returnUrl,
-                SelectedTaxAccountId = rememberedId
+                ReturnUrl = returnUrl
             });
         }
 
@@ -73,13 +54,6 @@ namespace InvoiceManager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model)
         {
-            var companies = await _db.TaxAccounts
-                .AsNoTracking()
-                .Where(t => t.IsActive)
-                .OrderByDescending(t => t.CreatedAt)
-                .ToListAsync();
-            ViewBag.Companies = companies;
-
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -99,42 +73,49 @@ namespace InvoiceManager.Controllers
             {
                 await _auditLog.LogActionAsync("Đăng nhập hệ thống", user.UserName!);
 
-                // Xác định công ty đang được chọn từ ngoài hoặc đã được ghi nhớ từ lần trước
-                int? targetTaxAccountId = model.SelectedTaxAccountId;
-
-                if (!targetTaxAccountId.HasValue && Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var cookieTaxId))
-                {
-                    targetTaxAccountId = cookieTaxId;
-                }
+                var isAccountant = await _userManager.IsInRoleAsync(user, "Accountant");
+                var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
 
                 var userMappings = await _db.UserTaxAccounts
                     .Include(u => u.TaxAccount)
                     .Where(u => u.UserId == user.Id && u.TaxAccount != null && u.TaxAccount.IsActive)
+                    .OrderByDescending(u => u.IsDefault)
+                    .ThenByDescending(u => u.AssignedAt)
                     .ToListAsync();
 
-                // Nếu người dùng chọn 1 công ty đã tạo từ ngoài nhưng chưa có trong mapping của user này, tự động gán quyền để nhớ luôn
-                if (targetTaxAccountId.HasValue && !userMappings.Any(m => m.TaxAccountId == targetTaxAccountId.Value))
-                {
-                    var selectedAcc = await _db.TaxAccounts.FirstOrDefaultAsync(t => t.Id == targetTaxAccountId.Value && t.IsActive);
-                    if (selectedAcc != null)
-                    {
-                        var newMapping = new UserTaxAccount
-                        {
-                            UserId = user.Id,
-                            TaxAccountId = selectedAcc.Id,
-                            IsDefault = true,
-                            CanManage = true,
-                            AssignedAt = DateTime.Now
-                        };
-                        _db.UserTaxAccounts.Add(newMapping);
-                        userMappings.Add(newMapping);
-                    }
-                }
+                int? targetTaxAccountId = null;
 
-                if (!targetTaxAccountId.HasValue || !userMappings.Any(m => m.TaxAccountId == targetTaxAccountId.Value))
+                if (isAdmin && !isAccountant)
                 {
-                    var defaultMapping = userMappings.FirstOrDefault(m => m.IsDefault) ?? userMappings.FirstOrDefault();
-                    targetTaxAccountId = defaultMapping?.TaxAccountId;
+                    // Yêu cầu 1: Tài khoản Admin chỉ được xem đúng công ty / hộ kinh doanh của mình
+                    targetTaxAccountId = userMappings.FirstOrDefault()?.TaxAccountId;
+                }
+                else if (isAccountant)
+                {
+                    // Yêu cầu 2: Tài khoản Kế toán quản lý tất cả các công ty / hộ kinh doanh
+                    if (Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var cookieTaxId))
+                    {
+                        var existsActive = await _db.TaxAccounts.AnyAsync(t => t.Id == cookieTaxId && t.IsActive);
+                        if (existsActive)
+                        {
+                            targetTaxAccountId = cookieTaxId;
+                        }
+                    }
+
+                    targetTaxAccountId ??= userMappings.FirstOrDefault(m => m.IsDefault)?.TaxAccountId
+                        ?? userMappings.FirstOrDefault()?.TaxAccountId
+                        ?? (await _db.TaxAccounts.Where(t => t.IsActive).OrderByDescending(t => t.CreatedAt).Select(t => (int?)t.Id).FirstOrDefaultAsync());
+                }
+                else
+                {
+                    if (Request.Cookies.TryGetValue("ActiveTaxAccountId", out var cookieVal) && int.TryParse(cookieVal, out var cookieTaxId))
+                    {
+                        if (userMappings.Any(m => m.TaxAccountId == cookieTaxId))
+                        {
+                            targetTaxAccountId = cookieTaxId;
+                        }
+                    }
+                    targetTaxAccountId ??= userMappings.FirstOrDefault()?.TaxAccountId;
                 }
 
                 if (targetTaxAccountId.HasValue)

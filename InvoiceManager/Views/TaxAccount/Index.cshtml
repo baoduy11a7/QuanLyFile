@@ -14,14 +14,17 @@
         </h4>
         <p class="text-muted small mb-0">Tạo công ty 1 lần duy nhất, hệ thống tự động ghi nhớ thông tin và tài khoản kết nối cho các lần làm việc sau</p>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <a asp-action="Lookup" class="btn btn-outline-primary btn-sm fw-semibold">
-            <i class="bi bi-search me-1"></i> Tra cứu & Cào MST
-        </a>
-        <button type="button" class="btn btn-primary btn-sm fw-semibold px-3 shadow-sm" style="background-color: #1d64f2; border-color: #1d64f2;" onclick="openAddCompanyModal()">
-            <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
-        </button>
-    </div>
+    @if (User.IsInRole("Accountant"))
+    {
+        <div class="d-flex gap-2 flex-wrap">
+            <a asp-action="Lookup" class="btn btn-outline-primary btn-sm fw-semibold">
+                <i class="bi bi-search me-1"></i> Tra cứu & Cào MST
+            </a>
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3 shadow-sm" style="background-color: #1d64f2; border-color: #1d64f2;" onclick="openAddCompanyModal()">
+                <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+            </button>
+        </div>
+    }
 </div>
 
 <!-- Thống kê nhanh tổng quan -->
@@ -237,10 +240,13 @@
                                     </form>
                                 }
 
-                                <button type="button" class="btn btn-outline-danger btn-sm px-2 fw-semibold" title="Xóa công ty khỏi hệ thống" 
-                                        onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                @if (User.IsInRole("Accountant"))
+                                {
+                                    <button type="button" class="btn btn-outline-danger btn-sm px-2 fw-semibold" title="Xóa công ty khỏi hệ thống" 
+                                            onclick="openDeleteModal(@acc.Id, '@Html.Raw(acc.TaxCode.Replace("'", "\\'"))', '@Html.Raw(acc.CompanyName.Replace("'", "\\'").Replace("\"", "&quot;"))')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
                             </div>
                         </td>
                     </tr>
@@ -250,11 +256,14 @@
         </table>
     </div>
 
-    <div class="card-footer bg-white py-3 text-center border-top">
-        <button type="button" class="btn text-white fw-bold px-4 py-2 shadow-sm rounded-3" style="background-color: #1d64f2; border: none; font-size: 0.9rem;" onclick="openAddCompanyModal()">
-            <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
-        </button>
-    </div>
+    @if (User.IsInRole("Accountant"))
+    {
+        <div class="card-footer bg-white py-3 text-center border-top">
+            <button type="button" class="btn text-white fw-bold px-4 py-2 shadow-sm rounded-3" style="background-color: #1d64f2; border: none; font-size: 0.9rem;" onclick="openAddCompanyModal()">
+                <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+            </button>
+        </div>
+    }
 </div>
 
 <!-- Modal Xác nhận xóa Doanh nghiệp -->
