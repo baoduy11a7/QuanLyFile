@@ -1045,6 +1045,102 @@
         </div>
     </div>
 
+    <!-- Modal: Cấu hình thông tin lấy hóa đơn gốc (Chuẩn hệ thống kế toán) -->
+    <div class="modal fade" id="modalOriginalInvoiceConfig" tabindex="-1" aria-labelledby="modalOriginalInvoiceConfigLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 620px;">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+                <div class="modal-header border-bottom py-3 px-4 bg-light">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                            <i class="bi bi-gear-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <h6 class="modal-title fw-bold text-dark mb-0" id="modalOriginalInvoiceConfigLabel">Cấu hình thông tin lấy hóa đơn gốc</h6>
+                            <small class="text-muted" id="origModalCompanySub">Tài khoản kết nối Cổng Tổng cục Thuế</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="formOriginalInvoiceConfig" onsubmit="submitOriginalInvoiceConfig(event)">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="origModalAccountId" name="taxAccountId" value="" />
+                    <div class="modal-body px-4 py-3">
+                        <div id="origModalAlert" class="alert d-none py-2 px-3 small mb-3"></div>
+
+                        <!-- Card 1: Tài khoản Cổng Tổng cục Thuế -->
+                        <div class="border rounded-3 p-3 mb-3 bg-white shadow-xs">
+                            <div class="d-flex justify-content-between align-items-center mb-2.5">
+                                <span class="fw-semibold text-dark small d-flex align-items-center gap-1.5">
+                                    <i class="bi bi-shield-lock-fill text-primary"></i> Tài khoản Cổng HĐĐT (Tổng cục Thuế)
+                                </span>
+                                <span id="origModalSavedBadge" class="badge bg-success-subtle text-success border border-success-subtle d-none" style="font-size: 0.72rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Đã ghi nhớ mật khẩu
+                                </span>
+                            </div>
+                            <div class="row g-2.5">
+                                <div class="col-12">
+                                    <label class="form-label text-muted small mb-1" style="font-size: 0.78rem;">Mã số thuế / Tên đăng nhập (hoadondientu.gdt.gov.vn)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light text-muted"><i class="bi bi-person"></i></span>
+                                        <input type="text" id="origModalUsername" name="username" class="form-control" placeholder="Mã số thuế doanh nghiệp..." required />
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label text-muted small mb-1" style="font-size: 0.78rem;">Mật khẩu Cổng Thuế (Lưu 1 lần dùng mãi mãi)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light text-muted"><i class="bi bi-key"></i></span>
+                                        <input type="password" id="origModalPassword" name="password" class="form-control" placeholder="Nhập mật khẩu Cổng Thuế..." />
+                                        <button class="btn btn-outline-secondary" type="button" onclick="toggleOrigModalPass()">
+                                            <i class="bi bi-eye" id="origModalPassIcon"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text small text-muted mt-1" style="font-size: 0.72rem;">
+                                        Hệ thống tự động mã hóa bảo mật chuẩn AES và tự động giải mã Captcha bằng AI OCR khi lấy hóa đơn.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 pt-2.5 border-top d-flex justify-content-between align-items-center">
+                                <span class="text-muted small" style="font-size: 0.75rem;">Kiểm tra kết nối trực tiếp với Cổng Thuế:</span>
+                                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-3 fw-medium" id="btnTestOrigConnection" onclick="testOriginalGdtConnection()">
+                                    <i class="bi bi-arrow-repeat me-1" id="origModalTestIcon"></i>Kiểm tra kết nối
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Quy tắc & Phương thức lấy hóa đơn gốc -->
+                        <div class="border rounded-3 p-3 bg-light bg-opacity-50">
+                            <span class="fw-semibold text-dark small d-block mb-2">
+                                <i class="bi bi-check-all text-success me-1"></i>Cơ chế lấy hóa đơn gốc tự động:
+                            </span>
+                            <div class="d-flex flex-column gap-2 small text-secondary" style="font-size: 0.78rem;">
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-0.5"></i>
+                                    <div><strong>Ưu tiên 1 - Tải PDF gốc Tổng cục Thuế:</strong> Tải trực tiếp bản thể hiện gốc có chữ ký số điện tử CQT từ Cổng Thuế (hoadondientu.gdt.gov.vn).</div>
+                                </div>
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-0.5"></i>
+                                    <div><strong>Ưu tiên 2 - PDF gốc từ Nhà cung cấp:</strong> Tự động truy xuất link tra cứu trong file XML (MISA meInvoice, Viettel S-Invoice, VNPT, BKAV...) để lấy bản gốc phát hành chuẩn từng nhà cung cấp.</div>
+                                </div>
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-0.5"></i>
+                                    <div><strong>Ưu tiên 3 - Gói nén ZIP/XML:</strong> Tải và lưu trữ trọn bộ XML & file đính kèm phục vụ lưu trữ kế toán và kiểm tra quyết toán thuế.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-top py-2.5 px-4 bg-light">
+                        <button type="button" class="btn btn-light border btn-sm px-3" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" id="btnSaveOrigConfig" class="btn btn-primary btn-sm px-4 fw-semibold shadow-xs">
+                            <i class="bi bi-check-lg me-1"></i> Lưu cấu hình
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     @if (User.IsInRole("Accountant"))
     {
         <partial name="_AddCompanyModalPartial" />
@@ -1146,25 +1242,8 @@
             $('#compModalGdtSavedBadge').addClass('d-none');
 
             if (editCurrent) {
-                $('#modalCompanySetupLabel').text('Cấu hình thông tin công ty & Tài khoản lấy hóa đơn gốc');
-                $.get('/TaxAccount/GetCompanyInfo', function(res) {
-                    if (res && res.success) {
-                        $('#compModalId').val(res.id);
-                        $('#compModalTaxCode').val(res.taxCode);
-                        $('#compModalAlias').val(res.companyName);
-                        $('#compModalCompanyName').val(res.companyName);
-                        $('#compModalAddress').val(res.address || '');
-                        $('#compModalDirector').val(res.representative || '');
-                        $('#compModalAccountant').val(res.accountantName || '');
-                        $('#compModalGdtUser').val(res.gdtUsername || res.taxCode);
-                        if (res.hasSavedPassword) {
-                            $('#compModalGdtSavedBadge').removeClass('d-none');
-                            $('#compModalGdtPass').attr('placeholder', 'Đã lưu mật khẩu (Để trống nếu giữ nguyên)');
-                        } else {
-                            $('#compModalGdtPass').attr('placeholder', 'Nhập mật khẩu Cổng Thuế...');
-                        }
-                    }
-                });
+                openOriginalInvoiceConfigModal();
+                return;
             } else {
                 $('#modalCompanySetupLabel').text('Thêm công ty / Hộ kinh doanh mới');
                 $('#compModalTaxCode').val('');
@@ -1246,6 +1325,138 @@
                 $('#compModalAlert').removeClass('d-none alert-success').addClass('alert-danger').text('Lỗi kết nối máy chủ khi lưu công ty.');
             });
         }
+    
+        function openOriginalInvoiceConfigModal() {
+            // Đóng dropdown nếu có
+            try {
+                var dropdownToggle = document.querySelector('[data-bs-toggle="dropdown"][aria-expanded="true"]');
+                if (dropdownToggle && window.bootstrap && bootstrap.Dropdown) {
+                    var dd = bootstrap.Dropdown.getOrCreateInstance(dropdownToggle);
+                    if (dd) dd.hide();
+                }
+            } catch(e) {}
+
+            $('#origModalAlert').addClass('d-none').text('');
+            $('#origModalSavedBadge').addClass('d-none');
+            $('#origModalPassword').val('').attr('placeholder', 'Nhập mật khẩu Cổng Thuế...');
+
+            $.get('/TaxAccount/GetCompanyInfo', function(res) {
+                if (res && res.success) {
+                    $('#origModalAccountId').val(res.id || '');
+                    $('#origModalCompanySub').text((res.companyName || 'Công ty') + ' (MST: ' + (res.taxCode || '') + ')');
+                    $('#origModalUsername').val(res.gdtUsername || res.taxCode || '');
+                    if (res.hasSavedPassword) {
+                        $('#origModalSavedBadge').removeClass('d-none');
+                        $('#origModalPassword').attr('placeholder', 'Đã lưu mật khẩu Cổng Thuế (Để trống nếu giữ nguyên)');
+                    }
+                }
+            });
+
+            var modalEl = document.getElementById('modalOriginalInvoiceConfig');
+            if (modalEl) {
+                try {
+                    if (window.bootstrap && bootstrap.Modal) {
+                        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modal.show();
+                    } else {
+                        $(modalEl).modal('show');
+                    }
+                } catch(err) {
+                    $(modalEl).modal('show');
+                }
+            }
+        }
+
+        function toggleOrigModalPass() {
+            var inp = document.getElementById('origModalPassword');
+            var icon = document.getElementById('origModalPassIcon');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                inp.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+
+        function testOriginalGdtConnection() {
+            var btn = $('#btnTestOrigConnection');
+            var icon = $('#origModalTestIcon');
+            var user = $('#origModalUsername').val();
+            var pass = $('#origModalPassword').val();
+
+            btn.prop('disabled', true);
+            icon.removeClass('bi-arrow-repeat').addClass('spinner-border spinner-border-sm');
+            $('#origModalAlert').removeClass('d-none alert-success alert-danger').addClass('alert-info').html('<i class="bi bi-hourglass-split me-1"></i> Đang tự động vượt Captcha và kiểm tra kết nối Cổng Thuế...');
+
+            var token = $('input[name="__RequestVerificationToken"]').first().val();
+
+            $.ajax({
+                url: '/TaxAccount/TestOriginalConnection',
+                type: 'POST',
+                data: {
+                    username: user,
+                    password: pass,
+                    __RequestVerificationToken: token
+                },
+                success: function(res) {
+                    btn.prop('disabled', false);
+                    icon.removeClass('spinner-border spinner-border-sm').addClass('bi-arrow-repeat');
+                    if (res && res.success) {
+                        $('#origModalAlert').removeClass('alert-info alert-danger').addClass('alert-success').html('<i class="bi bi-check-circle-fill me-1"></i> ' + res.message);
+                    } else {
+                        $('#origModalAlert').removeClass('alert-info alert-success').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Kiểm tra kết nối thất bại.'));
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false);
+                    icon.removeClass('spinner-border spinner-border-sm').addClass('bi-arrow-repeat');
+                    $('#origModalAlert').removeClass('alert-info alert-success').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi kết nối tới máy chủ.');
+                }
+            });
+        }
+
+        function submitOriginalInvoiceConfig(e) {
+            e.preventDefault();
+            var btn = $('#btnSaveOrigConfig');
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang lưu...');
+
+            var token = $('input[name="__RequestVerificationToken"]').first().val();
+            var user = $('#origModalUsername').val();
+            var pass = $('#origModalPassword').val();
+
+            $.ajax({
+                url: '/TaxAccount/SaveOriginalInvoiceConfig',
+                type: 'POST',
+                data: {
+                    username: user,
+                    password: pass,
+                    __RequestVerificationToken: token
+                },
+                success: function(res) {
+                    btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Lưu cấu hình');
+                    if (res && res.success) {
+                        $('#origModalAlert').removeClass('d-none alert-danger alert-info').addClass('alert-success').html('<i class="bi bi-check-circle-fill me-1"></i> ' + res.message);
+                        setTimeout(function() {
+                            var modalEl = document.getElementById('modalOriginalInvoiceConfig');
+                            if (modalEl && window.bootstrap && bootstrap.Modal) {
+                                var modal = bootstrap.Modal.getInstance(modalEl);
+                                if (modal) modal.hide();
+                            } else {
+                                $(modalEl).modal('hide');
+                            }
+                        }, 1200);
+                    } else {
+                        $('#origModalAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.message || 'Lỗi khi lưu cấu hình.'));
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Lưu cấu hình');
+                    $('#origModalAlert').removeClass('d-none alert-success alert-info').addClass('alert-danger').html('<i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi kết nối máy chủ.');
+                }
+            });
+        }
+
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
