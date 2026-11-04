@@ -25,6 +25,7 @@ namespace InvoiceManager.Controllers
         private readonly ITaxCodeLookupService _taxCodeLookupService;
         private readonly ICredentialProtector? _credentialProtector;
         private readonly IInvoiceSourceProviderFactory? _providerFactory;
+        private readonly IOriginalInvoiceConfigService? _origConfigService;
 
         public TaxAccountController(
             ApplicationDbContext db,
@@ -32,7 +33,8 @@ namespace InvoiceManager.Controllers
             IAuditLogService auditLog,
             ITaxCodeLookupService taxCodeLookupService,
             ICredentialProtector? credentialProtector = null,
-            IInvoiceSourceProviderFactory? providerFactory = null)
+            IInvoiceSourceProviderFactory? providerFactory = null,
+            IOriginalInvoiceConfigService? origConfigService = null)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
@@ -40,6 +42,7 @@ namespace InvoiceManager.Controllers
             _taxCodeLookupService = taxCodeLookupService;
             _credentialProtector = credentialProtector;
             _providerFactory = providerFactory;
+            _origConfigService = origConfigService;
         }
 
         public async Task<IActionResult> Index()
@@ -855,57 +858,51 @@ namespace InvoiceManager.Controllers
             });
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SaveOriginalInvoiceConfig(
-            string? username,
-            string? password,
-            System.Threading.CancellationToken ct = default)
+        [HttpGet]
+        public async Task<IActionResult> GetOriginalInvoiceConfig(int? taxAccountId = null, System.Threading.CancellationToken ct = default)
         {
-            var account = await _taxAccountContext.GetCurrentTaxAccountAsync();
-            if (account == null)
+            var targetId = taxAccountId ?? await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!targetId.HasValue)
             {
                 return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
             }
 
-            var effectiveUser = !string.IsNullOrWhiteSpace(username) ? username.Trim() : account.TaxCode;
-            var conn = await _db.RemoteConnections
-                .FirstOrDefaultAsync(r => r.TaxAccountId == account.Id && r.ProviderName == "Gdt", ct);
-
-            if (conn == null)
+            if (_origConfigService != null)
             {
-                conn = new RemoteConnection
+                var cfg = await _origConfigService.GetConfigAsync(targetId.Value, ct);
+                return Json(new { success = true, data = cfg });
+            }
+
+            return Json(new { success = false, message = "Dịch vụ cấu hình chưa sẵn sàng." });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveOriginalInvoiceConfig(
+            [FromForm] OriginalInvoiceConfigModel model,
+            System.Threading.CancellationToken ct = default)
+        {
+            var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (model.TaxAccountId <= 0 && currentId.HasValue)
+            {
+                model.TaxAccountId = currentId.Value;
+            }
+
+            if (model.TaxAccountId <= 0)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản thuế làm việc." });
+            }
+
+            if (_origConfigService != null)
+            {
+                var ok = await _origConfigService.SaveConfigAsync(model, ct);
+                if (ok)
                 {
-                    TaxAccountId = account.Id,
-                    ProviderName = "Gdt",
-                    Username = effectiveUser,
-                    RememberPassword = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _db.RemoteConnections.Add(conn);
-            }
-            else
-            {
-                conn.Username = effectiveUser;
-                conn.RememberPassword = true;
-                conn.UpdatedAt = DateTime.UtcNow;
+                    return Json(new { success = true, message = "Đã lưu toàn bộ cấu hình thông tin lấy hóa đơn gốc thành công!" });
+                }
             }
 
-            if (!string.IsNullOrWhiteSpace(password))
-            {
-                conn.EncryptedPassword = _credentialProtector != null ? _credentialProtector.Protect(password.Trim()) : password.Trim();
-            }
-
-            await _db.SaveChangesAsync(ct);
-
-            await _auditLog.LogActionAsync(
-                "Cấu hình thông tin lấy hóa đơn gốc",
-                $"MST: {account.TaxCode}",
-                $"Cập nhật tài khoản/mật khẩu Cổng Tổng cục Thuế để lấy hóa đơn gốc ({account.CompanyName})",
-                account.Id);
-
-            return Json(new { success = true, message = "Đã lưu cấu hình thông tin lấy hóa đơn gốc thành công!" });
+            return Json(new { success = false, message = "Không thể lưu cấu hình hóa đơn gốc." });
         }
 
         [HttpPost]
@@ -915,60 +912,50 @@ namespace InvoiceManager.Controllers
             string? password,
             System.Threading.CancellationToken ct = default)
         {
-            var account = await _taxAccountContext.GetCurrentTaxAccountAsync();
-            if (account == null)
+            var currentId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!currentId.HasValue)
             {
                 return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
             }
 
-            var effectiveUser = !string.IsNullOrWhiteSpace(username) ? username.Trim() : account.TaxCode;
-            var pwdToTest = password;
-            if (string.IsNullOrWhiteSpace(pwdToTest))
+            if (_origConfigService != null)
             {
-                var conn = await _db.RemoteConnections
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(r => r.TaxAccountId == account.Id && r.ProviderName == "Gdt", ct);
-                if (conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword) && _credentialProtector != null)
+                var result = await _origConfigService.TestGovConnectionAsync(currentId.Value, username, password, ct);
+                return Json(new
                 {
-                    pwdToTest = _credentialProtector.Unprotect(conn.EncryptedPassword);
-                }
+                    success = result.Success,
+                    message = result.Message,
+                    lastConnectedAt = result.LastConnectedAt
+                });
             }
 
-            if (string.IsNullOrWhiteSpace(pwdToTest))
+            return Json(new { success = false, message = "Dịch vụ kiểm tra kết nối chưa sẵn sàng." });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetOriginalInvoiceConfig(
+            int? taxAccountId = null,
+            System.Threading.CancellationToken ct = default)
+        {
+            var targetId = taxAccountId ?? await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!targetId.HasValue)
             {
-                return Json(new { success = false, message = "Vui lòng nhập mật khẩu Cổng Thuế để kiểm tra kết nối." });
+                return Json(new { success = false, message = "Chưa chọn tài khoản thuế." });
             }
 
-            try
+            if (_origConfigService != null)
             {
-                var provider = _providerFactory?.GetProvider("Gdt");
-                if (provider == null)
+                var cleanConfig = await _origConfigService.ResetToDefaultAsync(targetId.Value, ct);
+                return Json(new
                 {
-                    return Json(new { success = false, message = "Không tìm thấy bộ kết nối Cổng Tổng cục Thuế." });
-                }
-
-                var cred = new ProviderCredentials
-                {
-                    TaxCode = account.TaxCode,
-                    Username = effectiveUser,
-                    Password = pwdToTest
-                };
-
-                var loginRes = await provider.LoginAsync(cred, ct);
-                if (loginRes.Success)
-                {
-                    GdtPortalProvider.CacheToken(effectiveUser, loginRes.Token, account.Id);
-                    return Json(new { success = true, message = "Kết nối Cổng Tổng cục Thuế THÀNH CÔNG! Đã xác thực phiên làm việc." });
-                }
-                else
-                {
-                    return Json(new { success = false, message = loginRes.ErrorMessage ?? "Đăng nhập Cổng Thuế không thành công. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu." });
-                }
+                    success = true,
+                    message = "Đã khôi phục cấu hình lấy hóa đơn gốc về mặc định ban đầu!",
+                    data = cleanConfig
+                });
             }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, message = $"Lỗi kiểm tra kết nối: {ex.Message}" });
-            }
+
+            return Json(new { success = false, message = "Không thể khôi phục mặc định." });
         }
     }
 }

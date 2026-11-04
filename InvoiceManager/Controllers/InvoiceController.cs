@@ -22,6 +22,7 @@ namespace InvoiceManager.Controllers
         private readonly IExportService _exportService;
         private readonly ISyncService _syncService;
         private readonly IInvoiceFileService _invoiceFileService;
+        private readonly IOriginalInvoiceConfigService? _origConfigService;
 
         public InvoiceController(
             ApplicationDbContext db,
@@ -29,7 +30,8 @@ namespace InvoiceManager.Controllers
             IAuditLogService auditLog,
             IExportService exportService,
             ISyncService syncService,
-            IInvoiceFileService invoiceFileService)
+            IInvoiceFileService invoiceFileService,
+            IOriginalInvoiceConfigService? origConfigService = null)
         {
             _db = db;
             _taxAccountContext = taxAccountContext;
@@ -37,6 +39,7 @@ namespace InvoiceManager.Controllers
             _exportService = exportService;
             _syncService = syncService;
             _invoiceFileService = invoiceFileService;
+            _origConfigService = origConfigService;
         }
 
         public async Task<IActionResult> Index(InvoiceFilterViewModel filter)
@@ -772,6 +775,272 @@ namespace InvoiceManager.Controllers
         public Task<IActionResult> ViewInvoicePdf(int id, System.Threading.CancellationToken ct = default)
         {
             return GetOriginalPdf(id, ct);
+        }
+    
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ProcessSingleOriginalDownload(
+            int invoiceId,
+            bool forceReDownload = false,
+            System.Threading.CancellationToken ct = default)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue)
+            {
+                return Json(new BatchOriginalDownloadItemResult
+                {
+                    InvoiceId = invoiceId,
+                    Status = "Thất bại",
+                    ErrorMessage = "Chưa chọn tài khoản thuế hoặc phiên đăng nhập đã hết hạn.",
+                    IsSuccess = false
+                });
+            }
+
+            var config = (_origConfigService != null)
+                ? await _origConfigService.GetConfigAsync(taxAccountId.Value, ct)
+                : new OriginalInvoiceConfigModel();
+
+            var inv = await _db.Invoices
+                .Include(i => i.TaxAccount)
+                .Include(i => i.Files)
+                .FirstOrDefaultAsync(i => i.Id == invoiceId && i.TaxAccountId == taxAccountId.Value, ct);
+
+            if (inv == null)
+            {
+                return Json(new BatchOriginalDownloadItemResult
+                {
+                    InvoiceId = invoiceId,
+                    Status = "Thất bại",
+                    ErrorMessage = "Không tìm thấy hóa đơn trong hệ thống.",
+                    IsSuccess = false
+                });
+            }
+
+            var itemResult = new BatchOriginalDownloadItemResult
+            {
+                InvoiceId = inv.Id,
+                InvoiceNumber = inv.InvoiceNumber,
+                InvoiceSymbol = inv.InvoiceSymbol,
+                SellerTaxCode = inv.SellerTaxCode,
+                SellerName = inv.SellerName,
+                ProcessedAt = DateTime.Now
+            };
+
+            // 1. Kiểm tra nếu đã tồn tại file hợp lệ và cấu hình bỏ qua nếu đã có
+            var existingPdf = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+            var existingXml = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+            if (existingXml == null && !string.IsNullOrEmpty(inv.RawXmlPath) && System.IO.File.Exists(inv.RawXmlPath))
+            {
+                existingXml = new InvoiceFile { FilePath = inv.RawXmlPath };
+            }
+
+            if (config.SkipExistingFiles && !forceReDownload && (existingPdf != null || existingXml != null))
+            {
+                var formatsList = new System.Collections.Generic.List<string>();
+                if (existingXml != null) formatsList.Add("XML");
+                if (existingPdf != null) formatsList.Add("PDF");
+
+                itemResult.IsSuccess = true;
+                itemResult.IsSkipped = true;
+                itemResult.Status = "Đã tồn tại";
+                itemResult.Formats = string.Join(", ", formatsList);
+                itemResult.SavedPath = existingPdf?.FilePath ?? existingXml?.FilePath;
+                return Json(itemResult);
+            }
+
+            // 2. Tải hóa đơn gốc theo cấu hình
+            bool needPdf = config.DownloadPdf || config.DownloadBoth;
+            bool needXml = config.DownloadXml || config.DownloadBoth;
+
+            string? savedPdfPath = null;
+            string? savedXmlPath = null;
+            var retrievedFormats = new System.Collections.Generic.List<string>();
+            string? errorMsg = null;
+
+            // 2a. Tải PDF gốc (Cam kết giữ nguyên bản gốc từ Tổng cục Thuế / Nhà cung cấp, không dựng PDF giả)
+            if (needPdf)
+            {
+                try
+                {
+                    var pdfRes = await _invoiceFileService.GetOrFetchOriginalPdfAsync(inv.Id, taxAccountId.Value, null, ct);
+                    if (pdfRes.Success && pdfRes.PdfBytes != null && pdfRes.PdfBytes.Length > 0)
+                    {
+                        if (_origConfigService != null)
+                        {
+                            savedPdfPath = _origConfigService.BuildResolvedStoragePath(
+                                config,
+                                inv.TaxAccount?.TaxCode ?? "",
+                                inv.IssueDate,
+                                inv.SellerTaxCode,
+                                inv.InvoiceSymbol,
+                                inv.InvoiceNumber,
+                                ".pdf");
+
+                            if (!System.IO.File.Exists(savedPdfPath) || config.OverwriteExistingFiles || forceReDownload)
+                            {
+                                await System.IO.File.WriteAllBytesAsync(savedPdfPath, pdfRes.PdfBytes, ct);
+                            }
+                        }
+                        retrievedFormats.Add("PDF");
+                    }
+                    else
+                    {
+                        errorMsg = pdfRes.ErrorMessage ?? "Không thể tải PDF gốc từ Cổng Thuế hoặc Nhà cung cấp.";
+                    }
+                }
+                catch (Exception exPdf)
+                {
+                    errorMsg = $"Lỗi tải PDF: {exPdf.Message}";
+                }
+            }
+
+            // 2b. Tải/Sao lưu XML gốc
+            if (needXml)
+            {
+                try
+                {
+                    byte[]? xmlBytes = null;
+                    if (existingXml != null && System.IO.File.Exists(existingXml.FilePath))
+                    {
+                        xmlBytes = await System.IO.File.ReadAllBytesAsync(existingXml.FilePath, ct);
+                    }
+                    else if (!string.IsNullOrEmpty(inv.RawXmlPath) && System.IO.File.Exists(inv.RawXmlPath))
+                    {
+                        xmlBytes = await System.IO.File.ReadAllBytesAsync(inv.RawXmlPath, ct);
+                    }
+
+                    if (xmlBytes != null && xmlBytes.Length > 0)
+                    {
+                        if (_origConfigService != null)
+                        {
+                            savedXmlPath = _origConfigService.BuildResolvedStoragePath(
+                                config,
+                                inv.TaxAccount?.TaxCode ?? "",
+                                inv.IssueDate,
+                                inv.SellerTaxCode,
+                                inv.InvoiceSymbol,
+                                inv.InvoiceNumber,
+                                ".xml");
+
+                            if (!System.IO.File.Exists(savedXmlPath) || config.OverwriteExistingFiles || forceReDownload)
+                            {
+                                await System.IO.File.WriteAllBytesAsync(savedXmlPath, xmlBytes, ct);
+                            }
+                        }
+                        retrievedFormats.Add("XML");
+                    }
+                }
+                catch { }
+            }
+
+            if (retrievedFormats.Any())
+            {
+                itemResult.IsSuccess = true;
+                itemResult.IsSkipped = false;
+                itemResult.Status = "Thành công";
+                itemResult.Formats = string.Join(", ", retrievedFormats);
+                itemResult.SavedPath = savedPdfPath ?? savedXmlPath ?? "Lưu trữ hệ thống";
+
+                if (config.EnableAuditLog)
+                {
+                    await _auditLog.LogActionAsync(
+                        "Tải hóa đơn gốc thành công",
+                        $"HĐ {inv.InvoiceSymbol}-{inv.InvoiceNumber}",
+                        $"Định dạng: {itemResult.Formats}, Lưu tại: {itemResult.SavedPath}",
+                        taxAccountId.Value);
+                }
+                return Json(itemResult);
+            }
+
+            itemResult.IsSuccess = false;
+            itemResult.Status = "Thất bại";
+            itemResult.ErrorMessage = errorMsg ?? "Không lấy được tệp gốc chính thức từ Tổng cục Thuế.";
+            return Json(itemResult);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ExportBatchOriginalZip(
+            [FromForm] System.Collections.Generic.List<int> invoiceIds,
+            System.Threading.CancellationToken ct = default)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue || invoiceIds == null || !invoiceIds.Any())
+            {
+                return BadRequest("Không có hóa đơn nào được chọn.");
+            }
+
+            var invoices = await _db.Invoices
+                .Include(i => i.TaxAccount)
+                .Include(i => i.Files)
+                .Where(i => invoiceIds.Contains(i.Id) && i.TaxAccountId == taxAccountId.Value)
+                .ToListAsync(ct);
+
+            using var zipMs = new System.IO.MemoryStream();
+            using (var archive = new System.IO.Compression.ZipArchive(zipMs, System.IO.Compression.ZipArchiveMode.Create, true))
+            {
+                var entryNames = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+                foreach (var inv in invoices)
+                {
+                    // 1. Thêm PDF gốc nếu có
+                    var pdfFile = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".pdf", System.StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+                    byte[]? pdfBytes = null;
+                    if (pdfFile != null)
+                    {
+                        try { pdfBytes = await System.IO.File.ReadAllBytesAsync(pdfFile.FilePath, ct); } catch { }
+                    }
+                    if (pdfBytes == null)
+                    {
+                        var pdfRes = await _invoiceFileService.GetOrFetchOriginalPdfAsync(inv.Id, taxAccountId.Value, null, ct);
+                        if (pdfRes.Success && pdfRes.PdfBytes != null) pdfBytes = pdfRes.PdfBytes;
+                    }
+
+                    if (pdfBytes != null && pdfBytes.Length > 0)
+                    {
+                        var entryName = $"{inv.TaxAccount?.TaxCode ?? "MST"}/{inv.IssueDate.Year}/{inv.IssueDate.Month:D2}/HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}.pdf";
+                        if (entryNames.Add(entryName))
+                        {
+                            var entry = archive.CreateEntry(entryName, System.IO.Compression.CompressionLevel.Optimal);
+                            using var s = entry.Open();
+                            await s.WriteAsync(pdfBytes, 0, pdfBytes.Length, ct);
+                        }
+                    }
+
+                    // 2. Thêm XML gốc nếu có
+                    var xmlFile = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".xml", System.StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+                    string? xmlPath = xmlFile?.FilePath ?? (System.IO.File.Exists(inv.RawXmlPath) ? inv.RawXmlPath : null);
+                    if (!string.IsNullOrEmpty(xmlPath) && System.IO.File.Exists(xmlPath))
+                    {
+                        try
+                        {
+                            var xmlBytes = await System.IO.File.ReadAllBytesAsync(xmlPath, ct);
+                            if (xmlBytes != null && xmlBytes.Length > 0)
+                            {
+                                var entryName = $"{inv.TaxAccount?.TaxCode ?? "MST"}/{inv.IssueDate.Year}/{inv.IssueDate.Month:D2}/HD_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.SellerTaxCode}.xml";
+                                if (entryNames.Add(entryName))
+                                {
+                                    var entry = archive.CreateEntry(entryName, System.IO.Compression.CompressionLevel.Optimal);
+                                    using var s = entry.Open();
+                                    await s.WriteAsync(xmlBytes, 0, xmlBytes.Length, ct);
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            var zipBytes = zipMs.ToArray();
+            var fileName = $"HoaDonGoc_{DateTime.Now:yyyyMMdd_HHmmss}.zip";
+
+            await _auditLog.LogActionAsync(
+                "Tải gói ZIP hóa đơn gốc",
+                fileName,
+                $"Đóng gói {invoices.Count} hóa đơn vào tệp nén ZIP dung lượng {zipBytes.Length:N0} bytes",
+                taxAccountId.Value);
+
+            return File(zipBytes, "application/zip", fileName);
         }
     }
 }

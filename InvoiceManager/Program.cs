@@ -126,6 +126,7 @@ builder.Services.AddScoped<IInvoiceParserFactory, InvoiceParserFactory>();
 
 builder.Services.AddScoped<IInvoiceImportService, InvoiceImportService>();
 builder.Services.AddScoped<IInvoiceFileService, InvoiceFileService>();
+builder.Services.AddScoped<IOriginalInvoiceConfigService, OriginalInvoiceConfigService>();
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ITaxDeclarationService, TaxDeclarationService>();

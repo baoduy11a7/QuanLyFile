@@ -1,0 +1,484 @@
+@* 
+    _OriginalInvoiceModalsPartial.cshtml
+    Module Cấu hình thông tin lấy hóa đơn gốc & Tiến trình tải hàng loạt
+    FDI Accounting and Tax Pro v3.3.16
+*@
+
+<!-- MODAL 1: CẤU HÌNH THÔNG TIN LẤY HÓA ĐƠN GỐC -->
+<div class="modal fade" id="modalOriginalInvoiceConfig" tabindex="-1" aria-labelledby="modalOriginalInvoiceConfigLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 820px;">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-2.5 px-4 bg-light">
+                <div class="d-flex align-items-center gap-2.5">
+                    <div class="bg-primary text-white p-2 rounded-2 d-flex align-items-center justify-content-center shadow-xs" style="width: 36px; height: 36px;">
+                        <i class="bi bi-gear-wide-connected fs-5"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold text-dark mb-0" id="modalOriginalInvoiceConfigLabel">Cấu hình thông tin lấy hóa đơn gốc</h6>
+                        <small class="text-muted" id="origCfg_CompanySub">Đang tải thông tin doanh nghiệp...</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form id="formOriginalInvoiceConfig" onsubmit="submitOriginalInvoiceConfig(event)">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="origCfg_TaxAccountId" name="TaxAccountId" value="" />
+
+                <div class="modal-body p-0">
+                    <div id="origCfg_Alert" class="alert d-none m-3 py-2 px-3 small"></div>
+
+                    <!-- Nav Tabs: 5 Nhóm cấu hình theo chuẩn FDI Accounting -->
+                    <ul class="nav nav-tabs nav-fill bg-light px-3 pt-2 border-bottom" id="origConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-2 small fw-semibold" id="tab-gov-tab" data-bs-toggle="tab" data-bs-target="#tab-gov" type="button" role="tab">
+                                <i class="bi bi-shield-lock-fill me-1 text-primary"></i> A. Kết nối GOV
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 small fw-semibold" id="tab-scope-tab" data-bs-toggle="tab" data-bs-target="#tab-scope" type="button" role="tab">
+                                <i class="bi bi-funnel-fill me-1 text-info"></i> B. Phạm vi lấy HĐ
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 small fw-semibold" id="tab-format-tab" data-bs-toggle="tab" data-bs-target="#tab-format" type="button" role="tab">
+                                <i class="bi bi-file-earmark-diff-fill me-1 text-success"></i> C. Định dạng tệp
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 small fw-semibold" id="tab-storage-tab" data-bs-toggle="tab" data-bs-target="#tab-storage" type="button" role="tab">
+                                <i class="bi bi-folder-symlink-fill me-1 text-warning"></i> D. Lưu trữ
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 small fw-semibold" id="tab-auto-tab" data-bs-toggle="tab" data-bs-target="#tab-auto" type="button" role="tab">
+                                <i class="bi bi-lightning-charge-fill me-1 text-danger"></i> E. Tự động tải
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Contents -->
+                    <div class="tab-content p-4" id="origConfigTabContent" style="min-height: 340px; max-height: 480px; overflow-y: auto;">
+                        
+                        <!-- TAB A: THÔNG TIN KẾT NỐI HỆ THỐNG GOV -->
+                        <div class="tab-pane fade show active" id="tab-gov" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold text-dark mb-0">Hệ thống Hóa đơn điện tử Tổng cục Thuế (GOV)</h6>
+                                    <small class="text-muted">Cổng tiếp nhận và tra cứu chính thức: hoadondientu.gdt.gov.vn</small>
+                                </div>
+                                <span id="origCfg_StatusBadge" class="badge bg-secondary-subtle text-secondary border">
+                                    Chưa kết nối
+                                </span>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label class="form-label small fw-semibold mb-1">Địa chỉ API kết nối hệ thống GOV</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-globe2"></i></span>
+                                        <input type="text" id="origCfg_ApiUrl" name="ApiUrl" class="form-control" value="https://hoadondientu.gdt.gov.vn" readonly />
+                                    </div>
+                                    <div class="form-text small" style="font-size: 0.72rem;">Điểm cuối API chuẩn Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC.</div>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-semibold mb-1">Phương thức xác thực</label>
+                                    <select id="origCfg_AuthMethod" name="AuthMethod" class="form-select form-select-sm">
+                                        <option value="AutoOcrCaptcha" selected>Tự động giải Captcha bằng AI OCR</option>
+                                        <option value="BearerToken">Xác thực bằng Bearer Token</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Tài khoản / Mã số thuế <span class="text-danger">(*)</span></label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-person-badge"></i></span>
+                                        <input type="text" id="origCfg_Username" name="Username" class="form-control" placeholder="Mã số thuế doanh nghiệp..." required />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Mật khẩu Cổng Thuế <span class="text-muted font-monospace" style="font-size: 0.72rem;">(Lưu an toàn AES)</span></label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-key-fill"></i></span>
+                                        <input type="password" id="origCfg_Password" name="Password" class="form-control" placeholder="Nhập mật khẩu Cổng Thuế..." />
+                                        <button class="btn btn-outline-secondary" type="button" onclick="toggleOrigPassVisibility()">
+                                            <i class="bi bi-eye" id="origCfg_PassIcon"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text small" id="origCfg_SavedPassText" style="font-size: 0.72rem;">Để trống nếu giữ nguyên mật khẩu đã lưu.</div>
+                                </div>
+                            </div>
+
+                            <div class="card bg-light border-0 rounded-3 p-3 mt-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="small fw-semibold text-dark">Thời điểm kết nối thành công gần nhất:</div>
+                                        <div class="small text-muted" id="origCfg_LastConnectedAt">Chưa có lịch sử kết nối</div>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm px-3 fw-semibold shadow-xs" id="btnTestGovConnection" onclick="testGovConnectionAction()">
+                                        <i class="bi bi-arrow-repeat me-1" id="origCfg_TestIcon"></i> Kiểm tra kết nối GOV
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB B: CẤU HÌNH PHẠM VI LẤY HÓA ĐƠN -->
+                        <div class="tab-pane fade" id="tab-scope" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Mã số thuế người mua</label>
+                                    <input type="text" id="origCfg_BuyerTaxCode" name="BuyerTaxCode" class="form-control form-control-sm" placeholder="Mặc định theo MST doanh nghiệp..." />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">CCCD người mua <span class="text-muted">(Nếu có)</span></label>
+                                    <input type="text" id="origCfg_BuyerCccd" name="BuyerCccd" class="form-control form-control-sm" placeholder="Nhập số CCCD người mua..." />
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold mb-1">Khoảng thời gian mặc định</label>
+                                    <select id="origCfg_DateRangeType" name="DateRangeType" class="form-select form-select-sm" onchange="onOrigDateRangeChanged(this.value)">
+                                        <option value="CurrentMonth" selected>Tháng hiện tại</option>
+                                        <option value="CurrentQuarter">Quý hiện tại</option>
+                                        <option value="AllYear">Cả năm</option>
+                                        <option value="Custom">Tùy chỉnh khoảng ngày</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold mb-1">Từ ngày</label>
+                                    <input type="date" id="origCfg_FromDate" name="FromDate" class="form-control form-control-sm" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold mb-1">Đến ngày</label>
+                                    <input type="date" id="origCfg_ToDate" name="ToDate" class="form-control form-control-sm" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Trạng thái hóa đơn</label>
+                                    <select id="origCfg_InvoiceStatus" name="InvoiceStatus" class="form-select form-select-sm">
+                                        <option value="All" selected>Tất cả trạng thái</option>
+                                        <option value="New">Hóa đơn mới (Hợp lệ)</option>
+                                        <option value="Replaced">Hóa đơn thay thế</option>
+                                        <option value="Adjusted">Hóa đơn điều chỉnh</option>
+                                        <option value="Cancelled">Hóa đơn đã bị xóa bỏ/hủy</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Loại hóa đơn cần lấy</label>
+                                    <select id="origCfg_InvoiceType" name="InvoiceType" class="form-select form-select-sm">
+                                        <option value="Purchase" selected>Hóa đơn mua vào (Đầu vào)</option>
+                                        <option value="Sale">Hóa đơn bán ra (Đầu ra)</option>
+                                        <option value="All">Cả mua vào và bán ra</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="border rounded-3 p-3 mt-3 bg-light bg-opacity-50">
+                                <div class="fw-semibold small text-dark mb-2">Quy tắc lọc & Tải hóa đơn:</div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="origCfg_OnlyUnDownloaded" name="OnlyUnDownloaded" value="true" checked />
+                                    <label class="form-check-label small fw-medium" for="origCfg_OnlyUnDownloaded">
+                                        Chỉ lấy hóa đơn chưa có tệp gốc trong hệ thống
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="origCfg_SkipExistingFiles" name="SkipExistingFiles" value="true" checked />
+                                    <label class="form-check-label small fw-medium" for="origCfg_SkipExistingFiles">
+                                        Tự động bỏ qua các hóa đơn đã có đủ file XML/PDF gốc (Chống tải trùng lặp)
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="origCfg_AllowReDownload" name="AllowReDownload" value="true" checked />
+                                    <label class="form-check-label small fw-medium" for="origCfg_AllowReDownload">
+                                        Cho phép tải lại hóa đơn gốc khi người dùng yêu cầu ép buộc (Force Re-download)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB C: CẤU HÌNH ĐỊNH DẠNG TỆP HÓA ĐƠN GỐC -->
+                        <div class="tab-pane fade" id="tab-format" role="tabpanel">
+                            <div class="alert alert-warning border-warning-subtle small py-2.5 px-3 mb-3 d-flex align-items-start gap-2">
+                                <i class="bi bi-shield-exclamation text-warning fs-5 flex-shrink-0"></i>
+                                <div>
+                                    <strong>QUY ĐỊNH PHÁP LÝ QUAN TRỌNG:</strong> Phần mềm cam kết 100% giữ nguyên bản tệp gốc do Cổng Tổng cục Thuế hoặc Nhà cung cấp phát hành chính thức.
+                                    <em>Tuyệt đối không sử dụng dữ liệu HTML tự dựng làm PDF giả mạo; không chuyển đổi XML thành PDF rồi đánh dấu là PDF gốc.</em>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="border rounded-3 p-3 text-center h-100 bg-light bg-opacity-25">
+                                        <div class="form-check form-switch d-inline-block mb-2">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_DownloadXml" name="DownloadXml" value="true" checked />
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1"><i class="bi bi-filetype-xml text-primary me-1"></i> XML gốc</h6>
+                                        <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                            Chứa đầy đủ cấu trúc dữ liệu và chữ ký số điện tử CQT theo Thông tư 78/2021/TT-BTC.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="border rounded-3 p-3 text-center h-100 bg-light bg-opacity-25">
+                                        <div class="form-check form-switch d-inline-block mb-2">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_DownloadPdf" name="DownloadPdf" value="true" checked />
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1"><i class="bi bi-filetype-pdf text-danger me-1"></i> PDF gốc</h6>
+                                        <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                            Bản thể hiện chính thức từ Tổng cục Thuế hoặc link tra cứu trực tiếp từ NCC (MISA, Viettel, VNPT...).
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="border rounded-3 p-3 text-center h-100 bg-primary-subtle border-primary-subtle">
+                                        <div class="form-check form-switch d-inline-block mb-2">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_DownloadBoth" name="DownloadBoth" value="true" checked />
+                                        </div>
+                                        <h6 class="fw-bold text-primary mb-1"><i class="bi bi-folder-check me-1"></i> Cả XML & PDF</h6>
+                                        <small class="text-secondary d-block" style="font-size: 0.75rem;">
+                                            Khuyến nghị kế toán: Tải đồng thời cả XML và PDF để lưu trữ đối soát toàn diện.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB D: CẤU HÌNH LƯU TRỮ HÓA ĐƠN -->
+                        <div class="tab-pane fade" id="tab-storage" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Thư mục lưu trữ gốc</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-folder2-open"></i></span>
+                                        <input type="text" id="origCfg_StorageFolder" name="StorageFolder" class="form-control" value="HoaDonGoc" required />
+                                    </div>
+                                    <div class="form-text small" style="font-size: 0.72rem;">Thư mục nằm trong thư mục gốc của hệ thống máy chủ.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Quy tắc đặt tên tệp</label>
+                                    <select id="origCfg_FileNamePattern" name="FileNamePattern" class="form-select form-select-sm">
+                                        <option value="{KHHDon}_{SHDon}_{MSTBan}" selected>{KHHDon}_{SHDon}_{MSTBan} (Chuẩn khuyến nghị)</option>
+                                        <option value="HoaDon_{SHDon}_{KHHDon}">HoaDon_{SHDon}_{KHHDon}</option>
+                                        <option value="{MSTBan}_{KHHDon}_{SHDon}">{MSTBan}_{KHHDon}_{SHDon}</option>
+                                        <option value="HD_{SHDon}">HD_{SHDon}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="card bg-light border-0 rounded-3 p-3 mt-3">
+                                <div class="fw-semibold small text-dark mb-2">Cấu trúc phân loại thư mục tự động:</div>
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_AutoOrganizeByMst" name="AutoOrganizeByMst" value="true" checked />
+                                            <label class="form-check-label small" for="origCfg_AutoOrganizeByMst">
+                                                Tự động phân nhóm theo MST Doanh nghiệp: <code>/HoaDonGoc/MST_Doanh_Nghiep/</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_AutoOrganizeByYearMonth" name="AutoOrganizeByYearMonth" value="true" checked />
+                                            <label class="form-check-label small" for="origCfg_AutoOrganizeByYearMonth">
+                                                Phân nhóm theo Năm và Tháng: <code>/2026/01/</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_AutoOrganizeBySellerMst" name="AutoOrganizeBySellerMst" value="true" />
+                                            <label class="form-check-label small" for="origCfg_AutoOrganizeBySellerMst">
+                                                Phân loại theo MST Người bán: <code>/MST_NguoiBan/</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="origCfg_OverwriteExistingFiles" name="OverwriteExistingFiles" value="true" />
+                                            <label class="form-check-label small text-danger" for="origCfg_OverwriteExistingFiles">
+                                                Cho phép ghi đè tệp đã tồn tại (Không khuyến nghị)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-2.5 pt-2 border-top small text-muted font-monospace" style="font-size: 0.72rem;">
+                                    Ví dụ cấu trúc lưu: <code>/HoaDonGoc/0313407026/2026/01/C26TND_0000001_0316519680.pdf</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB E: CẤU HÌNH TỰ ĐỘNG TẢI & THỬ LẠI -->
+                        <div class="tab-pane fade" id="tab-auto" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="origCfg_AutoDownloadAfterSync" name="AutoDownloadAfterSync" value="true" checked />
+                                        <label class="form-check-label small fw-semibold" for="origCfg_AutoDownloadAfterSync">
+                                            Tự động tải hóa đơn gốc ngay sau khi hoàn thành tiến trình Đồng bộ hóa đơn
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="origCfg_AutoRetryFailed" name="AutoRetryFailed" value="true" checked />
+                                        <label class="form-check-label small fw-semibold" for="origCfg_AutoRetryFailed">
+                                            Tự động thử lại khi tải tệp gốc thất bại (do gián đoạn mạng hoặc nghẽn cổng CQT)
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="origCfg_EnableAuditLog" name="EnableAuditLog" value="true" checked />
+                                        <label class="form-check-label small fw-semibold" for="origCfg_EnableAuditLog">
+                                            Ghi nhật ký chi tiết quá trình tải hóa đơn (Audit Log)
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Số lần thử lại tối đa khi lỗi</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" id="origCfg_MaxRetryCount" name="MaxRetryCount" class="form-control" min="1" max="5" value="3" />
+                                        <span class="input-group-text">lần</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold mb-1">Thời gian chờ giữa các lần thử lại</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" id="origCfg_RetryDelaySeconds" name="RetryDelaySeconds" class="form-control" min="1" max="10" value="3" />
+                                        <span class="input-group-text">giây</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Footer: 4 Nút chức năng theo yêu cầu Mục 3 -->
+                <div class="modal-footer border-top py-2.5 px-4 bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <button type="button" class="btn btn-outline-danger btn-sm px-3 fw-medium" onclick="resetOrigConfigToDefault()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Khôi phục mặc định
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-light border btn-sm px-3" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" id="btnSaveOrigConfigModal" class="btn btn-primary btn-sm px-4 fw-semibold shadow-xs">
+                            <i class="bi bi-check-circle-fill me-1"></i> Lưu cấu hình
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- MODAL 2: GIAO DIỆN THEO DÕI TIẾN TRÌNH TẢI HÀNG LOẠT HÓA ĐƠN GỐC (Mục 5) -->
+<div class="modal fade" id="modalBatchOriginalDownloadProgress" tabindex="-1" aria-labelledby="modalBatchOriginalDownloadProgressLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 1050px;">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-2.5 px-4 bg-light">
+                <div class="d-flex align-items-center gap-2.5">
+                    <div class="bg-primary text-white p-2 rounded-2 d-flex align-items-center justify-content-center shadow-xs" style="width: 36px; height: 36px;">
+                        <i class="bi bi-cloud-arrow-down-fill fs-5"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold text-dark mb-0" id="modalBatchOriginalDownloadProgressLabel">Tiến trình tải hàng loạt hóa đơn gốc</h6>
+                        <small class="text-muted" id="batchOrig_CompanyInfo">Doanh nghiệp đang xử lý...</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="btnBatchOrigCloseX"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- 5 Thẻ thống kê tiến độ trực quan -->
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col">
+                        <div class="border rounded-2 p-2 bg-light">
+                            <div class="small text-muted fw-semibold">Tổng số HĐ</div>
+                            <div class="fs-5 fw-bold text-dark" id="stat_total">0</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="border rounded-2 p-2 bg-success-subtle border-success-subtle">
+                            <div class="small text-success fw-semibold">Thành công</div>
+                            <div class="fs-5 fw-bold text-success" id="stat_success">0</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="border rounded-2 p-2 bg-primary-subtle border-primary-subtle">
+                            <div class="small text-primary fw-semibold">Đang xử lý</div>
+                            <div class="fs-5 fw-bold text-primary" id="stat_processing">0</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="border rounded-2 p-2 bg-warning-subtle border-warning-subtle">
+                            <div class="small text-warning fw-semibold">Đã có / Bỏ qua</div>
+                            <div class="fs-5 fw-bold text-warning" id="stat_skipped">0</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="border rounded-2 p-2 bg-danger-subtle border-danger-subtle">
+                            <div class="small text-danger fw-semibold">Thất bại</div>
+                            <div class="fs-5 fw-bold text-danger" id="stat_failed">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thanh Progress Bar -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-semibold text-dark" id="batchOrig_StatusText">Đang chuẩn bị tiến trình tải hóa đơn gốc...</span>
+                        <span class="small fw-bold text-primary" id="batchOrig_PercentText">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="batchOrig_ProgressBar" role="progressbar" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Bảng danh sách kết quả theo dõi chi tiết (Mục 5) -->
+                <div class="table-responsive border rounded-2" style="max-height: 330px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.8rem;">
+                        <thead class="table-light sticky-top border-bottom">
+                            <tr>
+                                <th style="width: 45px;" class="text-center">STT</th>
+                                <th style="width: 90px;" class="text-center">Số HĐ</th>
+                                <th style="width: 90px;" class="text-center">Ký hiệu</th>
+                                <th style="width: 110px;">MST người bán</th>
+                                <th>Tên người bán</th>
+                                <th style="width: 110px;" class="text-center">Trạng thái</th>
+                                <th style="width: 90px;" class="text-center">Định dạng</th>
+                                <th>Đường dẫn lưu / Chi tiết</th>
+                                <th style="width: 80px;" class="text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchOrig_TableBody">
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang nạp danh sách hóa đơn cần tải...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer: Tải gói ZIP & Thử lại lỗi -->
+            <div class="modal-footer border-top py-2.5 px-4 bg-light d-flex justify-content-between align-items-center">
+                <div>
+                    <button type="button" class="btn btn-outline-danger btn-sm fw-semibold d-none" id="btnBatchOrigRetryFailed" onclick="retryFailedInvoicesAction()">
+                        <i class="bi bi-arrow-repeat me-1"></i> Thử lại các hóa đơn lỗi (<span id="badgeFailedCount">0</span>)
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-light border btn-sm px-3" data-bs-dismiss="modal" id="btnBatchOrigClose">Đóng</button>
+                    <button type="button" class="btn btn-success btn-sm px-4 fw-semibold shadow-xs" id="btnDownloadBatchZipResult" onclick="downloadAllProcessedZipAction()" disabled>
+                        <i class="bi bi-file-earmark-zip-fill me-1"></i> Tải toàn bộ file nén ZIP về máy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
