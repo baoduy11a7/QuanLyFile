@@ -1096,11 +1096,6 @@
                 }
             });
         });
-                } else {
-                    $(this).addClass('d-none');
-                }
-            });
-        }
 
         function selectCompanyEntityType(type) {
             if (type === 'enterprise') {
@@ -1125,27 +1120,25 @@
         }
 
         function openCompanyModal(editCurrent) {
-            // Đóng dropdown công ty ngay lập tức để tránh vướng backdrop
+            // 1. Đóng dropdown công ty ngay lập tức
             try {
-                var dropdownMenu = document.querySelector('.dropdown-menu.show');
-                if (dropdownMenu) {
-                    dropdownMenu.classList.remove('show');
-                }
                 var dropdownToggle = document.querySelector('[data-bs-toggle="dropdown"][aria-expanded="true"]');
-                if (dropdownToggle) {
-                    dropdownToggle.setAttribute('aria-expanded', 'false');
-                    dropdownToggle.classList.remove('show');
-                    if (window.bootstrap && bootstrap.Dropdown) {
-                        var dd = bootstrap.Dropdown.getInstance(dropdownToggle);
-                        if (dd) dd.hide();
-                    }
+                if (dropdownToggle && window.bootstrap && bootstrap.Dropdown) {
+                    var dd = bootstrap.Dropdown.getOrCreateInstance(dropdownToggle);
+                    if (dd) dd.hide();
                 }
+            } catch(e) {}
+
+            try {
+                $('.dropdown-menu.show').removeClass('show');
+                $('[data-bs-toggle="dropdown"]').attr('aria-expanded', 'false').removeClass('show');
             } catch(e) {}
 
             if (document.activeElement) {
                 document.activeElement.blur();
             }
 
+            // 2. Reset trạng thái modal
             $('#compModalAlert').addClass('d-none');
             var form = document.getElementById('formCompanySetup');
             if (form) form.reset();
@@ -1182,19 +1175,32 @@
                 $('#compModalAccountant').val('');
                 $('#compModalGdtUser').val('');
                 $('#compModalGdtPass').val('').attr('placeholder', 'Nhập mật khẩu Cổng Thuế...');
-                selectCompanyEntityType('enterprise');
+                if (typeof selectCompanyEntityType === 'function') {
+                    selectCompanyEntityType('enterprise');
+                }
             }
 
+            // 3. Hiển thị modal
             var modalEl = document.getElementById('modalCompanySetup');
             if (modalEl) {
                 try {
-                    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                    modal.show();
+                    if (window.bootstrap && bootstrap.Modal) {
+                        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modal.show();
+                    } else {
+                        $(modalEl).modal('show');
+                    }
                 } catch(err) {
                     $(modalEl).modal('show');
                 }
             }
         }
+
+        $(document).on('click', '#btnDropdownAddCompany', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openCompanyModal(false);
+        });
 
         function autoLookupCompanyByMst(mst) {
             var clean = (mst || '').trim();
