@@ -20,3 +20,7 @@ html {
 body {
   margin-bottom: 60px;
 }
+.btn:focus-visible, .btn-link:focus, .btn-link:active, .btn-link:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

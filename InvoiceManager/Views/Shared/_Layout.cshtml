@@ -728,6 +728,29 @@
             }
         }
 
+                /* Button Thêm công ty trong dropdown */
+        .company-dropdown-btn-add {
+            background-color: #1d64f2 !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-size: 0.85rem !important;
+            font-weight: 600 !important;
+            transition: all 0.15s ease !important;
+        }
+        .company-dropdown-btn-add:hover {
+            background-color: #1557d4 !important;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(29, 100, 242, 0.25) !important;
+        }
+        .company-dropdown-btn-add:focus,
+        .company-dropdown-btn-add:active,
+        .company-dropdown-btn-add:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
         /* Footer */
         footer {
             margin-top: auto;
@@ -835,9 +858,9 @@
                             </div>
 
                             <!-- Bottom Button: + Thêm công ty / Hộ kinh doanh -->
-                            <div class="p-2 bg-white border-top text-center">
-                                <button type="button" class="btn btn-sm btn-link text-primary fw-semibold text-decoration-none w-100 py-1" onclick="openCompanyModal(false)">
-                                    <i class="bi bi-plus-lg me-1"></i> Thêm công ty / Hộ kinh doanh
+                            <div class="p-2.5 bg-light border-top text-center">
+                                <button type="button" class="btn btn-primary btn-sm w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm border-0 company-dropdown-btn-add" id="btnDropdownAddCompany" onclick="openCompanyModal(false)">
+                                    <i class="bi bi-plus-circle-fill"></i> Thêm công ty / Hộ kinh doanh
                                 </button>
                             </div>
                         </div>
@@ -1102,8 +1125,30 @@
         }
 
         function openCompanyModal(editCurrent) {
+            // Đóng dropdown công ty ngay lập tức để tránh vướng backdrop
+            try {
+                var dropdownMenu = document.querySelector('.dropdown-menu.show');
+                if (dropdownMenu) {
+                    dropdownMenu.classList.remove('show');
+                }
+                var dropdownToggle = document.querySelector('[data-bs-toggle="dropdown"][aria-expanded="true"]');
+                if (dropdownToggle) {
+                    dropdownToggle.setAttribute('aria-expanded', 'false');
+                    dropdownToggle.classList.remove('show');
+                    if (window.bootstrap && bootstrap.Dropdown) {
+                        var dd = bootstrap.Dropdown.getInstance(dropdownToggle);
+                        if (dd) dd.hide();
+                    }
+                }
+            } catch(e) {}
+
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+
             $('#compModalAlert').addClass('d-none');
-            $('#formCompanySetup')[0].reset();
+            var form = document.getElementById('formCompanySetup');
+            if (form) form.reset();
             $('#compModalId').val('');
             $('#compModalGdtSavedBadge').addClass('d-none');
 
@@ -1129,11 +1174,26 @@
                 });
             } else {
                 $('#modalCompanySetupLabel').text('Thêm công ty / Hộ kinh doanh mới');
-                $('#compModalGdtPass').attr('placeholder', 'Nhập mật khẩu Cổng Thuế...');
+                $('#compModalTaxCode').val('');
+                $('#compModalAlias').val('');
+                $('#compModalCompanyName').val('');
+                $('#compModalAddress').val('');
+                $('#compModalDirector').val('');
+                $('#compModalAccountant').val('');
+                $('#compModalGdtUser').val('');
+                $('#compModalGdtPass').val('').attr('placeholder', 'Nhập mật khẩu Cổng Thuế...');
+                selectCompanyEntityType('enterprise');
             }
 
-            var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCompanySetup'));
-            modal.show();
+            var modalEl = document.getElementById('modalCompanySetup');
+            if (modalEl) {
+                try {
+                    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                } catch(err) {
+                    $(modalEl).modal('show');
+                }
+            }
         }
 
         function autoLookupCompanyByMst(mst) {
