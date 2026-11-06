@@ -42,9 +42,15 @@
 
         // Mở Modal
         var modalEl = document.getElementById('modalSyncInvoices');
-        if (modalEl) {
-            var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            bsModal.show();
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            try {
+                var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                bsModal.show();
+            } catch (e) {
+                $('#modalSyncInvoices').modal('show');
+            }
+        } else {
+            $('#modalSyncInvoices').modal('show');
         }
 
         // Tải lịch sử đồng bộ
@@ -335,3 +341,4 @@
         $('#btnCancelSync').prop('disabled', false);
     }
 })();
+
