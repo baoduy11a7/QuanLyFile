@@ -62,8 +62,8 @@ namespace InvoiceManager.Jobs
         {
             try
             {
-                _jobTracker.UpdateProgress(jobId, 10, $"Đang kết nối cổng {providerName}...");
-                _jobTracker.AddLog(jobId, $"Bắt đầu xác thực tài khoản MST: {cred.TaxCode} trên cổng {providerName}...");
+                _jobTracker.UpdateProgress(jobId, 12, $"Đang kết nối Cổng Tổng cục Thuế ({cred.TaxCode})...");
+                _jobTracker.AddLog(jobId, $"Bắt đầu xác thực tài khoản MST: {cred.TaxCode} trên Cổng Thuế...");
 
                 var provider = _providerFactory.GetProvider(providerName);
 
@@ -77,10 +77,20 @@ namespace InvoiceManager.Jobs
                     }
                 }
 
+                if (!string.IsNullOrWhiteSpace(cred.BearerToken))
+                {
+                    _jobTracker.UpdateProgress(jobId, 20, "Tái sử dụng phiên kết nối Cổng Thuế hợp lệ...");
+                }
+                else
+                {
+                    _jobTracker.UpdateProgress(jobId, 15, "Đang tự động xác thực và giải mã Captcha AI OCR ngầm...");
+                }
+
                 if (string.IsNullOrWhiteSpace(cred.BearerToken) && string.IsNullOrWhiteSpace(cred.CaptchaCode) && string.IsNullOrWhiteSpace(cred.Password))
                 {
                     var errMsg = "Doanh nghiệp chưa có mật khẩu hoặc phiên kết nối Cổng Thuế. Vui lòng thiết lập kết nối để tiếp tục.";
                     _jobTracker.FailJob(jobId, errMsg);
+                    _jobTracker.UpdateProgress(jobId, 100, errMsg);
                     await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, false, errMsg, rememberPassword ? cred.Password : null, rememberPassword);
                     await _auditLogService.LogActionAsync("RemoteSync_LoginFailed", providerName, errMsg, taxAccountId);
                     return;
@@ -92,13 +102,14 @@ namespace InvoiceManager.Jobs
                 {
                     var errMsg = loginResult.ErrorMessage ?? "Đăng nhập Cổng thuế thất bại không rõ nguyên nhân.";
                     _jobTracker.FailJob(jobId, errMsg);
+                    _jobTracker.UpdateProgress(jobId, 100, $"Đăng nhập thất bại: {errMsg}");
                     await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, false, errMsg, rememberPassword ? cred.Password : null, rememberPassword);
                     await _auditLogService.LogActionAsync("RemoteSync_LoginFailed", providerName, $"Đăng nhập thất bại: {errMsg}", taxAccountId);
                     return;
                 }
 
                 _jobTracker.AddLog(jobId, "Đăng nhập Cổng thuế thành công. Đang lưu thông tin phiên làm việc...");
-                _jobTracker.UpdateProgress(jobId, 25, "Đang quét danh sách hóa đơn theo khoảng ngày...");
+                _jobTracker.UpdateProgress(jobId, 25, "Đăng nhập thành công! Bắt đầu quét hóa đơn...");
 
                 // Lưu JWT Token hoạt động vào kho lưu trữ để chức năng Xem/Tải PDF gốc dùng ngay không cần đồng bộ lại
                 InvoiceManager.Services.Providers.Gdt.GdtPortalProvider.CacheToken(cred.Username, loginResult.Token, taxAccountId);
@@ -108,6 +119,7 @@ namespace InvoiceManager.Jobs
 
                 // 3. Quét danh sách hóa đơn
                 _jobTracker.AddLog(jobId, $"Bắt đầu quét hóa đơn từ ngày {req.FromDate:dd/MM/yyyy} đến {req.ToDate:dd/MM/yyyy} (Loại: {req.InvoiceType})...");
+                _jobTracker.UpdateProgress(jobId, 35, $"Đang quét hóa đơn Cổng Thuế ({req.FromDate:dd/MM/yyyy} - {req.ToDate:dd/MM/yyyy})...");
 
                 var remoteInvoices = new List<RemoteInvoice>();
                 await foreach (var inv in provider.FetchInvoicesAsync(req, loginResult.Token, ct))

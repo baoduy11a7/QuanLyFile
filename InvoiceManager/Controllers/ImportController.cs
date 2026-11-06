@@ -31,6 +31,8 @@ namespace InvoiceManager.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly ITaxCodeLookupService _taxCodeLookupService;
         private readonly ApplicationDbContext _db;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILogger<ImportController> _logger;
 
         public ImportController(
             IInvoiceImportService importService,
@@ -40,7 +42,9 @@ namespace InvoiceManager.Controllers
             ICredentialProtector credentialProtector,
             IAuditLogService auditLogService,
             ITaxCodeLookupService taxCodeLookupService,
-            ApplicationDbContext db)
+            ApplicationDbContext db,
+            IServiceScopeFactory serviceScopeFactory,
+            ILogger<ImportController> logger)
         {
             _importService = importService;
             _taxAccountContext = taxAccountContext;
@@ -50,6 +54,35 @@ namespace InvoiceManager.Controllers
             _auditLogService = auditLogService;
             _taxCodeLookupService = taxCodeLookupService;
             _db = db;
+            _serviceScopeFactory = serviceScopeFactory;
+            _logger = logger;
+        }
+
+        private void DispatchRemoteFetchJob(
+            string jobId,
+            int taxAccountId,
+            string providerName,
+            ProviderCredentials cred,
+            FetchRequest req,
+            bool rememberPassword,
+            string? userId)
+        {
+            // Chạy ngay lập tức trên ASP.NET Core ThreadPool qua IServiceScopeFactory (0ms độ trễ)
+            // Khắc phục hoàn toàn tình trạng bị treo 10% do Hangfire server timeout hoặc chậm queue
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var job = scope.ServiceProvider.GetRequiredService<RemoteFetchJob>();
+                    await job.ExecuteAsync(jobId, taxAccountId, providerName, cred, req, rememberPassword, userId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi thực thi tiến trình đồng bộ ngầm {JobId}", jobId);
+                    _jobTracker.FailJob(jobId, $"Lỗi hệ thống khi chạy tiến trình ngầm: {ex.Message}");
+                }
+            });
         }
 
         [HttpGet]
@@ -416,16 +449,15 @@ namespace InvoiceManager.Controllers
             await _auditLogService.LogActionAsync("RemoteSync_Started", model.ProviderName,
                 $"Khởi chạy lấy hóa đơn từ {model.FromDate:dd/MM/yyyy} đến {model.ToDate:dd/MM/yyyy} ({model.InvoiceType})", currentAccount.Id);
 
-            // Đẩy vào Hangfire chạy ngầm
-            BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+            // Thực thi tiến trình đồng bộ ngầm ngay lập tức
+            DispatchRemoteFetchJob(
                 jobId,
                 currentAccount.Id,
                 model.ProviderName,
                 cred,
                 req,
                 model.RememberPassword,
-                userId,
-                CancellationToken.None));
+                userId);
 
             return Json(new { success = true, jobId = jobId, message = "Đã khởi chạy tiến trình đồng bộ hóa đơn và tự động tải toàn bộ tệp gốc." });
         }
@@ -557,15 +589,14 @@ namespace InvoiceManager.Controllers
             await _auditLogService.LogActionAsync("AutoSync_Started", "Gdt",
                 $"Tự động đồng bộ hóa đơn không cần nhập mật khẩu cho {currentAccount.CompanyName} ({currentAccount.TaxCode}) từ {fromDate:dd/MM/yyyy} đến {toDate:dd/MM/yyyy}.", currentAccount.Id);
 
-            BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+            DispatchRemoteFetchJob(
                 jobId,
                 currentAccount.Id,
                 "Gdt",
                 cred,
                 fetchReq,
                 true,
-                userId,
-                CancellationToken.None));
+                userId);
 
             return Json(new
             {
@@ -785,15 +816,14 @@ namespace InvoiceManager.Controllers
             await _auditLogService.LogActionAsync("AutoQuickDownload_Started", "Gdt",
                 $"Tải nhanh dữ liệu hóa đơn 30 ngày ({fromDate:dd/MM/yyyy} - {toDate:dd/MM/yyyy}) kèm tệp gốc cho {currentAccount.CompanyName}.", currentAccount.Id);
 
-            BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+            DispatchRemoteFetchJob(
                 jobId,
                 currentAccount.Id,
                 "Gdt",
                 cred,
                 fetchReq,
                 true,
-                userId,
-                CancellationToken.None));
+                userId);
 
             return Json(new
             {
@@ -872,15 +902,14 @@ namespace InvoiceManager.Controllers
                 var jobId = Guid.NewGuid().ToString("N");
                 _jobTracker.CreateJob(jobId, out _);
 
-                BackgroundJob.Enqueue<RemoteFetchJob>(job => job.ExecuteAsync(
+                DispatchRemoteFetchJob(
                     jobId,
                     acc.Id,
                     "Gdt",
                     cred,
                     fetchReq,
                     true,
-                    userId,
-                    CancellationToken.None));
+                    userId);
 
                 launchedCount++;
             }
