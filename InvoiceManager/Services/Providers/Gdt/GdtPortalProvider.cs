@@ -1010,6 +1010,12 @@ namespace InvoiceManager.Services.Providers.Gdt
                     normalizedNumber = rawNumber.PadLeft(7, '0');
                 }
 
+                var rawKhhdon = GetJsonStringValue(item, "khhdon")?.Trim() ?? "";
+                bool isCashRegister = (rawKhhdon.Length >= 4 && char.ToUpperInvariant(rawKhhdon[3]) == 'M')
+                                      || (rawKhhdon.Length >= 2 && char.ToUpperInvariant(rawKhhdon[1]) == 'M')
+                                      || (symbol.Length >= 4 && char.ToUpperInvariant(symbol[3]) == 'M')
+                                      || (symbol.Length >= 2 && char.ToUpperInvariant(symbol[1]) == 'M');
+
                 return new RemoteInvoice
                 {
                     ProviderKey = !string.IsNullOrEmpty(id) ? id : $"{sellerMst}_{symbol}_{normalizedNumber}",
@@ -1029,7 +1035,8 @@ namespace InvoiceManager.Services.Providers.Gdt
                     TotalAmount = GetJsonDecimalValue(item, "tgtttbso"),
                     InvoiceType = defaultType,
                     CqtCode = GetJsonStringValue(item, "mcqt"),
-                    Status = MapGdtStatus(GetJsonStringValue(item, "ttxly"))
+                    Status = MapGdtStatus(GetJsonStringValue(item, "ttxly")),
+                    IsCashRegister = isCashRegister
                 };
             }
             catch (Exception ex)

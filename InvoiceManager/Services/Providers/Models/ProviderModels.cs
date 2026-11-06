@@ -48,6 +48,10 @@ namespace InvoiceManager.Services.Providers.Models
         /// "MuaVao", "BanRa", hoặc "All"
         /// </summary>
         public string InvoiceType { get; set; } = "MuaVao";
+        /// <summary>
+        /// "All", "NoCashRegister", hoặc "OnlyCashRegister"
+        /// </summary>
+        public string CategoryType { get; set; } = "All";
     }
 
     public class RemoteInvoice
@@ -70,6 +74,7 @@ namespace InvoiceManager.Services.Providers.Models
         public string InvoiceType { get; set; } = "MuaVao"; // "MuaVao" hoặc "BanRa"
         public string? CqtCode { get; set; } // Mã cơ quan thuế cấp
         public string? Status { get; set; }
+        public bool IsCashRegister { get; set; } = false; // Hóa đơn từ máy tính tiền
     }
 
     public class OriginalPdfFetchResult

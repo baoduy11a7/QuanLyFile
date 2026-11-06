@@ -87,3 +87,4 @@ namespace InvoiceManager.Models.ViewModels
         public System.Collections.Generic.List<BatchOriginalDownloadItemResult> Items { get; set; } = new();
     }
 }
+

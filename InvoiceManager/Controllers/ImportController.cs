@@ -530,6 +530,7 @@ namespace InvoiceManager.Controllers
             var fromDate = request?.GetResolvedFromDate(defaultFrom) ?? defaultFrom;
             var toDate = request?.GetResolvedToDate(now) ?? now;
             var invoiceType = string.IsNullOrWhiteSpace(request?.InvoiceType) ? "All" : request.InvoiceType;
+            var categoryType = string.IsNullOrWhiteSpace(request?.CategoryType) ? "All" : request.CategoryType;
 
             var cred = new ProviderCredentials
             {
@@ -544,7 +545,8 @@ namespace InvoiceManager.Controllers
                 TaxCode = currentAccount.TaxCode,
                 FromDate = fromDate,
                 ToDate = toDate,
-                InvoiceType = invoiceType
+                InvoiceType = invoiceType,
+                CategoryType = categoryType
             };
 
             var jobId = Guid.NewGuid().ToString("N");
@@ -572,6 +574,133 @@ namespace InvoiceManager.Controllers
                 companyName = currentAccount.CompanyName,
                 taxCode = currentAccount.TaxCode,
                 message = $"Đã tự động kết nối Cổng Tổng cục Thuế và khởi chạy đồng bộ cho {currentAccount.CompanyName}."
+            });
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin,Accountant")]
+        public async Task<IActionResult> GetSyncHistory()
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp làm việc." });
+            }
+
+            var logs = await _db.SyncLogs
+                .AsNoTracking()
+                .Where(s => s.TaxAccountId == currentAccount.Id)
+                .OrderByDescending(s => s.SyncedAt)
+                .Take(50)
+                .ToListAsync();
+
+            var result = logs.Select((l, idx) =>
+            {
+                string fromDate = "";
+                string toDate = "";
+                if (!string.IsNullOrEmpty(l.SyncType) && l.SyncType.Contains("-"))
+                {
+                    var parts = l.SyncType.Split('-');
+                    if (parts.Length == 2)
+                    {
+                        fromDate = parts[0].Trim();
+                        toDate = parts[1].Trim();
+                    }
+                }
+                if (string.IsNullOrEmpty(fromDate))
+                {
+                    fromDate = l.SyncedAt.ToString("dd/MM/yyyy");
+                    toDate = l.SyncedAt.ToString("dd/MM/yyyy");
+                }
+
+                return new
+                {
+                    stt = idx + 1,
+                    fromDate = fromDate,
+                    toDate = toDate,
+                    syncedCount = l.NewInvoiceCount,
+                    status = l.Status,
+                    description = l.ErrorMessage ?? (l.Status == "Thành công" ? "Đồng bộ thành công" : "Có lỗi phát sinh"),
+                    syncedAt = l.SyncedAt.ToString("dd/MM/yyyy HH:mm")
+                };
+            }).ToList();
+
+            return Json(new
+            {
+                success = true,
+                companyName = currentAccount.CompanyName,
+                taxCode = currentAccount.TaxCode,
+                data = result
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteSyncData([FromBody] DeleteSyncDataRequest? request)
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            if (currentAccount == null)
+            {
+                return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp làm việc." });
+            }
+
+            var fromDate = request?.GetResolvedFromDate(DateTime.MinValue) ?? DateTime.MinValue;
+            var toDate = request?.GetResolvedToDate(DateTime.MaxValue) ?? DateTime.MaxValue;
+            if (toDate < DateTime.MaxValue.Date)
+            {
+                toDate = toDate.Date.AddDays(1).AddTicks(-1);
+            }
+
+            var query = _db.Invoices
+                .Include(i => i.Details)
+                .Include(i => i.Files)
+                .Where(i => i.TaxAccountId == currentAccount.Id && i.IssueDate >= fromDate && i.IssueDate <= toDate);
+
+            if (!string.IsNullOrWhiteSpace(request?.InvoiceType) && request.InvoiceType != "All")
+            {
+                query = query.Where(i => i.InvoiceType == request.InvoiceType);
+            }
+
+            var invoicesToDelete = await query.ToListAsync();
+            int deletedCount = invoicesToDelete.Count;
+
+            foreach (var inv in invoicesToDelete)
+            {
+                if (!string.IsNullOrEmpty(inv.RawXmlPath) && System.IO.File.Exists(inv.RawXmlPath))
+                {
+                    try { System.IO.File.Delete(inv.RawXmlPath); } catch { }
+                }
+                if (!string.IsNullOrEmpty(inv.RawPdfPath) && System.IO.File.Exists(inv.RawPdfPath))
+                {
+                    try { System.IO.File.Delete(inv.RawPdfPath); } catch { }
+                }
+            }
+
+            if (invoicesToDelete.Count > 0)
+            {
+                _db.Invoices.RemoveRange(invoicesToDelete);
+            }
+
+            // Xóa log đồng bộ tương ứng trong khoảng ngày
+            var logsToDelete = await _db.SyncLogs
+                .Where(s => s.TaxAccountId == currentAccount.Id && s.SyncedAt >= fromDate && s.SyncedAt <= toDate)
+                .ToListAsync();
+            if (logsToDelete.Count > 0)
+            {
+                _db.SyncLogs.RemoveRange(logsToDelete);
+            }
+
+            await _db.SaveChangesAsync();
+
+            await _auditLogService.LogActionAsync("DeleteSyncData", "Gdt",
+                $"Đã xóa {deletedCount} hóa đơn đã đồng bộ của {currentAccount.CompanyName} từ {fromDate:dd/MM/yyyy} đến {toDate:dd/MM/yyyy}.", currentAccount.Id);
+
+            return Json(new
+            {
+                success = true,
+                deletedCount = deletedCount,
+                message = $"Đã xóa thành công {deletedCount} hóa đơn đã đồng bộ trong khoảng thời gian từ {fromDate:dd/MM/yyyy} đến {toDate:dd/MM/yyyy}."
             });
         }
 
@@ -815,6 +944,34 @@ namespace InvoiceManager.Controllers
     }
 
     public class AutoSyncRequest
+    {
+        public string? FromDate { get; set; }
+        public string? ToDate { get; set; }
+        public string? InvoiceType { get; set; } = "All";
+        public string? CategoryType { get; set; } = "All";
+
+        public DateTime GetResolvedFromDate(DateTime fallback)
+        {
+            if (string.IsNullOrWhiteSpace(FromDate)) return fallback;
+            if (DateTime.TryParseExact(FromDate.Trim(), new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                return d;
+            if (DateTime.TryParse(FromDate, out var dAny))
+                return dAny;
+            return fallback;
+        }
+
+        public DateTime GetResolvedToDate(DateTime fallback)
+        {
+            if (string.IsNullOrWhiteSpace(ToDate)) return fallback;
+            if (DateTime.TryParseExact(ToDate.Trim(), new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                return d;
+            if (DateTime.TryParse(ToDate, out var dAny))
+                return dAny;
+            return fallback;
+        }
+    }
+
+    public class DeleteSyncDataRequest
     {
         public string? FromDate { get; set; }
         public string? ToDate { get; set; }

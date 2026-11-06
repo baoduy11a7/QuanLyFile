@@ -15,3 +15,4 @@ namespace InvoiceManager.Services
         string BuildResolvedStoragePath(OriginalInvoiceConfigModel config, string companyTaxCode, DateTime issueDate, string sellerTaxCode, string invoiceSymbol, string invoiceNumber, string extension);
     }
 }
+

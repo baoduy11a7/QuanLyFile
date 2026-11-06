@@ -1,0 +1,194 @@
+@* 
+    _SyncInvoiceModalPartial.cshtml
+    Cửa sổ Đồng bộ hóa đơn tự động kết nối ngầm GOV (không yêu cầu nhập mật khẩu hay captcha)
+    Thiết kế chuẩn theo giao diện FDI Accounting & hình ảnh người dùng yêu cầu
+*@
+
+<div class="modal fade" id="modalSyncInvoices" tabindex="-1" aria-labelledby="modalSyncInvoicesLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 860px;">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+            <!-- Modal Header -->
+            <div class="modal-header border-bottom py-3 px-4 bg-white">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-1" id="modalSyncInvoicesLabel">Đồng bộ hóa đơn</h5>
+                    <p class="text-muted small mb-0">Chọn khoảng thời gian cần đồng bộ từ hệ thống hóa đơn điện tử.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body px-4 py-3">
+                <!-- Alert Box -->
+                <div id="syncModalAlert" class="alert d-none py-2 px-3 small mb-3"></div>
+
+                <!-- 1. Nhóm: Chọn đồng bộ hóa đơn mua vào / bán ra -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.95rem;">Chọn đồng bộ hóa đơn mua vào / bán ra</label>
+                    <div class="d-flex flex-wrap gap-4 align-items-center">
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceDirection" id="syncDirAll" value="All" checked>
+                            <label class="form-check-label text-secondary small fw-medium" for="syncDirAll">
+                                Đồng bộ tất cả
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceDirection" id="syncDirSold" value="BanRa">
+                            <label class="form-check-label text-secondary small fw-medium" for="syncDirSold">
+                                Chỉ đồng bộ hóa đơn bán ra
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceDirection" id="syncDirPurchase" value="MuaVao">
+                            <label class="form-check-label text-secondary small fw-medium" for="syncDirPurchase">
+                                Chỉ đồng bộ hoá đơn mua vào
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Nhóm: Chọn đồng bộ loại hoá đơn -->
+                <div class="mb-3.5">
+                    <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.95rem;">Chọn đồng bộ loại hoá đơn</label>
+                    <div class="d-flex flex-wrap gap-4 align-items-center">
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceCategory" id="syncCatAll" value="All" checked>
+                            <label class="form-check-label text-secondary small fw-medium" for="syncCatAll">
+                                Đồng bộ tất cả
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceCategory" id="syncCatExcludeCash" value="NoCashRegister">
+                            <label class="form-check-label text-secondary small fw-medium" for="syncCatExcludeCash">
+                                Đồng bộ tất cả trừ hoá đơn máy tính tiền
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input sync-radio-teal" type="radio" name="syncInvoiceCategory" id="syncCatOnlyCash" value="OnlyCashRegister">
+                            <label class="form-check-label text-secondary small fw-medium" for="syncCatOnlyCash">
+                                Chỉ đồng bộ hoá đơn máy tính tiền
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Nhóm: Khoảng thời gian (Từ ngày - Đến ngày) -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-floating position-relative">
+                            <input type="text" class="form-control form-control-sm bg-white" id="syncFromDate" placeholder="dd/MM/yyyy" style="border-radius: 6px; padding-right: 36px;">
+                            <label for="syncFromDate" class="text-muted small">Từ ngày</label>
+                            <i class="bi bi-calendar3 position-absolute text-muted" style="right: 12px; top: 18px; pointer-events: none;"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-floating position-relative">
+                            <input type="text" class="form-control form-control-sm bg-white" id="syncToDate" placeholder="dd/MM/yyyy" style="border-radius: 6px; padding-right: 36px;">
+                            <label for="syncToDate" class="text-muted small">Đến ngày</label>
+                            <i class="bi bi-calendar3 position-absolute text-muted" style="right: 12px; top: 18px; pointer-events: none;"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Sync Progress Box (hiển thị khi đang đồng bộ ngầm) -->
+                <div id="syncLiveProgressBox" class="card border border-teal-subtle bg-light mb-3 d-none">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1.5">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="spinner-border spinner-border-sm text-teal" style="color: #0d9488;" role="status"></div>
+                                <span class="fw-semibold text-dark small" id="syncLiveStageText">Đang tự động kết nối Cổng Tổng cục Thuế...</span>
+                            </div>
+                            <span class="badge rounded-pill fw-bold" style="background-color: #0d9488;" id="syncLivePercentBadge">10%</span>
+                        </div>
+                        <div class="progress" style="height: 7px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="syncLiveProgressBar" style="width: 10%; background-color: #0d9488;" role="progressbar"></div>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small mt-1.5" style="font-size: 0.78rem;">
+                            <span id="syncLiveStatsText">Tự động giải Captcha bằng AI OCR ngầm...</span>
+                            <span id="syncLiveTimeText"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Lịch sử đồng bộ hóa đơn cho công ty -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-dark mb-0" style="font-size: 0.95rem;">
+                            Lịch sử đồng bộ hóa đơn cho công ty <span id="syncModalCompanyName" class="text-success fw-bold">...</span>
+                        </h6>
+                        <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-muted" onclick="loadSyncHistory(true)" title="Làm mới lịch sử">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
+                        </button>
+                    </div>
+
+                    <div class="table-responsive border rounded" style="max-height: 220px; overflow-y: auto;">
+                        <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.85rem;" id="tableSyncHistory">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th class="text-center py-2 px-2" style="width: 50px;">STT</th>
+                                    <th class="py-2 px-2">Đồng bộ từ ngày</th>
+                                    <th class="py-2 px-2">Đồng bộ đến ngày</th>
+                                    <th class="text-center py-2 px-2">Số lượng đồng bộ</th>
+                                    <th class="text-center py-2 px-2">Trạng thái đồng bộ</th>
+                                    <th class="py-2 px-2">Diễn giải</th>
+                                    <th class="text-center py-2 px-2">Ngày đồng bộ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodySyncHistory">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">
+                                        <div class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
+                                        Đang tải lịch sử đồng bộ...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer d-flex justify-content-between py-2.5 px-4 bg-white border-top">
+                <!-- Nút xóa dữ liệu đã đồng bộ bên trái -->
+                <button type="button" class="btn btn-danger fw-semibold px-3 py-1.5 d-flex align-items-center gap-1.5" onclick="confirmDeleteSyncData()" id="btnDeleteSyncData" style="background-color: #ef4444; border-color: #ef4444;">
+                    <i class="bi bi-trash"></i> Xóa dữ liệu đã đồng bộ
+                </button>
+
+                <!-- Nút Hủy và Đồng bộ bên phải -->
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light border px-4 py-1.5 fw-medium text-secondary" data-bs-dismiss="modal" id="btnCancelSync">Hủy</button>
+                    <button type="button" class="btn text-white fw-semibold px-4 py-1.5 d-flex align-items-center gap-1.5" style="background-color: #0d9488; border-color: #0d9488;" id="btnSubmitSyncGov" onclick="executeDirectGovSync()">
+                        <i class="bi bi-arrow-repeat"></i> Đồng bộ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Styling khớp hoàn hảo với hình ảnh thiết kế */
+    .sync-radio-teal {
+        accent-color: #0d9488 !important;
+        width: 1.15em;
+        height: 1.15em;
+        cursor: pointer;
+    }
+    .sync-radio-teal:checked {
+        background-color: #0d9488;
+        border-color: #0d9488;
+    }
+    #modalSyncInvoices .form-check-label {
+        cursor: pointer;
+    }
+    #tableSyncHistory thead th {
+        font-weight: 600;
+        color: #374151;
+        white-space: nowrap;
+        background-color: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    #tableSyncHistory tbody td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+</style>

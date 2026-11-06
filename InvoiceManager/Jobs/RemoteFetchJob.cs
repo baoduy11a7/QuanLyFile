@@ -115,6 +115,18 @@ namespace InvoiceManager.Jobs
                     remoteInvoices.Add(inv);
                 }
 
+                // Lọc theo loại hóa đơn (Máy tính tiền / Trừ máy tính tiền)
+                if (string.Equals(req.CategoryType, "NoCashRegister", StringComparison.OrdinalIgnoreCase))
+                {
+                    remoteInvoices = remoteInvoices.Where(i => !i.IsCashRegister).ToList();
+                    _jobTracker.AddLog(jobId, $"Lọc loại hóa đơn: Đã loại bỏ hóa đơn máy tính tiền, còn lại {remoteInvoices.Count} hóa đơn.");
+                }
+                else if (string.Equals(req.CategoryType, "OnlyCashRegister", StringComparison.OrdinalIgnoreCase))
+                {
+                    remoteInvoices = remoteInvoices.Where(i => i.IsCashRegister).ToList();
+                    _jobTracker.AddLog(jobId, $"Lọc loại hóa đơn: Chỉ giữ lại hóa đơn máy tính tiền, tìm thấy {remoteInvoices.Count} hóa đơn.");
+                }
+
                 int total = remoteInvoices.Count;
                 _jobTracker.AddLog(jobId, $"Tìm thấy tổng cộng {total} hóa đơn trên Cổng thuế.");
 
@@ -124,6 +136,22 @@ namespace InvoiceManager.Jobs
                     _jobTracker.CompleteJob(jobId, "Không có hóa đơn mới nào được tìm thấy.");
                     await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, "Hoàn tất: 0 hóa đơn mới.", cred.Password, rememberPassword);
                     await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, "Không tìm thấy hóa đơn nào trong khoảng ngày đã chọn.", taxAccountId);
+
+                    try
+                    {
+                        _db.SyncLogs.Add(new InvoiceManager.Models.Entities.SyncLog
+                        {
+                            TaxAccountId = taxAccountId,
+                            SyncedAt = DateTime.Now,
+                            NewInvoiceCount = 0,
+                            Status = "Thành công",
+                            ErrorMessage = "Không tìm thấy hóa đơn nào trong khoảng thời gian đã chọn.",
+                            SyncType = $"{req.FromDate:dd/MM/yyyy} - {req.ToDate:dd/MM/yyyy}"
+                        });
+                        await _db.SaveChangesAsync(CancellationToken.None);
+                    }
+                    catch { }
+
                     return;
                 }
 
@@ -485,6 +513,21 @@ namespace InvoiceManager.Jobs
 
                 await RecordConnectionStatusAsync(taxAccountId, providerName, cred.Username, true, summaryMsg, cred.Password, rememberPassword);
                 await _auditLogService.LogActionAsync("RemoteSync_Complete", providerName, summaryMsg, taxAccountId);
+
+                try
+                {
+                    _db.SyncLogs.Add(new InvoiceManager.Models.Entities.SyncLog
+                    {
+                        TaxAccountId = taxAccountId,
+                        SyncedAt = DateTime.Now,
+                        NewInvoiceCount = newCount,
+                        Status = (failedCount == 0 && filesFailedCount == 0) ? "Thành công" : "Cảnh báo",
+                        ErrorMessage = summaryMsg,
+                        SyncType = $"{req.FromDate:dd/MM/yyyy} - {req.ToDate:dd/MM/yyyy}"
+                    });
+                    await _db.SaveChangesAsync(CancellationToken.None);
+                }
+                catch { }
             }
             catch (OperationCanceledException)
             {
@@ -496,6 +539,21 @@ namespace InvoiceManager.Jobs
                 _logger.LogError(ex, "Lỗi nghiêm trọng trong Background Job RemoteFetchJob");
                 _jobTracker.FailJob(jobId, $"Lỗi hệ thống: {ex.Message}");
                 await _auditLogService.LogActionAsync("RemoteSync_Error", providerName, $"Lỗi: {ex.Message}", taxAccountId);
+
+                try
+                {
+                    _db.SyncLogs.Add(new InvoiceManager.Models.Entities.SyncLog
+                    {
+                        TaxAccountId = taxAccountId,
+                        SyncedAt = DateTime.Now,
+                        NewInvoiceCount = 0,
+                        Status = "Thất bại",
+                        ErrorMessage = ex.Message.Length > 950 ? ex.Message.Substring(0, 950) : ex.Message,
+                        SyncType = $"{req.FromDate:dd/MM/yyyy} - {req.ToDate:dd/MM/yyyy}"
+                    });
+                    await _db.SaveChangesAsync(CancellationToken.None);
+                }
+                catch { }
             }
         }
 

@@ -1707,72 +1707,17 @@
 
 
         function triggerAutoSync() {
-
-            var token = $('input[name="__RequestVerificationToken"]').val();
-
-            showAutoSyncProgress('Đang tự động kết nối Cổng Tổng cục Thuế...', 5, 'Khởi chạy tiến trình đồng bộ toàn diện...');
-
-
-
-            $.ajax({
-
-                url: '/Import/AutoSync',
-
-                type: 'POST',
-
-                contentType: 'application/json',
-
-                headers: { "RequestVerificationToken": token },
-
-                data: JSON.stringify({
-
-                    InvoiceType: '@filter.InvoiceType',
-
-                    FromDate: '@(filter.FromDate?.ToString("yyyy-MM-dd"))',
-
-                    ToDate: '@(filter.ToDate?.ToString("yyyy-MM-dd"))'
-
-                }),
-
-                success: function(res) {
-
-                    if (res.needSetup || res.requireCaptcha) {
-
-                        hideAutoSyncProgress();
-
-                        openImportModalForCaptcha(res.message);
-
-                        return;
-
-                    }
-
-
-
-                    if (res.success && res.jobId) {
-
-                        currentAutoSyncJobId = res.jobId;
-
-                        startAutoSyncPolling(res.jobId);
-
-                    } else {
-
-                        hideAutoSyncProgress();
-
-                        alert(res.message || 'Không thể khởi chạy đồng bộ.');
-
-                    }
-
-                },
-
-                error: function(xhr) {
-
-                    hideAutoSyncProgress();
-
-                    alert('Lỗi kết nối khi gửi yêu cầu đồng bộ tự động.');
-
+            if (typeof window.openSyncInvoiceModal === 'function') {
+                window.openSyncInvoiceModal();
+            } else {
+                var modalEl = document.getElementById('modalSyncInvoices');
+                if (modalEl) {
+                    var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    bsModal.show();
+                    if (typeof window.loadSyncHistory === 'function') window.loadSyncHistory();
                 }
-
-            });
+            }
+        }
 
         }
 
