@@ -24,39 +24,102 @@
         return year + '-' + month + '-' + day;
     }
 
-    // Helper: Mở date picker cho input[type="date"]
-    window.openDatePicker = function (id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        if (typeof el.showPicker === 'function') {
-            try {
-                el.showPicker();
-            } catch (e) {
-                el.focus();
-            }
-        } else {
-            el.focus();
-        }
-    };
+    var flatpickrInstance = null;
 
-    // Helper: Lấy Verification Token
-    function getCsrfToken() {
-        return $('input[name="__RequestVerificationToken"]').val() || '';
-    }
+    // Khởi tạo Flatpickr chọn khoảng ngày hoặc 1 ngày duy nhất với định dạng dd/MM/yyyy
+    function initSyncDateRangePicker() {
+        var inputEl = document.getElementById('syncDateRange');
+        if (!inputEl) return;
 
-    // Mở modal Đồng bộ hóa đơn
-    window.openSyncInvoiceModal = function () {
-        // Đặt khoảng ngày mặc định: 30 ngày gần nhất
         var now = new Date();
         var past30Days = new Date();
         past30Days.setDate(now.getDate() - 30);
 
-        if (!$('#syncFromDate').val()) {
-            $('#syncFromDate').val(formatDateYMD(past30Days));
+        if (typeof flatpickr !== 'undefined') {
+            if (!flatpickrInstance) {
+                var vnLocale = (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.vn) ? flatpickr.l10ns.vn : {
+                    rangeSeparator: " đến ",
+                    weekdays: {
+                        shorthand: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
+                        longhand: ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]
+                    },
+                    months: {
+                        shorthand: ["Th1", "Th2", "Th3", "Th4", "Th5", "Th6", "Th7", "Th8", "Th9", "Th10", "Th11", "Th12"],
+                        longhand: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"]
+                    }
+                };
+
+                flatpickrInstance = flatpickr(inputEl, {
+                    mode: "range",
+                    dateFormat: "d/m/Y",
+                    locale: vnLocale,
+                    defaultDate: [past30Days, now],
+                    allowInput: false,
+                    onChange: function (selectedDates) {
+                        if (selectedDates && selectedDates.length > 0) {
+                            var from = selectedDates[0];
+                            var to = selectedDates.length > 1 ? selectedDates[1] : selectedDates[0];
+                            $('#syncFromDate').val(formatDateDMY(from));
+                            $('#syncToDate').val(formatDateDMY(to));
+                        }
+                    },
+                    onClose: function (selectedDates) {
+                        if (selectedDates && selectedDates.length > 0) {
+                            var from = selectedDates[0];
+                            var to = selectedDates.length > 1 ? selectedDates[1] : selectedDates[0];
+                            $('#syncFromDate').val(formatDateDMY(from));
+                            $('#syncToDate').val(formatDateDMY(to));
+                        }
+                    }
+                });
+            }
+
+            $('#syncFromDate').val(formatDateDMY(past30Days));
+            $('#syncToDate').val(formatDateDMY(now));
+        } else {
+            // Fallback nếu Flatpickr chưa sẵn sàng
+            var defText = formatDateDMY(past30Days) + ' đến ' + formatDateDMY(now);
+            $('#syncDateRange').val(defText);
+            $('#syncFromDate').val(formatDateDMY(past30Days));
+            $('#syncToDate').val(formatDateDMY(now));
         }
-        if (!$('#syncToDate').val()) {
-            $('#syncToDate').val(formatDateYMD(now));
+    }
+
+    // Chọn nhanh các mốc thời gian phổ biến
+    window.setQuickDateRange = function (type) {
+        var now = new Date();
+        var from = new Date();
+        var to = new Date();
+
+        if (type === '30days') {
+            from.setDate(now.getDate() - 30);
+            to = now;
+        } else if (type === 'thisMonth') {
+            from = new Date(now.getFullYear(), now.getMonth(), 1);
+            to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        } else if (type === 'prevMonth') {
+            from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            to = new Date(now.getFullYear(), now.getMonth(), 0);
+        } else if (type === 'thisQuarter') {
+            var q = Math.floor(now.getMonth() / 3);
+            from = new Date(now.getFullYear(), q * 3, 1);
+            to = new Date(now.getFullYear(), (q + 1) * 3, 0);
         }
+
+        if (flatpickrInstance) {
+            flatpickrInstance.setDate([from, to], true);
+        } else {
+            $('#syncDateRange').val(formatDateDMY(from) + ' đến ' + formatDateDMY(to));
+        }
+
+        $('#syncFromDate').val(formatDateDMY(from));
+        $('#syncToDate').val(formatDateDMY(to));
+    };
+
+    // Mở modal Đồng bộ hóa đơn
+    window.openSyncInvoiceModal = function () {
+        // Khởi tạo date picker duy nhất
+        initSyncDateRangePicker();
 
         // Ẩn alert và progress nếu còn dư từ lần trước
         $('#syncModalAlert').addClass('d-none').text('');
@@ -145,9 +208,21 @@
         var category = $('input[name="syncInvoiceCategory"]:checked').val() || 'All';
         var fromDate = ($('#syncFromDate').val() || '').trim();
         var toDate = ($('#syncToDate').val() || '').trim();
+        var rangeText = ($('#syncDateRange').val() || '').trim();
+
+        if ((!fromDate || !toDate) && rangeText) {
+            var parts = rangeText.split(/đến|to|-/);
+            if (parts.length >= 2) {
+                fromDate = parts[0].trim();
+                toDate = parts[1].trim();
+            } else if (parts.length === 1 && parts[0].trim()) {
+                fromDate = parts[0].trim();
+                toDate = parts[0].trim();
+            }
+        }
 
         if (!fromDate || !toDate) {
-            alert('Vui lòng chọn đầy đủ ngày bắt đầu và ngày kết thúc đồng bộ.');
+            alert('Vui lòng chọn thời gian đồng bộ.');
             return;
         }
 

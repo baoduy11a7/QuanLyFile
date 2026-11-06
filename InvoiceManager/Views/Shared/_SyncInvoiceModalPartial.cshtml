@@ -71,30 +71,30 @@
                     </div>
                 </div>
 
-                <!-- 3. Nhóm: Khoảng thời gian (Từ ngày - Đến ngày) -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <label for="syncFromDate" class="form-label small fw-semibold text-secondary mb-1">
-                            <i class="bi bi-calendar-event me-1 text-teal" style="color: #0d9488;"></i> Từ ngày:
+                <!-- 3. Nhóm: Chọn ngày tháng năm đồng bộ (1 ô duy nhất, ngày trước tháng sau dd/MM/yyyy) -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1.5">
+                        <label for="syncDateRange" class="form-label small fw-semibold text-secondary mb-0">
+                            <i class="bi bi-calendar-range me-1 text-teal" style="color: #0d9488;"></i> Thời gian đồng bộ (Ngày trước - Tháng sau):
                         </label>
-                        <div class="input-group">
-                            <input type="date" class="form-control bg-white" id="syncFromDate" style="border-radius: 6px 0 0 6px; cursor: pointer;" onclick="if(this.showPicker) this.showPicker();">
-                            <button class="btn btn-outline-secondary" type="button" onclick="openDatePicker('syncFromDate')" title="Nhấn để mở lịch chọn ngày" style="border-radius: 0 6px 6px 0;">
-                                <i class="bi bi-calendar3"></i>
-                            </button>
+                        <div class="d-flex gap-1.5">
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" onclick="setQuickDateRange('30days')" style="font-size: 0.76rem;">30 ngày gần đây</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" onclick="setQuickDateRange('thisMonth')" style="font-size: 0.76rem;">Tháng này</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" onclick="setQuickDateRange('prevMonth')" style="font-size: 0.76rem;">Tháng trước</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" onclick="setQuickDateRange('thisQuarter')" style="font-size: 0.76rem;">Quý này</button>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label for="syncToDate" class="form-label small fw-semibold text-secondary mb-1">
-                            <i class="bi bi-calendar-event me-1 text-teal" style="color: #0d9488;"></i> Đến ngày:
-                        </label>
-                        <div class="input-group">
-                            <input type="date" class="form-control bg-white" id="syncToDate" style="border-radius: 6px 0 0 6px; cursor: pointer;" onclick="if(this.showPicker) this.showPicker();">
-                            <button class="btn btn-outline-secondary" type="button" onclick="openDatePicker('syncToDate')" title="Nhấn để mở lịch chọn ngày" style="border-radius: 0 6px 6px 0;">
-                                <i class="bi bi-calendar3"></i>
-                            </button>
-                        </div>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white" style="border-radius: 6px 0 0 6px; cursor: pointer;" onclick="$('#syncDateRange').focus()">
+                            <i class="bi bi-calendar3" style="color: #0d9488;"></i>
+                        </span>
+                        <input type="text" class="form-control bg-white fw-semibold" id="syncDateRange" placeholder="Chọn ngày (ví dụ: 07/10/2026 đến 06/11/2026)" readonly style="cursor: pointer; border-radius: 0 6px 6px 0; color: #1e293b; font-size: 0.95rem;">
+                        <input type="hidden" id="syncFromDate" value="" />
+                        <input type="hidden" id="syncToDate" value="" />
                     </div>
+                    <small class="text-muted" style="font-size: 0.76rem;">
+                        <i class="bi bi-info-circle me-1"></i>Định dạng chuẩn <strong>Ngày / Tháng / Năm (dd/MM/yyyy)</strong>. Nhấn vào ô để chọn khoảng ngày hoặc 1 ngày cụ thể.
+                    </small>
                 </div>
 
                 <!-- Live Sync Progress Box (hiển thị khi đang đồng bộ ngầm) -->
