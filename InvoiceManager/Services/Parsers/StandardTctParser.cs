@@ -73,6 +73,7 @@ namespace InvoiceManager.Services.Parsers
                     khHDon = khHDon.Substring(1);
                 }
 
+                result.TemplateCode = !string.IsNullOrEmpty(khmsHDon) ? khmsHDon : "1";
                 result.InvoiceSymbol = khHDon;
 
                 var rawNumber = GetElementValue(ttChung, "SHDon")?.Trim() ?? "";
@@ -88,6 +89,78 @@ namespace InvoiceManager.Services.Parsers
                 var nLapStr = GetElementValue(ttChung, "NLap");
                 result.IssueDate = ParseVietnamInvoiceDate(nLapStr);
 
+                // Tiền tệ, Tỉ giá, Hình thức thanh toán, Tính chất
+                var dvtTe = GetElementValue(ttChung, "DVTTe")?.Trim();
+                result.Currency = !string.IsNullOrEmpty(dvtTe) ? dvtTe : "VND";
+
+                var tGia = ParseDecimal(GetElementValue(ttChung, "TGia"), 1);
+                result.ExchangeRate = tGia > 0 ? tGia : 1;
+
+                var htTToan = GetElementValue(ttChung, "HTTToan")?.Trim();
+                result.PaymentMethod = !string.IsNullOrEmpty(htTToan) ? htTToan : "TM/CK";
+
+                var tChat = GetElementValue(ttChung, "TChat", "TCHDon")?.Trim();
+                result.InvoiceProperty = !string.IsNullOrEmpty(tChat) ? tChat : "Hàng hoá/dịch vụ";
+
+                // Thông tin khác (TTKhac): Mã tra cứu, Biển số xe, Ghi chú thay thế điều chỉnh
+                var ttKhac = FindElement(ttChung, "TTKhac") ?? FindElement(root, "TTKhac");
+                if (ttKhac != null)
+                {
+                    foreach (var ttin in ttKhac.Elements().Where(e => e.Name.LocalName.Equals("TTin", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var ttruong = GetElementValue(ttin, "TTruong")?.Trim() ?? "";
+                        var dlieu = GetElementValue(ttin, "DLieu")?.Trim() ?? "";
+
+                        if (string.IsNullOrEmpty(dlieu)) continue;
+
+                        if (ttruong.Contains("Mã số bí mật", StringComparison.OrdinalIgnoreCase) ||
+                            ttruong.Contains("Mã tra cứu", StringComparison.OrdinalIgnoreCase) ||
+                            ttruong.Contains("Mã bảo mật", StringComparison.OrdinalIgnoreCase) ||
+                            ttruong.Contains("Key tra cứu", StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.LookupCode = dlieu;
+                        }
+                        else if (ttruong.Contains("Biển số xe", StringComparison.OrdinalIgnoreCase) ||
+                                 ttruong.Contains("BSX", StringComparison.OrdinalIgnoreCase) ||
+                                 ttruong.Contains("Số xe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.VehicleNumber = dlieu;
+                        }
+                        else if (ttruong.Contains("Ghi chú", StringComparison.OrdinalIgnoreCase) ||
+                                 ttruong.Contains("Lý do", StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.ReplacedOrAdjustedNote = dlieu;
+                        }
+                        else if (ttruong.Contains("Website", StringComparison.OrdinalIgnoreCase) ||
+                                 ttruong.Contains("Tra cứu", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (dlieu.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                result.LookupUrl = dlieu;
+                            }
+                        }
+                    }
+                }
+
+                // Ngày ký số của người bán
+                try
+                {
+                    var signingTimeNode = root.Descendants()
+                        .FirstOrDefault(e => e.Name.LocalName.Equals("SigningTime", StringComparison.OrdinalIgnoreCase));
+                    if (signingTimeNode != null && DateTime.TryParse(signingTimeNode.Value, out var st))
+                    {
+                        result.SignedDate = st;
+                    }
+                    else
+                    {
+                        result.SignedDate = result.IssueDate;
+                    }
+                }
+                catch
+                {
+                    result.SignedDate = result.IssueDate;
+                }
+
                 // Mã Cơ quan thuế (CQT) cấp
                 var mcqThue = GetElementValue(root, "MCCQT") ?? GetElementValue(ttChung, "MCCQT");
                 if (string.IsNullOrWhiteSpace(mcqThue))
@@ -100,6 +173,7 @@ namespace InvoiceManager.Services.Parsers
                 }
                 result.TaxAuthorityCode = mcqThue;
                 result.HasTaxCode = !string.IsNullOrWhiteSpace(mcqThue);
+                result.VerificationResult = !string.IsNullOrWhiteSpace(mcqThue) ? "Đã cấp mã hoá đơn" : "Hóa đơn không mã";
 
                 // Loại hóa đơn máy tính tiền (Ký tự thứ 4 của KHHDon là 'M')
                 result.IsCashRegister = khHDon.Length >= 4 && char.ToUpperInvariant(khHDon[3]) == 'M';
@@ -111,6 +185,7 @@ namespace InvoiceManager.Services.Parsers
                     result.SellerTaxCode = GetElementValue(nBan, "MST");
                     result.SellerName = GetElementValue(nBan, "Ten");
                     result.SellerAddress = GetElementValue(nBan, "DChi");
+                    result.SellerWebsite = GetElementValue(nBan, "Website");
                 }
 
                 // 3. Thông tin Người Mua (NMua)
@@ -118,6 +193,7 @@ namespace InvoiceManager.Services.Parsers
                 if (nMua != null)
                 {
                     result.BuyerTaxCode = GetElementValue(nMua, "MST");
+                    result.BuyerCitizenId = GetElementValue(nMua, "CMND", "CCCD", "HChieu");
                     result.BuyerName = GetElementValue(nMua, "Ten");
                     result.BuyerAddress = GetElementValue(nMua, "DChi");
                 }
@@ -134,12 +210,17 @@ namespace InvoiceManager.Services.Parsers
                         var taxRate = ParseTaxRate(GetElementValue(hhdvu, "TSuat"));
                         var amountBeforeTax = ParseDecimal(GetElementValue(hhdvu, "ThTien"), 0);
                         var taxAmount = ParseDecimal(GetElementValue(hhdvu, "TThue"), 0);
+                        var discountRate = ParseDecimal(GetElementValue(hhdvu, "TLCKhau"), 0);
+                        var discountAmount = ParseDecimal(GetElementValue(hhdvu, "STCKhau"), 0);
 
                         // Nếu XML chuẩn TCT không lưu TThue ở từng dòng HHDVu mà chỉ có thuế suất, tính tiền thuế dòng
                         if (taxAmount == 0 && taxRate > 0 && amountBeforeTax > 0)
                         {
                             taxAmount = Math.Round(amountBeforeTax * taxRate / 100m, 0);
                         }
+
+                        var total = amountBeforeTax + taxAmount;
+                        var rate = result.ExchangeRate > 0 ? result.ExchangeRate : 1;
 
                         var line = new ParsedInvoiceDetail
                         {
@@ -149,10 +230,18 @@ namespace InvoiceManager.Services.Parsers
                             Unit = unit,
                             Quantity = ParseDecimal(GetElementValue(hhdvu, "SLuong"), 1),
                             UnitPrice = ParseDecimal(GetElementValue(hhdvu, "DGia"), 0),
+                            DiscountRate = discountRate,
+                            DiscountAmount = discountAmount,
                             AmountBeforeTax = amountBeforeTax,
                             TaxRate = taxRate,
                             TaxAmount = taxAmount,
-                            TotalAmount = amountBeforeTax + taxAmount
+                            TotalAmount = total,
+                            AmountBeforeTaxForeign = amountBeforeTax,
+                            TaxAmountForeign = taxAmount,
+                            TotalAmountForeign = total,
+                            AmountBeforeTaxVnd = Math.Round(amountBeforeTax * rate, 0),
+                            TaxAmountVnd = Math.Round(taxAmount * rate, 0),
+                            TotalAmountVnd = Math.Round(total * rate, 0)
                         };
 
                         result.Details.Add(line);
@@ -166,6 +255,8 @@ namespace InvoiceManager.Services.Parsers
                     result.AmountBeforeTax = ParseDecimal(GetElementValue(tToan, "TgTCThue"), 0);
                     result.TaxAmount = ParseDecimal(GetElementValue(tToan, "TgTThue"), 0);
                     result.TotalAmount = ParseDecimal(GetElementValue(tToan, "TgTTTBSo"), 0);
+                    result.DiscountAmount = ParseDecimal(GetElementValue(tToan, "TTCKTMai", "STCKhau"), 0);
+                    result.FeeAmount = ParseDecimal(GetElementValue(tToan, "TTChiPhi", "TTFee", "TTPhi"), 0);
                 }
 
                 // Nếu thẻ tổng chưa có, tự tính từ chi tiết
@@ -175,6 +266,11 @@ namespace InvoiceManager.Services.Parsers
                     result.TaxAmount = result.Details.Sum(d => d.TaxAmount);
                     result.TotalAmount = result.AmountBeforeTax + result.TaxAmount;
                 }
+
+                var exRate = result.ExchangeRate > 0 ? result.ExchangeRate : 1;
+                result.AmountBeforeTaxVnd = Math.Round(result.AmountBeforeTax * exRate, 0);
+                result.TaxAmountVnd = Math.Round(result.TaxAmount * exRate, 0);
+                result.TotalAmountVnd = Math.Round(result.TotalAmount * exRate, 0);
 
                 // Validation quy tắc nghiệp vụ hóa đơn
                 ValidateInvoiceData(result);

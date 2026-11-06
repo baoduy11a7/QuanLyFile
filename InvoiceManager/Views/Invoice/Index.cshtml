@@ -991,7 +991,9 @@
 
                 <div class="fdi-underline-tabs">
 
-                    <span class="fdi-tab-link active py-1">Tổng quát</span>
+                    <button type="button" class="fdi-tab-link active py-1" id="tabBtnTongQuat" onclick="switchInvoiceViewTab('tong-quat')">Tổng quát</button>
+
+                    <button type="button" class="fdi-tab-link py-1" id="tabBtnChiTiet" onclick="switchInvoiceViewTab('chi-tiet')">Chi tiết hoá đơn</button>
 
                 </div>
 
@@ -1051,9 +1053,10 @@
 
         </div>
 
+        <!-- 1. BẢNG TỔNG QUÁT HÓA ĐƠN -->
         <div class="table-responsive" id="invoiceTable">
 
-            <table class="table fdi-table align-middle mb-0">
+            <table class="table fdi-table align-middle mb-0 text-nowrap">
 
                 <thead>
 
@@ -1067,31 +1070,71 @@
 
                         <th style="width: 45px;" class="text-center">STT</th>
 
-                        <th style="width: 75px;" class="text-center">Ký hiệu mẫu số</th>
+                        <th style="width: 80px;" class="text-center">Ký hiệu mẫu số</th>
 
-                        <th style="width: 90px;" class="text-center">Ký hiệu hóa đơn</th>
+                        <th style="width: 95px;" class="text-center">Ký hiệu hóa đơn</th>
 
-                        <th style="width: 85px;" class="text-center">Số hóa đơn</th>
+                        <th style="width: 90px;" class="text-center">Số hóa đơn</th>
 
-                        <th style="width: 95px;" class="text-center">Ngày lập</th>
+                        <th style="width: 100px;" class="text-center">Ngày lập hóa đơn</th>
 
-                        <th style="width: 130px;">MST người bán/MST người xuất hàng</th>
+                        <th style="width: 110px;" class="text-center">Ngày người bán ký số</th>
 
-                        <th style="min-width: 220px;">Tên người bán/Tên người xuất hàng</th>
+                        <th style="min-width: 220px;">Tên người bán</th>
 
-                        <th style="min-width: 180px;">Địa chỉ người bán</th>
+                        <th style="width: 130px;">MST người bán</th>
 
-                        <th style="width: 120px;">MST người mua/MST người nhận hàng</th>
+                        <th style="min-width: 220px;">Địa chỉ người bán</th>
 
-                        <th style="min-width: 180px;">Tên người mua/Tên người nhận hàng</th>
+                        <th style="min-width: 200px;">Tên người mua</th>
 
-                        <th style="width: 120px;" class="text-end">Tổng tiền chưa thuế</th>
+                        <th style="width: 130px;">MST người mua</th>
 
-                        <th style="width: 110px;" class="text-end">Tổng tiền thuế</th>
+                        <th style="width: 120px;">CCCD người mua</th>
 
-                        <th style="width: 125px;" class="text-end">Tổng thanh toán</th>
+                        <th style="min-width: 200px;">Địa chỉ người mua</th>
 
-                        <th style="width: 110px;" class="text-center">Trạng thái</th>
+                        <th style="width: 130px;" class="text-end">Tiền chưa thuế nguyên tệ</th>
+
+                        <th style="width: 120px;" class="text-end">Tiền thuế nguyên tệ</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền sau thuế nguyên tệ</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền chưa thuế (VND)</th>
+
+                        <th style="width: 120px;" class="text-end">Tiền thuế (VND)</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền sau thuế (VND)</th>
+
+                        <th style="width: 130px;" class="text-end">Tổng tiền chiết khấu TM</th>
+
+                        <th style="width: 110px;" class="text-end">Tổng tiền phí</th>
+
+                        <th style="width: 130px;" class="text-end">Tổng tiền thanh toán</th>
+
+                        <th style="width: 140px;" class="text-end fw-bold text-primary">Tổng tiền thanh toán (VND)</th>
+
+                        <th style="width: 120px;" class="text-center">Hình thức thanh toán</th>
+
+                        <th style="width: 130px;" class="text-center">Tính chất</th>
+
+                        <th style="width: 130px;" class="text-center">Trạng thái hóa đơn</th>
+
+                        <th style="width: 140px;" class="text-center">Kết quả kiểm tra hóa đơn</th>
+
+                        <th style="width: 90px;" class="text-center">Đơn vị tiền tệ</th>
+
+                        <th style="width: 80px;" class="text-end">Tỉ giá</th>
+
+                        <th style="width: 110px;" class="text-center">Biển số xe</th>
+
+                        <th style="min-width: 200px;">Ghi chú HĐ bị thay thế, điều chỉnh</th>
+
+                        <th style="width: 130px;" class="text-center">Mã tra cứu hóa đơn gốc</th>
+
+                        <th style="min-width: 160px;">Website người bán</th>
+
+                        <th style="min-width: 180px;">Url tra cứu hóa đơn gốc</th>
 
                         <th style="width: 115px;" class="text-center">Thao tác</th>
 
@@ -1113,9 +1156,17 @@
 
                             var rawSym = inv.InvoiceSymbol ?? "";
 
-                            var templateNum = (rawSym.Length > 0 && char.IsDigit(rawSym[0])) ? rawSym.Substring(0, 1) : "1";
+                            var templateNum = !string.IsNullOrWhiteSpace(inv.TemplateCode) ? inv.TemplateCode : ((rawSym.Length > 0 && char.IsDigit(rawSym[0])) ? rawSym.Substring(0, 1) : "1");
 
                             var shortSym = (rawSym.Length > 1 && char.IsDigit(rawSym[0])) ? rawSym.Substring(1) : rawSym;
+
+                            var isForeign = !string.IsNullOrEmpty(inv.Currency) && !inv.Currency.Equals("VND", StringComparison.OrdinalIgnoreCase);
+
+                            var amtBeforeVnd = inv.AmountBeforeTaxVnd > 0 ? inv.AmountBeforeTaxVnd : (inv.AmountBeforeTax * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                            var taxVnd = inv.TaxAmountVnd > 0 ? inv.TaxAmountVnd : (inv.TaxAmount * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                            var totalVnd = inv.TotalAmountVnd > 0 ? inv.TotalAmountVnd : (inv.TotalAmount * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
 
                             <tr>
 
@@ -1135,7 +1186,7 @@
 
                                 <td class="text-center">@inv.IssueDate.ToString("dd/MM/yyyy")</td>
 
-                                <td class="font-monospace">@inv.SellerTaxCode</td>
+                                <td class="text-center">@(inv.SignedDate?.ToString("dd/MM/yyyy") ?? inv.IssueDate.ToString("dd/MM/yyyy"))</td>
 
                                 <td>
 
@@ -1151,25 +1202,53 @@
 
                                 </td>
 
-                                <td>
-
-                                    <div class="text-muted small text-wrap" style="max-width: 230px;">@inv.SellerAddress</div>
-
-                                </td>
-
-                                <td class="font-monospace">@inv.BuyerTaxCode</td>
+                                <td class="font-monospace">@inv.SellerTaxCode</td>
 
                                 <td>
 
-                                    <div class="text-wrap" style="max-width: 220px;">@inv.BuyerName</div>
+                                    <div class="text-muted small text-wrap" style="max-width: 250px;">@inv.SellerAddress</div>
 
                                 </td>
 
-                                <td class="text-end font-monospace">@inv.AmountBeforeTax.ToString("N0")</td>
+                                <td>
 
-                                <td class="text-end font-monospace text-danger">@inv.TaxAmount.ToString("N0")</td>
+                                    <div class="text-wrap" style="max-width: 240px;">@inv.BuyerName</div>
 
-                                <td class="text-end font-monospace fw-bold text-primary">@inv.TotalAmount.ToString("N0")</td>
+                                </td>
+
+                                <td class="font-monospace">@(string.IsNullOrEmpty(inv.BuyerTaxCode) ? "-" : inv.BuyerTaxCode)</td>
+
+                                <td>@(string.IsNullOrEmpty(inv.BuyerCitizenId) ? "-" : inv.BuyerCitizenId)</td>
+
+                                <td>
+
+                                    <div class="text-muted small text-wrap" style="max-width: 230px;">@(string.IsNullOrEmpty(inv.BuyerAddress) ? "-" : inv.BuyerAddress)</div>
+
+                                </td>
+
+                                <td class="text-end font-monospace">@(isForeign ? inv.AmountBeforeTax.ToString("N2") : inv.AmountBeforeTax.ToString("N0"))</td>
+
+                                <td class="text-end font-monospace text-danger">@(isForeign ? inv.TaxAmount.ToString("N2") : inv.TaxAmount.ToString("N0"))</td>
+
+                                <td class="text-end font-monospace">@(isForeign ? inv.TotalAmount.ToString("N2") : inv.TotalAmount.ToString("N0"))</td>
+
+                                <td class="text-end font-monospace">@amtBeforeVnd.ToString("N0")</td>
+
+                                <td class="text-end font-monospace text-danger">@taxVnd.ToString("N0")</td>
+
+                                <td class="text-end font-monospace">@totalVnd.ToString("N0")</td>
+
+                                <td class="text-end font-monospace">@inv.DiscountAmount.ToString("N0")</td>
+
+                                <td class="text-end font-monospace">@inv.FeeAmount.ToString("N0")</td>
+
+                                <td class="text-end font-monospace fw-semibold">@(isForeign ? inv.TotalAmount.ToString("N2") : inv.TotalAmount.ToString("N0"))</td>
+
+                                <td class="text-end font-monospace fw-bold text-primary">@totalVnd.ToString("N0")</td>
+
+                                <td class="text-center">@(string.IsNullOrEmpty(inv.PaymentMethod) ? "TM/CK" : inv.PaymentMethod)</td>
+
+                                <td class="text-center">@(string.IsNullOrEmpty(inv.InvoiceProperty) ? "Hàng hoá/dịch vụ" : inv.InvoiceProperty)</td>
 
                                 <td class="text-center">
 
@@ -1177,11 +1256,11 @@
 
                                     {
 
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle">Đã cấp mã</span>
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">Hóa đơn mới</span>
 
                                     }
 
-                                    else if (inv.Status == "Đã điều chỉnh")
+                                    else if (inv.Status == "Đã điều chỉnh" || inv.Status == "8")
 
                                     {
 
@@ -1189,15 +1268,15 @@
 
                                     }
 
-                                    else if (inv.Status == "Đã thay thế")
+                                    else if (inv.Status == "Đã thay thế" || inv.Status == "7")
 
                                     {
 
-                                        <span class="badge bg-info-subtle text-info border border-info-subtle">Đã thay thế</span>
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle">Hóa đơn đã bị thay thế</span>
 
                                     }
 
-                                    else if (inv.Status == "Đã bị hủy")
+                                    else if (inv.Status == "Đã bị hủy" || inv.Status == "9")
 
                                     {
 
@@ -1210,6 +1289,70 @@
                                     {
 
                                         <span class="badge bg-light text-dark border">@inv.Status</span>
+
+                                    }
+
+                                </td>
+
+                                <td class="text-center">
+
+                                    <span class="badge bg-light text-success border">@(string.IsNullOrEmpty(inv.VerificationResult) ? "Đã cấp mã hoá đơn" : inv.VerificationResult)</span>
+
+                                </td>
+
+                                <td class="text-center fw-semibold">@(string.IsNullOrEmpty(inv.Currency) ? "VND" : inv.Currency)</td>
+
+                                <td class="text-end font-monospace">@(inv.ExchangeRate > 0 ? inv.ExchangeRate.ToString("N0") : "1")</td>
+
+                                <td class="text-center">@(string.IsNullOrEmpty(inv.VehicleNumber) ? "-" : inv.VehicleNumber)</td>
+
+                                <td>
+
+                                    <div class="small text-muted text-wrap" style="max-width: 200px;">@(string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote) ? "-" : inv.ReplacedOrAdjustedNote)</div>
+
+                                </td>
+
+                                <td class="text-center font-monospace">@(string.IsNullOrEmpty(inv.LookupCode) ? "-" : inv.LookupCode)</td>
+
+                                <td>
+
+                                    @if (!string.IsNullOrEmpty(inv.SellerWebsite))
+
+                                    {
+
+                                        <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;">@inv.SellerWebsite</a>
+
+                                    }
+
+                                    else
+
+                                    {
+
+                                        <span class="text-muted">-</span>
+
+                                    }
+
+                                </td>
+
+                                <td>
+
+                                    @if (!string.IsNullOrEmpty(inv.LookupUrl))
+
+                                    {
+
+                                        <a href="@inv.LookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block" style="max-width: 180px;" title="@inv.LookupUrl">
+
+                                            <i class="bi bi-box-arrow-up-right me-1"></i>@inv.LookupUrl
+
+                                        </a>
+
+                                    }
+
+                                    else
+
+                                    {
+
+                                        <span class="text-muted">-</span>
 
                                     }
 
@@ -1269,9 +1412,356 @@
 
                         <tr>
 
-                            <td colspan="16" class="text-muted py-4 px-3">
+                            <td colspan="36" class="text-muted py-4 px-3 text-center">
 
-                                Không có dữ liệu
+                                Không có dữ liệu hóa đơn nào phù hợp với bộ lọc hiện tại.
+
+                            </td>
+
+                        </tr>
+
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- 2. BẢNG CHI TIẾT HÓA ĐƠN THEO MẶT HÀNG / DỊCH VỤ -->
+        <div class="table-responsive d-none" id="invoiceDetailTable">
+
+            <table class="table fdi-table align-middle mb-0 text-nowrap">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="width: 45px;" class="text-center">STT</th>
+
+                        <th style="width: 80px;" class="text-center">Ký hiệu mẫu số</th>
+
+                        <th style="width: 95px;" class="text-center">Ký hiệu hóa đơn</th>
+
+                        <th style="width: 90px;" class="text-center">Số hóa đơn</th>
+
+                        <th style="width: 100px;" class="text-center">Ngày lập hóa đơn</th>
+
+                        <th style="width: 110px;" class="text-center">Ngày người bán ký số</th>
+
+                        <th style="min-width: 220px;">Tên người bán</th>
+
+                        <th style="width: 130px;">MST người bán</th>
+
+                        <th style="min-width: 220px;">Địa chỉ người bán</th>
+
+                        <th style="min-width: 200px;">Tên người mua</th>
+
+                        <th style="width: 130px;">MST người mua</th>
+
+                        <th style="width: 120px;">CCCD người mua</th>
+
+                        <th style="min-width: 200px;">Địa chỉ người mua</th>
+
+                        <th style="min-width: 250px;">Tên hàng hóa, dịch vụ</th>
+
+                        <th style="width: 90px;" class="text-center">Đơn vị tính</th>
+
+                        <th style="width: 80px;" class="text-end">Số lượng</th>
+
+                        <th style="width: 110px;" class="text-end">Đơn giá</th>
+
+                        <th style="width: 90px;" class="text-end">Chiết khấu</th>
+
+                        <th style="width: 90px;" class="text-center">Thuế suất</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền chưa thuế nguyên tệ</th>
+
+                        <th style="width: 120px;" class="text-end">Tiền thuế nguyên tệ</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền sau thuế nguyên tệ</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền chưa thuế (VND)</th>
+
+                        <th style="width: 120px;" class="text-end">Tiền thuế (VND)</th>
+
+                        <th style="width: 130px;" class="text-end">Tiền sau thuế (VND)</th>
+
+                        <th style="width: 120px;" class="text-end">Số tiền chiết khấu</th>
+
+                        <th style="width: 130px;" class="text-end">Tổng tiền chiết khấu TM</th>
+
+                        <th style="width: 110px;" class="text-end">Tổng tiền phí</th>
+
+                        <th style="width: 130px;" class="text-end">Tổng tiền thanh toán</th>
+
+                        <th style="width: 140px;" class="text-end fw-bold text-primary">Tổng tiền thanh toán (VND)</th>
+
+                        <th style="width: 120px;" class="text-center">Hình thức thanh toán</th>
+
+                        <th style="width: 130px;" class="text-center">Tính chất</th>
+
+                        <th style="width: 130px;" class="text-center">Trạng thái hóa đơn</th>
+
+                        <th style="width: 140px;" class="text-center">Kết quả kiểm tra hóa đơn</th>
+
+                        <th style="min-width: 160px;">Website người bán</th>
+
+                        <th style="min-width: 180px;">Url tra cứu hóa đơn gốc</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    @if (Model.Invoices.Any())
+
+                    {
+
+                        int detailStt = 1;
+
+                        foreach (var inv in Model.Invoices)
+
+                        {
+
+                            var rawSym = inv.InvoiceSymbol ?? "";
+
+                            var templateNum = !string.IsNullOrWhiteSpace(inv.TemplateCode) ? inv.TemplateCode : ((rawSym.Length > 0 && char.IsDigit(rawSym[0])) ? rawSym.Substring(0, 1) : "1");
+
+                            var shortSym = (rawSym.Length > 1 && char.IsDigit(rawSym[0])) ? rawSym.Substring(1) : rawSym;
+
+                            var isForeign = !string.IsNullOrEmpty(inv.Currency) && !inv.Currency.Equals("VND", StringComparison.OrdinalIgnoreCase);
+
+                            var totalVnd = inv.TotalAmountVnd > 0 ? inv.TotalAmountVnd : (inv.TotalAmount * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                            var details = inv.Details.Any() ? inv.Details.OrderBy(d => d.LineNumber).ToList() : new List<InvoiceDetail>
+
+                            {
+
+                                new InvoiceDetail
+
+                                {
+
+                                    ItemName = "Hàng hóa, dịch vụ theo HĐ " + shortSym + "-" + inv.InvoiceNumber,
+
+                                    Unit = "Dịch vụ",
+
+                                    Quantity = 1,
+
+                                    UnitPrice = inv.AmountBeforeTax,
+
+                                    AmountBeforeTax = inv.AmountBeforeTax,
+
+                                    TaxRate = 10,
+
+                                    TaxAmount = inv.TaxAmount,
+
+                                    TotalAmount = inv.TotalAmount,
+
+                                    AmountBeforeTaxVnd = inv.AmountBeforeTaxVnd > 0 ? inv.AmountBeforeTaxVnd : inv.AmountBeforeTax,
+
+                                    TaxAmountVnd = inv.TaxAmountVnd > 0 ? inv.TaxAmountVnd : inv.TaxAmount,
+
+                                    TotalAmountVnd = totalVnd
+
+                                }
+
+                            };
+
+                            foreach (var d in details)
+
+                            {
+
+                                var dAmtBeforeVnd = d.AmountBeforeTaxVnd > 0 ? d.AmountBeforeTaxVnd : (d.AmountBeforeTax * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                                var dTaxVnd = d.TaxAmountVnd > 0 ? d.TaxAmountVnd : (d.TaxAmount * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                                var dTotalVnd = d.TotalAmountVnd > 0 ? d.TotalAmountVnd : (d.TotalAmount * (inv.ExchangeRate > 0 ? inv.ExchangeRate : 1));
+
+                                <tr>
+
+                                    <td class="text-center text-muted">@detailStt</td>
+
+                                    <td class="text-center font-monospace">@templateNum</td>
+
+                                    <td class="text-center font-monospace fw-semibold">@shortSym</td>
+
+                                    <td class="text-center font-monospace fw-bold text-primary">@inv.InvoiceNumber</td>
+
+                                    <td class="text-center">@inv.IssueDate.ToString("dd/MM/yyyy")</td>
+
+                                    <td class="text-center">@(inv.SignedDate?.ToString("dd/MM/yyyy") ?? inv.IssueDate.ToString("dd/MM/yyyy"))</td>
+
+                                    <td>
+
+                                        <div class="fw-semibold text-wrap" style="max-width: 250px;">@inv.SellerName</div>
+
+                                    </td>
+
+                                    <td class="font-monospace">@inv.SellerTaxCode</td>
+
+                                    <td>
+
+                                        <div class="text-muted small text-wrap" style="max-width: 230px;">@inv.SellerAddress</div>
+
+                                    </td>
+
+                                    <td>
+
+                                        <div class="text-wrap" style="max-width: 230px;">@inv.BuyerName</div>
+
+                                    </td>
+
+                                    <td class="font-monospace">@(string.IsNullOrEmpty(inv.BuyerTaxCode) ? "-" : inv.BuyerTaxCode)</td>
+
+                                    <td>@(string.IsNullOrEmpty(inv.BuyerCitizenId) ? "-" : inv.BuyerCitizenId)</td>
+
+                                    <td>
+
+                                        <div class="text-muted small text-wrap" style="max-width: 230px;">@(string.IsNullOrEmpty(inv.BuyerAddress) ? "-" : inv.BuyerAddress)</div>
+
+                                    </td>
+
+                                    <td>
+
+                                        <div class="text-wrap fw-medium" style="max-width: 280px;">@d.ItemName</div>
+
+                                    </td>
+
+                                    <td class="text-center">@d.Unit</td>
+
+                                    <td class="text-end font-monospace">@d.Quantity.ToString("G29")</td>
+
+                                    <td class="text-end font-monospace">@(isForeign ? d.UnitPrice.ToString("N2") : d.UnitPrice.ToString("N0"))</td>
+
+                                    <td class="text-end font-monospace">@(d.DiscountRate > 0 ? d.DiscountRate.ToString("G29") + "%" : "0")</td>
+
+                                    <td class="text-center font-monospace">@(d.TaxRate >= 0 ? d.TaxRate.ToString("G29") + "%" : "KCT")</td>
+
+                                    <td class="text-end font-monospace">@(isForeign ? d.AmountBeforeTax.ToString("N2") : d.AmountBeforeTax.ToString("N0"))</td>
+
+                                    <td class="text-end font-monospace text-danger">@(isForeign ? d.TaxAmount.ToString("N2") : d.TaxAmount.ToString("N0"))</td>
+
+                                    <td class="text-end font-monospace">@(isForeign ? d.TotalAmount.ToString("N2") : d.TotalAmount.ToString("N0"))</td>
+
+                                    <td class="text-end font-monospace">@dAmtBeforeVnd.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace text-danger">@dTaxVnd.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace">@dTotalVnd.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace">@d.DiscountAmount.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace">@inv.DiscountAmount.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace">@inv.FeeAmount.ToString("N0")</td>
+
+                                    <td class="text-end font-monospace fw-semibold">@(isForeign ? inv.TotalAmount.ToString("N2") : inv.TotalAmount.ToString("N0"))</td>
+
+                                    <td class="text-end font-monospace fw-bold text-primary">@totalVnd.ToString("N0")</td>
+
+                                    <td class="text-center">@(string.IsNullOrEmpty(inv.PaymentMethod) ? "TM/CK" : inv.PaymentMethod)</td>
+
+                                    <td class="text-center">@(string.IsNullOrEmpty(inv.InvoiceProperty) ? "Hàng hoá/dịch vụ" : inv.InvoiceProperty)</td>
+
+                                    <td class="text-center">
+
+                                        @if (inv.Status == "Hóa đơn mới" || inv.Status == "Đã cấp mã" || inv.Status == "5")
+
+                                        {
+
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Hóa đơn mới</span>
+
+                                        }
+
+                                        else if (inv.Status == "Đã thay thế" || inv.Status == "7")
+
+                                        {
+
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle">Hóa đơn đã bị thay thế</span>
+
+                                        }
+
+                                        else
+
+                                        {
+
+                                            <span class="badge bg-light text-dark border">@inv.Status</span>
+
+                                        }
+
+                                    </td>
+
+                                    <td class="text-center">
+
+                                        <span class="badge bg-light text-success border">@(string.IsNullOrEmpty(inv.VerificationResult) ? "Đã cấp mã hoá đơn" : inv.VerificationResult)</span>
+
+                                    </td>
+
+                                    <td>
+
+                                        @if (!string.IsNullOrEmpty(inv.SellerWebsite))
+
+                                        {
+
+                                            <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;">@inv.SellerWebsite</a>
+
+                                        }
+
+                                        else
+
+                                        {
+
+                                            <span class="text-muted">-</span>
+
+                                        }
+
+                                    </td>
+
+                                    <td>
+
+                                        @if (!string.IsNullOrEmpty(inv.LookupUrl))
+
+                                        {
+
+                                            <a href="@inv.LookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block" style="max-width: 180px;" title="@inv.LookupUrl">
+
+                                                <i class="bi bi-box-arrow-up-right me-1"></i>@inv.LookupUrl
+
+                                            </a>
+
+                                        }
+
+                                        else
+
+                                        {
+
+                                            <span class="text-muted">-</span>
+
+                                        }
+
+                                    </td>
+
+                                </tr>
+
+                                detailStt++;
+
+                            }
+
+                        }
+
+                    }
+
+                    else
+
+                    {
+
+                        <tr>
+
+                            <td colspan="36" class="text-muted py-4 px-3 text-center">
+
+                                Không có dữ liệu mặt hàng nào phù hợp với bộ lọc hiện tại.
 
                             </td>
 
@@ -1453,17 +1943,54 @@
             initTableHorizontalScrollbars();
         });
 
+        // Chuyển đổi giữa 2 tab: Tổng quát & Chi tiết hoá đơn
+        function switchInvoiceViewTab(tabKey) {
+            var btnTongQuat = document.getElementById('tabBtnTongQuat');
+            var btnChiTiet = document.getElementById('tabBtnChiTiet');
+            var tableTongQuat = document.getElementById('invoiceTable');
+            var tableChiTiet = document.getElementById('invoiceDetailTable');
+
+            if (tabKey === 'chi-tiet') {
+                if (btnTongQuat) btnTongQuat.classList.remove('active');
+                if (btnChiTiet) btnChiTiet.classList.add('active');
+                if (tableTongQuat) tableTongQuat.classList.add('d-none');
+                if (tableChiTiet) tableChiTiet.classList.remove('d-none');
+            } else {
+                if (btnChiTiet) btnChiTiet.classList.remove('active');
+                if (btnTongQuat) btnTongQuat.classList.add('active');
+                if (tableChiTiet) tableChiTiet.classList.add('d-none');
+                if (tableTongQuat) tableTongQuat.classList.remove('d-none');
+            }
+
+            if (window.activeTableScrollUpdate) {
+                window.activeTableScrollUpdate();
+            }
+        }
+
         // Khởi tạo thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng
         function initTableHorizontalScrollbars() {
-            var tableWrapper = document.getElementById('invoiceTable');
             var stickyBar = document.getElementById('stickyHorizontalScrollbar');
             var stickyInner = document.getElementById('stickyHorizontalScrollInner');
-            if (!tableWrapper || !stickyBar || !stickyInner) return;
+            if (!stickyBar || !stickyInner) return;
 
-            var tableEl = tableWrapper.querySelector('table');
-            if (!tableEl) return;
+            function getActiveTableWrapper() {
+                var tableDetail = document.getElementById('invoiceDetailTable');
+                if (tableDetail && !tableDetail.classList.contains('d-none')) {
+                    return tableDetail;
+                }
+                return document.getElementById('invoiceTable');
+            }
 
             function updateStickyPosition() {
+                var tableWrapper = getActiveTableWrapper();
+                if (!tableWrapper) {
+                    stickyBar.style.display = 'none';
+                    return;
+                }
+
+                var tableEl = tableWrapper.querySelector('table');
+                if (!tableEl) return;
+
                 var scrollW = tableEl.scrollWidth;
                 var clientW = tableWrapper.clientWidth;
                 if (scrollW <= clientW + 2) {
@@ -1476,8 +2003,6 @@
                 var rect = tableWrapper.getBoundingClientRect();
                 var windowHeight = window.innerHeight || document.documentElement.clientHeight;
 
-                // Khi bảng đang hiển thị trên màn hình nhưng đáy thật của bảng vẫn nằm dưới mép dưới màn hình:
-                // Hiện thanh kéo ngang nổi dính đáy màn hình (ngay trước thanh taskbar)
                 var isTableInView = rect.top < windowHeight - 40;
                 var isBottomBelowScreen = rect.bottom > windowHeight + 15;
 
@@ -1493,21 +2018,31 @@
                 }
             }
 
+            window.activeTableScrollUpdate = updateStickyPosition;
+
             var isSyncing = false;
 
             stickyBar.addEventListener('scroll', function () {
                 if (!isSyncing) {
                     isSyncing = true;
-                    tableWrapper.scrollLeft = stickyBar.scrollLeft;
+                    var tableWrapper = getActiveTableWrapper();
+                    if (tableWrapper) {
+                        tableWrapper.scrollLeft = stickyBar.scrollLeft;
+                    }
                     setTimeout(function () { isSyncing = false; }, 10);
                 }
             });
 
-            tableWrapper.addEventListener('scroll', function () {
-                if (!isSyncing) {
-                    isSyncing = true;
-                    stickyBar.scrollLeft = tableWrapper.scrollLeft;
-                    setTimeout(function () { isSyncing = false; }, 10);
+            ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
+                var tbl = document.getElementById(tableId);
+                if (tbl) {
+                    tbl.addEventListener('scroll', function () {
+                        if (!isSyncing) {
+                            isSyncing = true;
+                            stickyBar.scrollLeft = tbl.scrollLeft;
+                            setTimeout(function () { isSyncing = false; }, 10);
+                        }
+                    });
                 }
             });
 
@@ -1518,8 +2053,10 @@
                 var ro = new ResizeObserver(function () {
                     updateStickyPosition();
                 });
-                ro.observe(tableEl);
-                ro.observe(tableWrapper);
+                var t1 = document.getElementById('invoiceTable');
+                var t2 = document.getElementById('invoiceDetailTable');
+                if (t1) ro.observe(t1);
+                if (t2) ro.observe(t2);
             }
 
             updateStickyPosition();

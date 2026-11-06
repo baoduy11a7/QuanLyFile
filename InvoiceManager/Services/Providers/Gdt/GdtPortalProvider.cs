@@ -1016,6 +1016,81 @@ namespace InvoiceManager.Services.Providers.Gdt
                                       || (symbol.Length >= 4 && char.ToUpperInvariant(symbol[3]) == 'M')
                                       || (symbol.Length >= 2 && char.ToUpperInvariant(symbol[1]) == 'M');
 
+                var mcqt = GetJsonStringValue(item, "mcqt");
+
+                // Thuộc tính mở rộng chuẩn hóa
+                var signedStr = GetJsonStringValue(item, "tdky");
+                if (string.IsNullOrEmpty(signedStr)) signedStr = GetJsonStringValue(item, "nbcks");
+                if (string.IsNullOrEmpty(signedStr)) signedStr = GetJsonStringValue(item, "ngayky");
+                DateTime? signedDate = !string.IsNullOrEmpty(signedStr) 
+                    ? StandardTctParser.ParseVietnamInvoiceDate(signedStr, issueDate) 
+                    : issueDate;
+
+                var buyerCccd = GetJsonStringValue(item, "nmcccd");
+                if (string.IsNullOrEmpty(buyerCccd)) buyerCccd = GetJsonStringValue(item, "nmcmnd");
+                if (string.IsNullOrEmpty(buyerCccd)) buyerCccd = GetJsonStringValue(item, "cccd");
+
+                var dvtTe = GetJsonStringValue(item, "dvtte");
+                if (string.IsNullOrEmpty(dvtTe)) dvtTe = "VND";
+
+                var tGia = GetJsonDecimalValue(item, "tgia");
+                if (tGia <= 0) tGia = 1;
+
+                var htTToan = GetJsonStringValue(item, "htttoan");
+                if (string.IsNullOrEmpty(htTToan)) htTToan = "TM/CK";
+
+                var tChat = GetJsonStringValue(item, "tchat");
+                var invoiceProperty = tChat switch
+                {
+                    "1" => "Hàng hoá/dịch vụ",
+                    "2" => "Hóa đơn thay thế",
+                    "3" => "Hóa đơn điều chỉnh",
+                    "4" => "Hóa đơn đã bị xóa bỏ/hủy",
+                    "5" => "Hóa đơn chiết khấu",
+                    "6" => "Hóa đơn điều chỉnh chiết khấu",
+                    _ => string.IsNullOrWhiteSpace(tChat) ? "Hàng hoá/dịch vụ" : tChat
+                };
+
+                var hsgcma = GetJsonStringValue(item, "hsgcma");
+                if (string.IsNullOrWhiteSpace(hsgcma))
+                {
+                    hsgcma = !string.IsNullOrWhiteSpace(mcqt) ? "Đã cấp mã hoá đơn" : "CQT đã tiếp nhận";
+                }
+
+                var bsx = GetJsonStringValue(item, "bsx");
+                if (string.IsNullOrEmpty(bsx)) bsx = GetJsonStringValue(item, "bsxe");
+                if (string.IsNullOrEmpty(bsx)) bsx = GetJsonStringValue(item, "bienso");
+
+                var replacedNote = GetJsonStringValue(item, "shdtthe");
+                if (string.IsNullOrEmpty(replacedNote)) replacedNote = GetJsonStringValue(item, "gchu");
+                if (string.IsNullOrEmpty(replacedNote)) replacedNote = GetJsonStringValue(item, "lydo");
+
+                var lookupCode = GetJsonStringValue(item, "mattchdon");
+                if (string.IsNullOrEmpty(lookupCode)) lookupCode = GetJsonStringValue(item, "matracuu");
+                if (string.IsNullOrEmpty(lookupCode)) lookupCode = GetJsonStringValue(item, "mtcdon");
+
+                var sellerWebsite = GetJsonStringValue(item, "wbnguoiban");
+                if (string.IsNullOrEmpty(sellerWebsite)) sellerWebsite = GetJsonStringValue(item, "website");
+
+                var lookupUrl = GetJsonStringValue(item, "urlhd");
+                if (string.IsNullOrEmpty(lookupUrl)) lookupUrl = GetJsonStringValue(item, "urltra");
+                if (string.IsNullOrEmpty(lookupUrl)) lookupUrl = GetJsonStringValue(item, "url");
+
+                var discountAmount = GetJsonDecimalValue(item, "ttcktmai");
+                if (discountAmount == 0) discountAmount = GetJsonDecimalValue(item, "stckhau");
+
+                var feeAmount = GetJsonDecimalValue(item, "ttphi");
+                if (feeAmount == 0) feeAmount = GetJsonDecimalValue(item, "ttchiphi");
+
+                var amountBeforeTax = GetJsonDecimalValue(item, "tgtcthue");
+                var taxAmount = GetJsonDecimalValue(item, "tgtthue");
+                var totalAmount = GetJsonDecimalValue(item, "tgtttbso");
+                if (totalAmount == 0) totalAmount = amountBeforeTax + taxAmount;
+
+                var amountBeforeTaxVnd = dvtTe.Equals("VND", StringComparison.OrdinalIgnoreCase) ? amountBeforeTax : Math.Round(amountBeforeTax * tGia, 0);
+                var taxAmountVnd = dvtTe.Equals("VND", StringComparison.OrdinalIgnoreCase) ? taxAmount : Math.Round(taxAmount * tGia, 0);
+                var totalAmountVnd = dvtTe.Equals("VND", StringComparison.OrdinalIgnoreCase) ? totalAmount : Math.Round(totalAmount * tGia, 0);
+
                 return new RemoteInvoice
                 {
                     ProviderKey = !string.IsNullOrEmpty(id) ? id : $"{sellerMst}_{symbol}_{normalizedNumber}",
@@ -1024,17 +1099,34 @@ namespace InvoiceManager.Services.Providers.Gdt
                     InvoiceNumber = normalizedNumber,
                     RawInvoiceNumber = rawNumber,
                     IssueDate = issueDate,
+                    SignedDate = signedDate,
                     SellerTaxCode = sellerMst,
                     SellerName = sellerName,
                     SellerAddress = sellerAddress,
+                    SellerWebsite = sellerWebsite,
                     BuyerTaxCode = buyerMst,
+                    BuyerCitizenId = buyerCccd,
                     BuyerName = buyerName,
                     BuyerAddress = buyerAddress,
-                    AmountBeforeTax = GetJsonDecimalValue(item, "tgtcthue"),
-                    TaxAmount = GetJsonDecimalValue(item, "tgtthue"),
-                    TotalAmount = GetJsonDecimalValue(item, "tgtttbso"),
+                    AmountBeforeTax = amountBeforeTax,
+                    TaxAmount = taxAmount,
+                    TotalAmount = totalAmount,
+                    Currency = dvtTe,
+                    ExchangeRate = tGia,
+                    PaymentMethod = htTToan,
+                    InvoiceProperty = invoiceProperty,
+                    VerificationResult = hsgcma,
+                    VehicleNumber = bsx,
+                    ReplacedOrAdjustedNote = replacedNote,
+                    LookupCode = lookupCode,
+                    LookupUrl = lookupUrl,
+                    DiscountAmount = discountAmount,
+                    FeeAmount = feeAmount,
+                    AmountBeforeTaxVnd = amountBeforeTaxVnd,
+                    TaxAmountVnd = taxAmountVnd,
+                    TotalAmountVnd = totalAmountVnd,
                     InvoiceType = defaultType,
-                    CqtCode = GetJsonStringValue(item, "mcqt"),
+                    CqtCode = mcqt,
                     Status = MapGdtStatus(GetJsonStringValue(item, "ttxly")),
                     IsCashRegister = isCashRegister
                 };

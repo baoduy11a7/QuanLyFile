@@ -18,6 +18,10 @@ namespace InvoiceManager.Models.Entities
         [Display(Name = "Ký hiệu mẫu số/ký hiệu")]
         public string InvoiceSymbol { get; set; } = string.Empty; // vd: 1C25TXX, 2C25TKT
 
+        [StringLength(20)]
+        [Display(Name = "Ký hiệu mẫu số")]
+        public string TemplateCode { get; set; } = "1"; // vd: 1, 2...
+
         [Required]
         [StringLength(20)]
         [Display(Name = "Số hóa đơn")]
@@ -26,6 +30,9 @@ namespace InvoiceManager.Models.Entities
         [Required]
         [Display(Name = "Ngày lập hóa đơn")]
         public DateTime IssueDate { get; set; }
+
+        [Display(Name = "Ngày người bán ký số")]
+        public DateTime? SignedDate { get; set; }
 
         // Người bán
         [Required]
@@ -42,10 +49,18 @@ namespace InvoiceManager.Models.Entities
         [Display(Name = "Địa chỉ Người bán")]
         public string? SellerAddress { get; set; }
 
+        [StringLength(500)]
+        [Display(Name = "Website người bán")]
+        public string? SellerWebsite { get; set; }
+
         // Người mua
         [StringLength(20)]
         [Display(Name = "MST Người mua")]
         public string? BuyerTaxCode { get; set; }
+
+        [StringLength(50)]
+        [Display(Name = "CCCD/CMND Người mua")]
+        public string? BuyerCitizenId { get; set; }
 
         [StringLength(255)]
         [Display(Name = "Tên Người mua")]
@@ -55,18 +70,77 @@ namespace InvoiceManager.Models.Entities
         [Display(Name = "Địa chỉ Người mua")]
         public string? BuyerAddress { get; set; }
 
-        // Số tiền
+        // Tiền tệ & Tỉ giá
+        [StringLength(20)]
+        [Display(Name = "Đơn vị tiền tệ")]
+        public string Currency { get; set; } = "VND";
+
+        [Column(TypeName = "decimal(18,4)")]
+        [Display(Name = "Tỉ giá")]
+        public decimal ExchangeRate { get; set; } = 1;
+
+        // Số tiền nguyên tệ
         [Column(TypeName = "decimal(18,2)")]
-        [Display(Name = "Tổng tiền chưa thuế")]
+        [Display(Name = "Tổng tiền chưa thuế (nguyên tệ)")]
         public decimal AmountBeforeTax { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
-        [Display(Name = "Tổng tiền thuế GTGT")]
+        [Display(Name = "Tổng tiền thuế (nguyên tệ)")]
         public decimal TaxAmount { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
-        [Display(Name = "Tổng tiền thanh toán")]
+        [Display(Name = "Tổng tiền thanh toán (nguyên tệ)")]
         public decimal TotalAmount { get; set; }
+
+        // Số tiền quy đổi VND
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền chưa thuế (VND)")]
+        public decimal AmountBeforeTaxVnd { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền thuế (VND)")]
+        public decimal TaxAmountVnd { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tổng tiền thanh toán (VND)")]
+        public decimal TotalAmountVnd { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tổng tiền chiết khấu thương mại")]
+        public decimal DiscountAmount { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tổng tiền phí")]
+        public decimal FeeAmount { get; set; } = 0;
+
+        // Hình thức, Tính chất, Kiểm tra
+        [StringLength(100)]
+        [Display(Name = "Hình thức thanh toán")]
+        public string? PaymentMethod { get; set; } = "TM/CK";
+
+        [StringLength(100)]
+        [Display(Name = "Tính chất")]
+        public string? InvoiceProperty { get; set; } = "Hàng hoá/dịch vụ";
+
+        [StringLength(200)]
+        [Display(Name = "Kết quả kiểm tra hóa đơn")]
+        public string? VerificationResult { get; set; } = "Đã cấp mã hoá đơn";
+
+        [StringLength(50)]
+        [Display(Name = "Biển số xe")]
+        public string? VehicleNumber { get; set; }
+
+        [StringLength(500)]
+        [Display(Name = "Ghi chú hóa đơn bị thay thế, điều chỉnh")]
+        public string? ReplacedOrAdjustedNote { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "Mã tra cứu hóa đơn gốc")]
+        public string? LookupCode { get; set; }
+
+        [StringLength(1000)]
+        [Display(Name = "Url tra cứu hóa đơn gốc")]
+        public string? LookupUrl { get; set; }
 
         // Phân loại hóa đơn
         [Required]

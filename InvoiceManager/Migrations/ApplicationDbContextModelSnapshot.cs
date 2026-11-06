@@ -211,9 +211,16 @@ namespace InvoiceManager.Migrations
                     b.Property<decimal>("AmountBeforeTax")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("AmountBeforeTaxVnd")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("BuyerAddress")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BuyerCitizenId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("BuyerName")
                         .HasMaxLength(255)
@@ -222,6 +229,20 @@ namespace InvoiceManager.Migrations
                     b.Property<string>("BuyerTaxCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("HasTaxCode")
                         .HasColumnType("bit");
@@ -237,6 +258,10 @@ namespace InvoiceManager.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("InvoiceProperty")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("InvoiceSymbol")
                         .IsRequired()
@@ -257,6 +282,14 @@ namespace InvoiceManager.Migrations
                     b.Property<DateTime>("IssueDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("LookupCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LookupUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -264,6 +297,10 @@ namespace InvoiceManager.Migrations
                     b.Property<string>("OriginalFileName")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RawPdfPath")
                         .HasMaxLength(500)
@@ -279,6 +316,10 @@ namespace InvoiceManager.Migrations
                     b.Property<string>("ReconciledRefNo")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ReplacedOrAdjustedNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("RiskLevel")
                         .IsRequired()
@@ -303,6 +344,13 @@ namespace InvoiceManager.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("SellerWebsite")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("SignedDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("SourceProvider")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -319,12 +367,31 @@ namespace InvoiceManager.Migrations
                     b.Property<decimal>("TaxAmount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("TaxAmountVnd")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("TaxAuthorityCode")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmountVnd")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("VehicleNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("VerificationResult")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
 
@@ -351,6 +418,18 @@ namespace InvoiceManager.Migrations
                     b.Property<decimal>("AmountBeforeTax")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("AmountBeforeTaxForeign")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AmountBeforeTaxVnd")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DiscountRate")
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
 
@@ -376,10 +455,22 @@ namespace InvoiceManager.Migrations
                     b.Property<decimal>("TaxAmount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("TaxAmountForeign")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmountVnd")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("TaxRate")
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmountForeign")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmountVnd")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Unit")
@@ -563,10 +654,19 @@ namespace InvoiceManager.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AccountantName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BusinessType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
@@ -590,6 +690,10 @@ namespace InvoiceManager.Migrations
                     b.Property<string>("Representative")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShortName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("TaxCode")
                         .IsRequired()

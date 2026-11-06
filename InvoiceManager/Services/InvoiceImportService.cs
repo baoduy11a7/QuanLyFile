@@ -117,6 +117,24 @@ namespace InvoiceManager.Services
                     existing.InvoiceSymbol = normSymbol;
                     existing.InvoiceNumber = normNumber;
                     if (parseResult.IssueDate > DateTime.MinValue) existing.IssueDate = parseResult.IssueDate;
+                    if (!string.IsNullOrEmpty(parseResult.TemplateCode)) existing.TemplateCode = parseResult.TemplateCode;
+                    if (parseResult.SignedDate.HasValue) existing.SignedDate = parseResult.SignedDate;
+                    if (!string.IsNullOrEmpty(parseResult.BuyerCitizenId)) existing.BuyerCitizenId = parseResult.BuyerCitizenId;
+                    if (!string.IsNullOrEmpty(parseResult.SellerWebsite)) existing.SellerWebsite = parseResult.SellerWebsite;
+                    if (!string.IsNullOrEmpty(parseResult.Currency)) existing.Currency = parseResult.Currency;
+                    if (parseResult.ExchangeRate > 0) existing.ExchangeRate = parseResult.ExchangeRate;
+                    if (!string.IsNullOrEmpty(parseResult.PaymentMethod)) existing.PaymentMethod = parseResult.PaymentMethod;
+                    if (!string.IsNullOrEmpty(parseResult.InvoiceProperty)) existing.InvoiceProperty = parseResult.InvoiceProperty;
+                    if (!string.IsNullOrEmpty(parseResult.VerificationResult)) existing.VerificationResult = parseResult.VerificationResult;
+                    if (!string.IsNullOrEmpty(parseResult.VehicleNumber)) existing.VehicleNumber = parseResult.VehicleNumber;
+                    if (!string.IsNullOrEmpty(parseResult.ReplacedOrAdjustedNote)) existing.ReplacedOrAdjustedNote = parseResult.ReplacedOrAdjustedNote;
+                    if (!string.IsNullOrEmpty(parseResult.LookupCode)) existing.LookupCode = parseResult.LookupCode;
+                    if (!string.IsNullOrEmpty(parseResult.LookupUrl)) existing.LookupUrl = parseResult.LookupUrl;
+                    existing.AmountBeforeTaxVnd = parseResult.AmountBeforeTaxVnd;
+                    existing.TaxAmountVnd = parseResult.TaxAmountVnd;
+                    existing.TotalAmountVnd = parseResult.TotalAmountVnd;
+                    existing.DiscountAmount = parseResult.DiscountAmount;
+                    existing.FeeAmount = parseResult.FeeAmount;
 
                     // Nếu hóa đơn đã có nhưng chỉ có chi tiết tạm, cập nhật danh sách mặt hàng thật từ XML
                     bool needsDetailUpdate = !existing.Details.Any() ||
@@ -136,10 +154,18 @@ namespace InvoiceManager.Services
                                 Unit = d.Unit,
                                 Quantity = d.Quantity,
                                 UnitPrice = d.UnitPrice,
+                                DiscountRate = d.DiscountRate,
+                                DiscountAmount = d.DiscountAmount,
                                 AmountBeforeTax = d.AmountBeforeTax,
                                 TaxRate = d.TaxRate,
                                 TaxAmount = d.TaxAmount,
-                                TotalAmount = d.TotalAmount
+                                TotalAmount = d.TotalAmount,
+                                AmountBeforeTaxForeign = d.AmountBeforeTaxForeign,
+                                TaxAmountForeign = d.TaxAmountForeign,
+                                TotalAmountForeign = d.TotalAmountForeign,
+                                AmountBeforeTaxVnd = d.AmountBeforeTaxVnd,
+                                TaxAmountVnd = d.TaxAmountVnd,
+                                TotalAmountVnd = d.TotalAmountVnd
                             });
                         }
                         existing.SourceProvider = "TCT-Standard";
@@ -162,18 +188,36 @@ namespace InvoiceManager.Services
                 var invoice = new Invoice
                 {
                     TaxAccountId = taxAccountId,
+                    TemplateCode = !string.IsNullOrWhiteSpace(parseResult.TemplateCode) ? parseResult.TemplateCode : "1",
                     InvoiceSymbol = parseResult.InvoiceSymbol,
                     InvoiceNumber = parseResult.InvoiceNumber,
                     IssueDate = parseResult.IssueDate,
+                    SignedDate = parseResult.SignedDate ?? parseResult.IssueDate,
                     SellerTaxCode = parseResult.SellerTaxCode,
                     SellerName = parseResult.SellerName,
                     SellerAddress = parseResult.SellerAddress,
+                    SellerWebsite = parseResult.SellerWebsite,
                     BuyerTaxCode = parseResult.BuyerTaxCode,
+                    BuyerCitizenId = parseResult.BuyerCitizenId,
                     BuyerName = parseResult.BuyerName,
                     BuyerAddress = parseResult.BuyerAddress,
+                    Currency = parseResult.Currency,
+                    ExchangeRate = parseResult.ExchangeRate,
                     AmountBeforeTax = parseResult.AmountBeforeTax,
                     TaxAmount = parseResult.TaxAmount,
                     TotalAmount = parseResult.TotalAmount,
+                    AmountBeforeTaxVnd = parseResult.AmountBeforeTaxVnd,
+                    TaxAmountVnd = parseResult.TaxAmountVnd,
+                    TotalAmountVnd = parseResult.TotalAmountVnd,
+                    DiscountAmount = parseResult.DiscountAmount,
+                    FeeAmount = parseResult.FeeAmount,
+                    PaymentMethod = parseResult.PaymentMethod,
+                    InvoiceProperty = parseResult.InvoiceProperty,
+                    VerificationResult = parseResult.VerificationResult,
+                    VehicleNumber = parseResult.VehicleNumber,
+                    ReplacedOrAdjustedNote = parseResult.ReplacedOrAdjustedNote,
+                    LookupCode = parseResult.LookupCode,
+                    LookupUrl = parseResult.LookupUrl,
                     InvoiceType = invoiceType,
                     HasTaxCode = parseResult.HasTaxCode,
                     IsCashRegister = parseResult.IsCashRegister,
@@ -199,10 +243,18 @@ namespace InvoiceManager.Services
                         Unit = d.Unit,
                         Quantity = d.Quantity,
                         UnitPrice = d.UnitPrice,
+                        DiscountRate = d.DiscountRate,
+                        DiscountAmount = d.DiscountAmount,
                         AmountBeforeTax = d.AmountBeforeTax,
                         TaxRate = d.TaxRate,
                         TaxAmount = d.TaxAmount,
-                        TotalAmount = d.TotalAmount
+                        TotalAmount = d.TotalAmount,
+                        AmountBeforeTaxForeign = d.AmountBeforeTaxForeign,
+                        TaxAmountForeign = d.TaxAmountForeign,
+                        TotalAmountForeign = d.TotalAmountForeign,
+                        AmountBeforeTaxVnd = d.AmountBeforeTaxVnd,
+                        TaxAmountVnd = d.TaxAmountVnd,
+                        TotalAmountVnd = d.TotalAmountVnd
                     });
                 }
 

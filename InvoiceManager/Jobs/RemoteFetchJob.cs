@@ -607,6 +607,26 @@ namespace InvoiceManager.Jobs
                     // Chuẩn hóa lại ký hiệu và số hóa đơn của bản ghi đã có nếu trước đó lưu lệch
                     existing.InvoiceSymbol = cleanSymbol;
                     existing.InvoiceNumber = cleanNumber;
+                    if (!string.IsNullOrEmpty(inv.TemplateCode)) existing.TemplateCode = inv.TemplateCode;
+                    if (inv.SignedDate.HasValue) existing.SignedDate = inv.SignedDate;
+                    if (!string.IsNullOrEmpty(inv.BuyerCitizenId)) existing.BuyerCitizenId = inv.BuyerCitizenId;
+                    if (!string.IsNullOrEmpty(inv.SellerWebsite)) existing.SellerWebsite = inv.SellerWebsite;
+                    if (!string.IsNullOrEmpty(inv.Currency)) existing.Currency = inv.Currency;
+                    if (inv.ExchangeRate > 0) existing.ExchangeRate = inv.ExchangeRate;
+                    if (!string.IsNullOrEmpty(inv.PaymentMethod)) existing.PaymentMethod = inv.PaymentMethod;
+                    if (!string.IsNullOrEmpty(inv.InvoiceProperty)) existing.InvoiceProperty = inv.InvoiceProperty;
+                    if (!string.IsNullOrEmpty(inv.VerificationResult)) existing.VerificationResult = inv.VerificationResult;
+                    if (!string.IsNullOrEmpty(inv.VehicleNumber)) existing.VehicleNumber = inv.VehicleNumber;
+                    if (!string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote)) existing.ReplacedOrAdjustedNote = inv.ReplacedOrAdjustedNote;
+                    if (!string.IsNullOrEmpty(inv.LookupCode)) existing.LookupCode = inv.LookupCode;
+                    if (!string.IsNullOrEmpty(inv.LookupUrl)) existing.LookupUrl = inv.LookupUrl;
+                    if (existing.TotalAmountVnd == 0)
+                    {
+                        var rateVal = existing.ExchangeRate > 0 ? existing.ExchangeRate : 1;
+                        existing.AmountBeforeTaxVnd = Math.Round(existing.AmountBeforeTax * rateVal, 0);
+                        existing.TaxAmountVnd = Math.Round(existing.TaxAmount * rateVal, 0);
+                        existing.TotalAmountVnd = Math.Round(existing.TotalAmount * rateVal, 0);
+                    }
 
                     // Nếu đã tồn tại nhưng chưa có file PDF gốc, cập nhật ngay
                     if (string.IsNullOrEmpty(existing.RawPdfPath) && pdfBytes != null && pdfBytes.Length > 0)
@@ -618,10 +638,10 @@ namespace InvoiceManager.Jobs
                             var pdfPath = Path.Combine(storageRoot, $"Gov_{cleanSymbol}_{cleanNumber}_{Guid.NewGuid():N}.pdf");
                             await File.WriteAllBytesAsync(pdfPath, pdfBytes);
                             existing.RawPdfPath = pdfPath;
-                            await db.SaveChangesAsync();
                         }
                         catch { }
                     }
+                    await db.SaveChangesAsync();
                     return (false, true, null);
                 }
 
@@ -633,22 +653,45 @@ namespace InvoiceManager.Jobs
                 if (status == "5") status = "Đã cấp mã";
                 else if (string.IsNullOrWhiteSpace(status)) status = "Đã cấp mã";
 
+                var exRate = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1;
+                var amtBeforeVnd = inv.AmountBeforeTaxVnd > 0 ? inv.AmountBeforeTaxVnd : Math.Round(inv.AmountBeforeTax * exRate, 0);
+                var taxVnd = inv.TaxAmountVnd > 0 ? inv.TaxAmountVnd : Math.Round(inv.TaxAmount * exRate, 0);
+                var totalVnd = inv.TotalAmountVnd > 0 ? inv.TotalAmountVnd : Math.Round((inv.TotalAmount > 0 ? inv.TotalAmount : (inv.AmountBeforeTax + inv.TaxAmount)) * exRate, 0);
+
                 var invoice = new Invoice
                 {
                     TaxAccountId = taxAccountId,
                     InvoiceType = invoiceType,
+                    TemplateCode = !string.IsNullOrWhiteSpace(inv.TemplateCode) ? inv.TemplateCode : "1",
                     InvoiceSymbol = cleanSymbol,
                     InvoiceNumber = cleanNumber,
                     IssueDate = inv.IssueDate > DateTime.MinValue ? inv.IssueDate : DateTime.Now,
+                    SignedDate = inv.SignedDate ?? (inv.IssueDate > DateTime.MinValue ? inv.IssueDate : DateTime.Now),
                     SellerTaxCode = sellerMst,
                     SellerName = !string.IsNullOrWhiteSpace(inv.SellerName) ? inv.SellerName.Trim() : "Không có tên",
                     SellerAddress = inv.SellerAddress ?? string.Empty,
+                    SellerWebsite = inv.SellerWebsite,
                     BuyerTaxCode = (inv.BuyerTaxCode ?? string.Empty).Trim(),
+                    BuyerCitizenId = inv.BuyerCitizenId,
                     BuyerName = !string.IsNullOrWhiteSpace(inv.BuyerName) ? inv.BuyerName.Trim() : string.Empty,
                     BuyerAddress = inv.BuyerAddress ?? string.Empty,
+                    Currency = !string.IsNullOrWhiteSpace(inv.Currency) ? inv.Currency : "VND",
+                    ExchangeRate = exRate,
                     AmountBeforeTax = inv.AmountBeforeTax,
                     TaxAmount = inv.TaxAmount,
                     TotalAmount = inv.TotalAmount > 0 ? inv.TotalAmount : (inv.AmountBeforeTax + inv.TaxAmount),
+                    AmountBeforeTaxVnd = amtBeforeVnd,
+                    TaxAmountVnd = taxVnd,
+                    TotalAmountVnd = totalVnd,
+                    DiscountAmount = inv.DiscountAmount,
+                    FeeAmount = inv.FeeAmount,
+                    PaymentMethod = !string.IsNullOrWhiteSpace(inv.PaymentMethod) ? inv.PaymentMethod : "TM/CK",
+                    InvoiceProperty = !string.IsNullOrWhiteSpace(inv.InvoiceProperty) ? inv.InvoiceProperty : "Hàng hoá/dịch vụ",
+                    VerificationResult = !string.IsNullOrWhiteSpace(inv.VerificationResult) ? inv.VerificationResult : (hasTaxCode ? "Đã cấp mã hoá đơn" : "CQT đã tiếp nhận"),
+                    VehicleNumber = inv.VehicleNumber,
+                    ReplacedOrAdjustedNote = inv.ReplacedOrAdjustedNote,
+                    LookupCode = inv.LookupCode,
+                    LookupUrl = inv.LookupUrl,
                     TaxAuthorityCode = inv.CqtCode,
                     HasTaxCode = hasTaxCode,
                     IsCashRegister = isCashRegister,
@@ -674,10 +717,18 @@ namespace InvoiceManager.Jobs
                     Unit = "Lô/Gói",
                     Quantity = 1,
                     UnitPrice = inv.AmountBeforeTax,
+                    DiscountRate = 0,
+                    DiscountAmount = 0,
                     AmountBeforeTax = inv.AmountBeforeTax,
                     TaxRate = rate,
                     TaxAmount = inv.TaxAmount,
-                    TotalAmount = invoice.TotalAmount
+                    TotalAmount = invoice.TotalAmount,
+                    AmountBeforeTaxForeign = inv.AmountBeforeTax,
+                    TaxAmountForeign = inv.TaxAmount,
+                    TotalAmountForeign = invoice.TotalAmount,
+                    AmountBeforeTaxVnd = amtBeforeVnd,
+                    TaxAmountVnd = taxVnd,
+                    TotalAmountVnd = totalVnd
                 });
 
                 // 4. Lưu file XML/PDF gốc thực tế nếu có (TUYỆT ĐỐI không tự tạo XML giả để thay thế file gốc)

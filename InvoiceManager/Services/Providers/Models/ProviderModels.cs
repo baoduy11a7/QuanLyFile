@@ -62,12 +62,15 @@ namespace InvoiceManager.Services.Providers.Models
         public string InvoiceNumber { get; set; } = string.Empty; // Số HĐ chuẩn hóa (e.g. 00000501)
         public string RawInvoiceNumber { get; set; } = string.Empty; // Số HĐ gốc từ API (e.g. 501)
         public DateTime IssueDate { get; set; }
+        public DateTime? SignedDate { get; set; } // Ngày người bán ký số
         public string SellerTaxCode { get; set; } = string.Empty;
         public string SellerName { get; set; } = string.Empty;
         public string? SellerAddress { get; set; }
+        public string? SellerWebsite { get; set; } // Website người bán
         public string BuyerTaxCode { get; set; } = string.Empty;
         public string BuyerName { get; set; } = string.Empty;
         public string? BuyerAddress { get; set; }
+        public string? BuyerCitizenId { get; set; } // CCCD/CMND người mua
         public decimal TotalAmount { get; set; }
         public decimal AmountBeforeTax { get; set; }
         public decimal TaxAmount { get; set; }
@@ -75,6 +78,21 @@ namespace InvoiceManager.Services.Providers.Models
         public string? CqtCode { get; set; } // Mã cơ quan thuế cấp
         public string? Status { get; set; }
         public bool IsCashRegister { get; set; } = false; // Hóa đơn từ máy tính tiền
+
+        public string Currency { get; set; } = "VND"; // Đơn vị tiền tệ (dvtte)
+        public decimal ExchangeRate { get; set; } = 1; // Tỉ giá (tgia)
+        public string? PaymentMethod { get; set; } = "TM/CK"; // Hình thức thanh toán (htttoan)
+        public string? InvoiceProperty { get; set; } // Tính chất (tchat)
+        public string? VerificationResult { get; set; } // Kết quả kiểm tra hóa đơn (hsgcma)
+        public string? VehicleNumber { get; set; } // Biển số xe
+        public string? ReplacedOrAdjustedNote { get; set; } // Ghi chú hóa đơn bị thay thế, điều chỉnh
+        public string? LookupCode { get; set; } // Mã tra cứu hóa đơn gốc
+        public string? LookupUrl { get; set; } // Url tra cứu hóa đơn gốc
+        public decimal DiscountAmount { get; set; } = 0; // Tổng tiền chiết khấu thương mại
+        public decimal FeeAmount { get; set; } = 0; // Tổng tiền phí
+        public decimal AmountBeforeTaxVnd { get; set; } = 0; // Tiền chưa thuế (VND)
+        public decimal TaxAmountVnd { get; set; } = 0; // Tiền thuế (VND)
+        public decimal TotalAmountVnd { get; set; } = 0; // Tổng tiền thanh toán (VND)
     }
 
     public class OriginalPdfFetchResult

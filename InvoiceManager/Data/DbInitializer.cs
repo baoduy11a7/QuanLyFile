@@ -29,6 +29,9 @@ namespace InvoiceManager.Data
             // Đảm bảo các cột mới (BusinessType, ShortName, AccountantName) luôn tồn tại trên mọi hệ CSDL (SQL Server, SQLite, PostgreSQL)
             await EnsureTaxAccountColumnsAsync(context);
 
+            // Đảm bảo các cột mới phục vụ quản lý hóa đơn chi tiết & toàn diện luôn tồn tại
+            await EnsureInvoiceColumnsAsync(context);
+
             // Tự động chuẩn hóa & khắc phục lỗi ngày lập, tên hàng hóa, đơn vị tính cho các hóa đơn hiện có
             await RepairExistingInvoicesAsync(context);
 
@@ -294,6 +297,116 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                 try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"BusinessType\" varchar(30) NOT NULL DEFAULT 'DoanhNghiep';"); } catch { }
                 try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"ShortName\" varchar(150) NULL;"); } catch { }
                 try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"TaxAccounts\" ADD COLUMN IF NOT EXISTS \"AccountantName\" varchar(100) NULL;"); } catch { }
+            }
+        }
+
+        private static async Task EnsureInvoiceColumnsAsync(ApplicationDbContext context)
+        {
+            if (context.Database.IsSqlServer())
+            {
+                var sql = @"
+IF COL_LENGTH('Invoices', 'TemplateCode') IS NULL ALTER TABLE [Invoices] ADD [TemplateCode] nvarchar(20) NOT NULL DEFAULT '1';
+IF COL_LENGTH('Invoices', 'SignedDate') IS NULL ALTER TABLE [Invoices] ADD [SignedDate] datetime2 NULL;
+IF COL_LENGTH('Invoices', 'BuyerCitizenId') IS NULL ALTER TABLE [Invoices] ADD [BuyerCitizenId] nvarchar(50) NULL;
+IF COL_LENGTH('Invoices', 'SellerWebsite') IS NULL ALTER TABLE [Invoices] ADD [SellerWebsite] nvarchar(500) NULL;
+IF COL_LENGTH('Invoices', 'Currency') IS NULL ALTER TABLE [Invoices] ADD [Currency] nvarchar(20) NOT NULL DEFAULT 'VND';
+IF COL_LENGTH('Invoices', 'ExchangeRate') IS NULL ALTER TABLE [Invoices] ADD [ExchangeRate] decimal(18,4) NOT NULL DEFAULT 1;
+IF COL_LENGTH('Invoices', 'AmountBeforeTaxVnd') IS NULL ALTER TABLE [Invoices] ADD [AmountBeforeTaxVnd] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('Invoices', 'TaxAmountVnd') IS NULL ALTER TABLE [Invoices] ADD [TaxAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('Invoices', 'TotalAmountVnd') IS NULL ALTER TABLE [Invoices] ADD [TotalAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('Invoices', 'DiscountAmount') IS NULL ALTER TABLE [Invoices] ADD [DiscountAmount] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('Invoices', 'FeeAmount') IS NULL ALTER TABLE [Invoices] ADD [FeeAmount] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('Invoices', 'PaymentMethod') IS NULL ALTER TABLE [Invoices] ADD [PaymentMethod] nvarchar(100) NULL;
+IF COL_LENGTH('Invoices', 'InvoiceProperty') IS NULL ALTER TABLE [Invoices] ADD [InvoiceProperty] nvarchar(100) NULL;
+IF COL_LENGTH('Invoices', 'VerificationResult') IS NULL ALTER TABLE [Invoices] ADD [VerificationResult] nvarchar(200) NULL;
+IF COL_LENGTH('Invoices', 'VehicleNumber') IS NULL ALTER TABLE [Invoices] ADD [VehicleNumber] nvarchar(50) NULL;
+IF COL_LENGTH('Invoices', 'ReplacedOrAdjustedNote') IS NULL ALTER TABLE [Invoices] ADD [ReplacedOrAdjustedNote] nvarchar(500) NULL;
+IF COL_LENGTH('Invoices', 'LookupCode') IS NULL ALTER TABLE [Invoices] ADD [LookupCode] nvarchar(100) NULL;
+IF COL_LENGTH('Invoices', 'LookupUrl') IS NULL ALTER TABLE [Invoices] ADD [LookupUrl] nvarchar(1000) NULL;
+
+IF COL_LENGTH('InvoiceDetails', 'DiscountRate') IS NULL ALTER TABLE [InvoiceDetails] ADD [DiscountRate] decimal(5,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'DiscountAmount') IS NULL ALTER TABLE [InvoiceDetails] ADD [DiscountAmount] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'AmountBeforeTaxForeign') IS NULL ALTER TABLE [InvoiceDetails] ADD [AmountBeforeTaxForeign] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'TaxAmountForeign') IS NULL ALTER TABLE [InvoiceDetails] ADD [TaxAmountForeign] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'TotalAmountForeign') IS NULL ALTER TABLE [InvoiceDetails] ADD [TotalAmountForeign] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'AmountBeforeTaxVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [AmountBeforeTaxVnd] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'TaxAmountVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [TaxAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('InvoiceDetails', 'TotalAmountVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [TotalAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
+";
+                try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
+            }
+            else if (context.Database.IsSqlite())
+            {
+                var cols = new[]
+                {
+                    "ALTER TABLE Invoices ADD COLUMN TemplateCode TEXT NOT NULL DEFAULT '1';",
+                    "ALTER TABLE Invoices ADD COLUMN SignedDate TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN BuyerCitizenId TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN SellerWebsite TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN Currency TEXT NOT NULL DEFAULT 'VND';",
+                    "ALTER TABLE Invoices ADD COLUMN ExchangeRate REAL NOT NULL DEFAULT 1;",
+                    "ALTER TABLE Invoices ADD COLUMN AmountBeforeTaxVnd REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE Invoices ADD COLUMN TaxAmountVnd REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE Invoices ADD COLUMN TotalAmountVnd REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE Invoices ADD COLUMN DiscountAmount REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE Invoices ADD COLUMN FeeAmount REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE Invoices ADD COLUMN PaymentMethod TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN InvoiceProperty TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN VerificationResult TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN VehicleNumber TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN ReplacedOrAdjustedNote TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN LookupCode TEXT NULL;",
+                    "ALTER TABLE Invoices ADD COLUMN LookupUrl TEXT NULL;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN DiscountRate REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN DiscountAmount REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN AmountBeforeTaxForeign REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN TaxAmountForeign REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN TotalAmountForeign REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN AmountBeforeTaxVnd REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN TaxAmountVnd REAL NOT NULL DEFAULT 0;",
+                    "ALTER TABLE InvoiceDetails ADD COLUMN TotalAmountVnd REAL NOT NULL DEFAULT 0;"
+                };
+                foreach (var c in cols)
+                {
+                    try { await context.Database.ExecuteSqlRawAsync(c); } catch { }
+                }
+            }
+            else
+            {
+                // PostgreSQL
+                var pgCols = new[]
+                {
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"TemplateCode\" varchar(20) NOT NULL DEFAULT '1';",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"SignedDate\" timestamp NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"BuyerCitizenId\" varchar(50) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"SellerWebsite\" varchar(500) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"Currency\" varchar(20) NOT NULL DEFAULT 'VND';",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"ExchangeRate\" numeric(18,4) NOT NULL DEFAULT 1;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"AmountBeforeTaxVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"TaxAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"TotalAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"DiscountAmount\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"FeeAmount\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"PaymentMethod\" varchar(100) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"InvoiceProperty\" varchar(100) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"VerificationResult\" varchar(200) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"VehicleNumber\" varchar(50) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"ReplacedOrAdjustedNote\" varchar(500) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"LookupCode\" varchar(100) NULL;",
+                    "ALTER TABLE \"Invoices\" ADD COLUMN IF NOT EXISTS \"LookupUrl\" varchar(1000) NULL;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"DiscountRate\" numeric(5,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"DiscountAmount\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"AmountBeforeTaxForeign\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TaxAmountForeign\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TotalAmountForeign\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"AmountBeforeTaxVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TaxAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TotalAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;"
+                };
+                foreach (var c in pgCols)
+                {
+                    try { await context.Database.ExecuteSqlRawAsync(c); } catch { }
+                }
             }
         }
 
@@ -612,10 +725,18 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                                             Unit = d.Unit,
                                             Quantity = d.Quantity,
                                             UnitPrice = d.UnitPrice,
+                                            DiscountRate = d.DiscountRate,
+                                            DiscountAmount = d.DiscountAmount,
                                             AmountBeforeTax = d.AmountBeforeTax,
                                             TaxRate = d.TaxRate,
                                             TaxAmount = taxAmt,
-                                            TotalAmount = d.AmountBeforeTax + taxAmt
+                                            TotalAmount = d.AmountBeforeTax + taxAmt,
+                                            AmountBeforeTaxForeign = d.AmountBeforeTaxForeign,
+                                            TaxAmountForeign = d.TaxAmountForeign,
+                                            TotalAmountForeign = d.TotalAmountForeign,
+                                            AmountBeforeTaxVnd = d.AmountBeforeTaxVnd,
+                                            TaxAmountVnd = d.TaxAmountVnd,
+                                            TotalAmountVnd = d.TotalAmountVnd
                                         });
                                     }
                                     inv.SourceProvider = "TCT-Standard";
@@ -627,9 +748,36 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                                     {
                                         d.TaxAmount = Math.Round(d.AmountBeforeTax * d.TaxRate / 100m, 0);
                                         d.TotalAmount = d.AmountBeforeTax + d.TaxAmount;
+                                        d.AmountBeforeTaxForeign = d.AmountBeforeTax;
+                                        d.TaxAmountForeign = d.TaxAmount;
+                                        d.TotalAmountForeign = d.TotalAmount;
+                                        d.AmountBeforeTaxVnd = d.AmountBeforeTax;
+                                        d.TaxAmountVnd = d.TaxAmount;
+                                        d.TotalAmountVnd = d.TotalAmount;
                                     }
                                     modified = true;
                                 }
+
+                                // Bổ sung các thông tin mở rộng chuẩn xác từ XML gốc
+                                if (!string.IsNullOrEmpty(parsed.TemplateCode)) inv.TemplateCode = parsed.TemplateCode;
+                                if (parsed.SignedDate.HasValue) inv.SignedDate = parsed.SignedDate;
+                                if (!string.IsNullOrEmpty(parsed.Currency)) inv.Currency = parsed.Currency;
+                                if (parsed.ExchangeRate > 0) inv.ExchangeRate = parsed.ExchangeRate;
+                                if (!string.IsNullOrEmpty(parsed.PaymentMethod)) inv.PaymentMethod = parsed.PaymentMethod;
+                                if (!string.IsNullOrEmpty(parsed.InvoiceProperty)) inv.InvoiceProperty = parsed.InvoiceProperty;
+                                if (!string.IsNullOrEmpty(parsed.VerificationResult)) inv.VerificationResult = parsed.VerificationResult;
+                                if (!string.IsNullOrEmpty(parsed.BuyerCitizenId)) inv.BuyerCitizenId = parsed.BuyerCitizenId;
+                                if (!string.IsNullOrEmpty(parsed.SellerWebsite)) inv.SellerWebsite = parsed.SellerWebsite;
+                                if (!string.IsNullOrEmpty(parsed.VehicleNumber)) inv.VehicleNumber = parsed.VehicleNumber;
+                                if (!string.IsNullOrEmpty(parsed.ReplacedOrAdjustedNote)) inv.ReplacedOrAdjustedNote = parsed.ReplacedOrAdjustedNote;
+                                if (!string.IsNullOrEmpty(parsed.LookupCode)) inv.LookupCode = parsed.LookupCode;
+                                if (!string.IsNullOrEmpty(parsed.LookupUrl)) inv.LookupUrl = parsed.LookupUrl;
+                                inv.DiscountAmount = parsed.DiscountAmount;
+                                inv.FeeAmount = parsed.FeeAmount;
+                                inv.AmountBeforeTaxVnd = parsed.AmountBeforeTaxVnd;
+                                inv.TaxAmountVnd = parsed.TaxAmountVnd;
+                                inv.TotalAmountVnd = parsed.TotalAmountVnd;
+                                modified = true;
 
                                 if (!string.IsNullOrWhiteSpace(parsed.SellerAddress) && string.IsNullOrWhiteSpace(inv.SellerAddress))
                                 {
@@ -699,6 +847,44 @@ IF COL_LENGTH('TaxAccounts', 'AccountantName') IS NULL
                                 d.Unit = "Dịch vụ";
                                 modified = true;
                             }
+                        }
+                    }
+
+                    // Đảm bảo các trường mở rộng luôn có giá trị chuẩn chỉnh
+                    if (string.IsNullOrEmpty(inv.TemplateCode)) { inv.TemplateCode = inv.InvoiceSymbol.Length >= 7 && char.IsDigit(inv.InvoiceSymbol[0]) ? inv.InvoiceSymbol[0].ToString() : "1"; modified = true; }
+                    if (!inv.SignedDate.HasValue) { inv.SignedDate = inv.IssueDate; modified = true; }
+                    if (string.IsNullOrEmpty(inv.Currency)) { inv.Currency = "VND"; modified = true; }
+                    if (inv.ExchangeRate <= 0) { inv.ExchangeRate = 1; modified = true; }
+                    if (string.IsNullOrEmpty(inv.PaymentMethod)) { inv.PaymentMethod = "TM/CK"; modified = true; }
+                    if (string.IsNullOrEmpty(inv.InvoiceProperty)) { inv.InvoiceProperty = "Hàng hoá/dịch vụ"; modified = true; }
+                    if (string.IsNullOrEmpty(inv.VerificationResult)) { inv.VerificationResult = inv.HasTaxCode ? "Đã cấp mã hoá đơn" : "CQT đã tiếp nhận"; modified = true; }
+                    if (inv.TotalAmountVnd == 0)
+                    {
+                        var rate = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1;
+                        inv.AmountBeforeTaxVnd = Math.Round(inv.AmountBeforeTax * rate, 0);
+                        inv.TaxAmountVnd = Math.Round(inv.TaxAmount * rate, 0);
+                        inv.TotalAmountVnd = Math.Round(inv.TotalAmount * rate, 0);
+                        modified = true;
+                    }
+                    if (string.IsNullOrEmpty(inv.LookupUrl))
+                    {
+                        if (inv.SellerTaxCode == "0100109106") { inv.LookupUrl = "https://vinvoice.viettel.vn/tra-cuu-hoa-don"; modified = true; }
+                        else if (inv.SellerTaxCode == "0101243150") { inv.LookupUrl = "https://www.meinvoice.vn/tra-cuu-hoa-don/"; modified = true; }
+                        else if (inv.SellerTaxCode == "0106869738") { inv.LookupUrl = "https://tra-cuu.vnpt-invoice.com.vn"; modified = true; }
+                        else if (!string.IsNullOrEmpty(inv.SellerWebsite) && inv.SellerWebsite.StartsWith("http", StringComparison.OrdinalIgnoreCase)) { inv.LookupUrl = inv.SellerWebsite; modified = true; }
+                    }
+                    foreach (var d in inv.Details)
+                    {
+                        if (d.TotalAmountVnd == 0)
+                        {
+                            var rate = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1;
+                            d.AmountBeforeTaxForeign = d.AmountBeforeTax;
+                            d.TaxAmountForeign = d.TaxAmount;
+                            d.TotalAmountForeign = d.TotalAmount;
+                            d.AmountBeforeTaxVnd = Math.Round(d.AmountBeforeTax * rate, 0);
+                            d.TaxAmountVnd = Math.Round(d.TaxAmount * rate, 0);
+                            d.TotalAmountVnd = Math.Round(d.TotalAmount * rate, 0);
+                            modified = true;
                         }
                     }
 

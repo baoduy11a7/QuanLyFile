@@ -40,6 +40,14 @@ namespace InvoiceManager.Models.Entities
         public decimal AmountBeforeTax { get; set; } = 0;
 
         [Column(TypeName = "decimal(5,2)")]
+        [Display(Name = "Chiết khấu (%)")]
+        public decimal DiscountRate { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Số tiền chiết khấu")]
+        public decimal DiscountAmount { get; set; } = 0;
+
+        [Column(TypeName = "decimal(5,2)")]
         [Display(Name = "Thuế suất GTGT (%)")]
         public decimal TaxRate { get; set; } = 10; // 0, 5, 8, 10, -1 là KCT (Không chịu thuế)
 
@@ -50,6 +58,30 @@ namespace InvoiceManager.Models.Entities
         [Column(TypeName = "decimal(18,2)")]
         [Display(Name = "Tổng cộng")]
         public decimal TotalAmount { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền chưa thuế nguyên tệ")]
+        public decimal AmountBeforeTaxForeign { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền thuế nguyên tệ")]
+        public decimal TaxAmountForeign { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền sau thuế nguyên tệ")]
+        public decimal TotalAmountForeign { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền chưa thuế (VND)")]
+        public decimal AmountBeforeTaxVnd { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền thuế (VND)")]
+        public decimal TaxAmountVnd { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        [Display(Name = "Tiền sau thuế (VND)")]
+        public decimal TotalAmountVnd { get; set; } = 0;
 
         [StringLength(255)]
         public string? Notes { get; set; }
