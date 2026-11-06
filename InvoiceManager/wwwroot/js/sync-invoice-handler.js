@@ -184,10 +184,10 @@
                             '<td class="text-center text-muted fw-semibold">' + (it.stt || (i + 1)) + '</td>' +
                             '<td>' + (it.fromDate || '-') + '</td>' +
                             '<td>' + (it.toDate || '-') + '</td>' +
-                            '<td class="text-center fw-bold text-dark">' + (it.syncedCount || 0) + '</td>' +
+                            '<td class="text-center"><span class="badge bg-light text-dark border fw-bold px-2 py-1">' + (it.syncedCount || 0) + ' HĐ</span></td>' +
                             '<td class="text-center">' + statusBadge + '</td>' +
-                            '<td class="text-truncate" style="max-width: 280px;" title="' + (it.description || '') + '">' + (it.description || '-') + '</td>' +
-                            '<td class="text-center text-muted small">' + (it.syncedAt || '-') + '</td>' +
+                            '<td class="cell-truncate" title="' + (it.description || '') + '">' + (it.description || '-') + '</td>' +
+                            '<td class="text-center text-muted small fw-medium">' + (it.syncedAt || '-') + '</td>' +
                             '</tr>';
                     }
 

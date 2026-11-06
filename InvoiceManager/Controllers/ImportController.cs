@@ -587,9 +587,10 @@ namespace InvoiceManager.Controllers
                 return Json(new { success = false, message = "Chưa chọn tài khoản doanh nghiệp làm việc." });
             }
 
+            // Chỉ lấy nhật ký đồng bộ API Cổng Thuế GOV thực tế, loại bỏ log kiểm tra thư mục trống
             var logs = await _db.SyncLogs
                 .AsNoTracking()
-                .Where(s => s.TaxAccountId == currentAccount.Id)
+                .Where(s => s.TaxAccountId == currentAccount.Id && !s.SyncType.Contains("Hangfire") && !s.SyncType.Contains("Thư mục"))
                 .OrderByDescending(s => s.SyncedAt)
                 .Take(50)
                 .ToListAsync();
@@ -613,14 +614,25 @@ namespace InvoiceManager.Controllers
                     toDate = l.SyncedAt.ToString("dd/MM/yyyy");
                 }
 
+                int displayCount = l.NewInvoiceCount;
+                if (displayCount == 0 && !string.IsNullOrEmpty(l.ErrorMessage))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(l.ErrorMessage, @"(\d+)\s+đã đủ file|Tìm thấy\s+(\d+)");
+                    if (match.Success)
+                    {
+                        var numStr = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                        int.TryParse(numStr, out displayCount);
+                    }
+                }
+
                 return new
                 {
                     stt = idx + 1,
                     fromDate = fromDate,
                     toDate = toDate,
-                    syncedCount = l.NewInvoiceCount,
+                    syncedCount = displayCount,
                     status = l.Status,
-                    description = l.ErrorMessage ?? (l.Status == "Thành công" ? "Đồng bộ thành công" : "Có lỗi phát sinh"),
+                    description = l.ErrorMessage ?? (l.Status == "Thành công" ? "Đồng bộ thành công từ Cổng Thuế GOV" : "Có lỗi phát sinh"),
                     syncedAt = l.SyncedAt.ToString("dd/MM/yyyy HH:mm")
                 };
             }).ToList();

@@ -130,24 +130,24 @@
                         </button>
                     </div>
 
-                    <div class="table-responsive border rounded" style="max-height: 220px; overflow-y: auto;">
-                        <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.85rem;" id="tableSyncHistory">
+                    <div class="table-responsive border rounded" style="max-height: 240px; overflow-y: auto;">
+                        <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.82rem;" id="tableSyncHistory">
                             <thead class="table-light sticky-top">
                                 <tr>
-                                    <th class="text-center py-2 px-2" style="width: 50px;">STT</th>
-                                    <th class="py-2 px-2">Đồng bộ từ ngày</th>
-                                    <th class="py-2 px-2">Đồng bộ đến ngày</th>
-                                    <th class="text-center py-2 px-2">Số lượng đồng bộ</th>
-                                    <th class="text-center py-2 px-2">Trạng thái đồng bộ</th>
-                                    <th class="py-2 px-2">Diễn giải</th>
-                                    <th class="text-center py-2 px-2">Ngày đồng bộ</th>
+                                    <th class="text-center py-2 px-1" style="width: 45px;">STT</th>
+                                    <th class="py-2 px-2" style="width: 105px;">Đồng bộ từ ngày</th>
+                                    <th class="py-2 px-2" style="width: 105px;">Đồng bộ đến ngày</th>
+                                    <th class="text-center py-2 px-2" style="width: 95px;">Số lượng HĐ</th>
+                                    <th class="text-center py-2 px-2" style="width: 110px;">Trạng thái</th>
+                                    <th class="py-2 px-2" style="min-width: 180px;">Diễn giải từ Cổng Thuế</th>
+                                    <th class="text-center py-2 px-2" style="width: 125px;">Ngày đồng bộ</th>
                                 </tr>
                             </thead>
                             <tbody id="tbodySyncHistory">
                                 <tr>
                                     <td colspan="7" class="text-center py-4 text-muted">
                                         <div class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
-                                        Đang tải lịch sử đồng bộ...
+                                        Đang tải lịch sử đồng bộ API Cổng Thuế...
                                     </td>
                                 </tr>
                             </tbody>
@@ -196,10 +196,18 @@
         white-space: nowrap;
         background-color: #f9fafb;
         border-bottom: 1px solid #e5e7eb;
+        padding: 6px 8px;
     }
     #tableSyncHistory tbody td {
+        padding: 6px 8px;
         white-space: nowrap;
         vertical-align: middle;
+    }
+    #tableSyncHistory tbody td.cell-truncate {
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 </style>
 

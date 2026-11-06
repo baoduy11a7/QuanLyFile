@@ -520,7 +520,7 @@ namespace InvoiceManager.Jobs
                     {
                         TaxAccountId = taxAccountId,
                         SyncedAt = DateTime.Now,
-                        NewInvoiceCount = newCount,
+                        NewInvoiceCount = total,
                         Status = (failedCount == 0 && filesFailedCount == 0) ? "Thành công" : "Cảnh báo",
                         ErrorMessage = summaryMsg,
                         SyncType = $"{req.FromDate:dd/MM/yyyy} - {req.ToDate:dd/MM/yyyy}"
