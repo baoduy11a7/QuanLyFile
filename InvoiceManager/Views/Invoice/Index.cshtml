@@ -390,32 +390,9 @@
 
     }
 
-    #invoiceTable,
-    #invoiceDetailTable {
-        max-height: calc(100vh - 275px);
-        min-height: 420px;
-        overflow: auto;
-        cursor: grab;
-        position: relative;
-    }
-
-    #invoiceTable:active,
-    #invoiceDetailTable:active {
-        cursor: grabbing;
-    }
-
-    .fdi-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        background: #f8fafc !important;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-    }
-
     #invoiceTable::-webkit-scrollbar,
     #invoiceDetailTable::-webkit-scrollbar {
-        height: 12px;
-        width: 8px;
+        height: 10px;
     }
 
     #invoiceTable::-webkit-scrollbar-track,
@@ -427,66 +404,30 @@
     #invoiceTable::-webkit-scrollbar-thumb,
     #invoiceDetailTable::-webkit-scrollbar-thumb {
         background: #94a3b8;
-        border-radius: 6px;
+        border-radius: 4px;
     }
 
     #invoiceTable::-webkit-scrollbar-thumb:hover,
     #invoiceDetailTable::-webkit-scrollbar-thumb:hover {
-        background: #475569;
-    }
-
-    /* Nút trượt nhanh nổi trái / phải trên bảng */
-    .fdi-table-nav-btn {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid #cbd5e1;
-        color: #2563eb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 20;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-size: 1.15rem;
-    }
-
-    .fdi-table-nav-btn:hover {
-        background: #2563eb;
-        color: #fff;
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-        transform: translateY(-50%) scale(1.1);
-    }
-
-    .fdi-table-nav-left {
-        left: 8px;
-    }
-
-    .fdi-table-nav-right {
-        right: 8px;
+        background: #64748b;
     }
 
     /* Thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng */
     .sticky-horizontal-scrollbar {
         position: fixed;
         bottom: 0;
-        height: 14px;
+        height: 15px;
         background: #f8fafc;
         border-top: 1px solid #cbd5e1;
         overflow-x: auto;
         overflow-y: hidden;
-        z-index: 1040;
+        z-index: 1050;
         display: none;
-        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.12);
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar {
-        height: 12px;
+        height: 13px;
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
@@ -1100,16 +1041,6 @@
 
                 </button>
 
-                <!-- Nút trượt nhanh trái / phải cho bảng -->
-                <div class="btn-group btn-group-sm" role="group" aria-label="Điều hướng cuộn ngang">
-                    <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" onclick="scrollTableHorizontally(-350)" title="Trượt bảng sang trái (xem các cột bên trái)">
-                        <i class="bi bi-arrow-left"></i> Trượt trái
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" onclick="scrollTableHorizontally(350)" title="Trượt bảng sang phải (xem các cột bên phải)">
-                        Trượt phải <i class="bi bi-arrow-right"></i>
-                    </button>
-                </div>
-
                 <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnBatchDownloadOriginal" onclick="triggerBatchOriginalDownload()" title="Tải hàng loạt file PDF và XML gốc từ Tổng cục Thuế">
 
                     <i class="bi bi-download me-1"></i> Tải hàng loạt hóa đơn gốc
@@ -1126,17 +1057,8 @@
 
         </div>
 
-        <!-- KHUNG CHỨA BẢNG VỚI NÚT ĐIỀU HƯỚNG NỔI -->
-        <div class="position-relative">
-            <button type="button" class="fdi-table-nav-btn fdi-table-nav-left d-none" id="btnFloatingScrollLeft" onclick="scrollTableHorizontally(-350)" title="Trượt sang trái">
-                <i class="bi bi-chevron-left"></i>
-            </button>
-            <button type="button" class="fdi-table-nav-btn fdi-table-nav-right d-none" id="btnFloatingScrollRight" onclick="scrollTableHorizontally(350)" title="Trượt sang phải">
-                <i class="bi bi-chevron-right"></i>
-            </button>
-
-            <!-- 1. BẢNG TỔNG QUÁT HÓA ĐƠN -->
-            <div class="table-responsive" id="invoiceTable">
+        <!-- 1. BẢNG TỔNG QUÁT HÓA ĐƠN -->
+        <div class="table-responsive" id="invoiceTable">
 
             <table class="table fdi-table align-middle mb-0 text-nowrap">
 
@@ -1690,7 +1612,6 @@
             </table>
 
         </div>
-        </div>
 
         <!-- Thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar) -->
         <div id="stickyHorizontalScrollbar" class="sticky-horizontal-scrollbar" title="Kéo để xem các cột thông tin bên phải">
@@ -1892,123 +1813,13 @@
             return document.getElementById('invoiceTable');
         }
 
-        // Trượt bảng sang trái / phải theo khoảng cách px
-        function scrollTableHorizontally(distance) {
-            var activeWrapper = getActiveTableWrapper();
-            if (activeWrapper) {
-                activeWrapper.scrollBy({ left: distance, behavior: 'smooth' });
-            }
-        }
-
-        // Cập nhật trạng thái hiển thị 2 nút trượt nổi trái / phải
-        function updateFloatingNavButtons() {
-            var btnLeft = document.getElementById('btnFloatingScrollLeft');
-            var btnRight = document.getElementById('btnFloatingScrollRight');
-            if (!btnLeft || !btnRight) return;
-
-            var tableWrapper = getActiveTableWrapper();
-            if (!tableWrapper) {
-                btnLeft.classList.add('d-none');
-                btnRight.classList.add('d-none');
-                return;
-            }
-
-            var scrollW = tableWrapper.scrollWidth;
-            var clientW = tableWrapper.clientWidth;
-            if (scrollW <= clientW + 5) {
-                btnLeft.classList.add('d-none');
-                btnRight.classList.add('d-none');
-                return;
-            }
-
-            if (tableWrapper.scrollLeft > 10) {
-                btnLeft.classList.remove('d-none');
-            } else {
-                btnLeft.classList.add('d-none');
-            }
-
-            if (tableWrapper.scrollLeft < scrollW - clientW - 10) {
-                btnRight.classList.remove('d-none');
-            } else {
-                btnRight.classList.add('d-none');
-            }
-        }
-
-        // Cho phép bấm giữ chuột trái kéo trượt ngang bảng trực tiếp (Drag to scroll)
-        function enableDragToScroll(containerId) {
-            var container = document.getElementById(containerId);
-            if (!container) return;
-
-            var isDown = false;
-            var startX;
-            var scrollLeft;
-
-            container.addEventListener('mousedown', function (e) {
-                if (e.button !== 0) return;
-                if (e.target.closest('a, button, input, select, label, .badge, textarea')) {
-                    return;
-                }
-                isDown = true;
-                container.style.cursor = 'grabbing';
-                startX = e.pageX - container.offsetLeft;
-                scrollLeft = container.scrollLeft;
-            });
-
-            container.addEventListener('mouseleave', function () {
-                if (isDown) {
-                    isDown = false;
-                    container.style.cursor = 'grab';
-                }
-            });
-
-            window.addEventListener('mouseup', function () {
-                if (isDown) {
-                    isDown = false;
-                    container.style.cursor = 'grab';
-                }
-            });
-
-            container.addEventListener('mousemove', function (e) {
-                if (!isDown) return;
-                var x = e.pageX - container.offsetLeft;
-                var walk = (x - startX);
-                if (Math.abs(walk) > 3) {
-                    e.preventDefault();
-                    container.scrollLeft = scrollLeft - walk;
-                }
-            });
-        }
-
-        // Hỗ trợ cuộn chuột Shift + Wheel mượt mà
-        function enableWheelHorizontalScroll(containerId) {
-            var container = document.getElementById(containerId);
-            if (!container) return;
-
-            container.addEventListener('wheel', function (e) {
-                if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-                    if (e.shiftKey && e.deltaY !== 0) {
-                        e.preventDefault();
-                        container.scrollLeft += e.deltaY * 1.5;
-                    }
-                }
-            }, { passive: false });
-        }
-
-        // Khởi tạo hệ thống thanh kéo ngang và kéo chuột tiện lợi
+        // Khởi tạo thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng (Sticky Bottom Scrollbar)
         function initTableHorizontalScrollbars() {
             var stickyBar = document.getElementById('stickyHorizontalScrollbar');
             var stickyInner = document.getElementById('stickyHorizontalScrollInner');
-
-            enableDragToScroll('invoiceTable');
-            enableDragToScroll('invoiceDetailTable');
-            enableWheelHorizontalScroll('invoiceTable');
-            enableWheelHorizontalScroll('invoiceDetailTable');
+            if (!stickyBar || !stickyInner) return;
 
             function updateStickyPosition() {
-                updateFloatingNavButtons();
-
-                if (!stickyBar || !stickyInner) return;
-
                 var tableWrapper = getActiveTableWrapper();
                 if (!tableWrapper) {
                     stickyBar.style.display = 'none';
@@ -2020,6 +1831,7 @@
 
                 var scrollW = tableEl.scrollWidth;
                 var clientW = tableWrapper.clientWidth;
+                // Nếu bảng không bị tràn ngang thì ẩn thanh cuộn nổi
                 if (scrollW <= clientW + 2) {
                     stickyBar.style.display = 'none';
                     return;
@@ -2030,9 +1842,12 @@
                 var rect = tableWrapper.getBoundingClientRect();
                 var windowHeight = window.innerHeight || document.documentElement.clientHeight;
 
-                var isTableInView = rect.top < windowHeight - 40;
-                var isBottomBelowScreen = rect.bottom > windowHeight + 15;
+                // Bảng đã bắt đầu lọt vào màn hình
+                var isTableInView = rect.top < windowHeight - 30;
+                // Chân bảng (thanh cuộn tự nhiên của bảng) vẫn đang nằm dưới đáy màn hình
+                var isBottomBelowScreen = rect.bottom > windowHeight;
 
+                // Tự động ghim nổi ở đáy màn hình khi xem ở giữa bảng; tự động ẩn khi cuộn xuống hết bảng
                 if (isTableInView && isBottomBelowScreen) {
                     stickyBar.style.display = 'block';
                     stickyBar.style.left = rect.left + 'px';
@@ -2049,26 +1864,22 @@
 
             var isSyncing = false;
 
-            if (stickyBar) {
-                stickyBar.addEventListener('scroll', function () {
-                    if (!isSyncing) {
-                        isSyncing = true;
-                        var tableWrapper = getActiveTableWrapper();
-                        if (tableWrapper) {
-                            tableWrapper.scrollLeft = stickyBar.scrollLeft;
-                        }
-                        updateFloatingNavButtons();
-                        setTimeout(function () { isSyncing = false; }, 10);
+            stickyBar.addEventListener('scroll', function () {
+                if (!isSyncing) {
+                    isSyncing = true;
+                    var tableWrapper = getActiveTableWrapper();
+                    if (tableWrapper) {
+                        tableWrapper.scrollLeft = stickyBar.scrollLeft;
                     }
-                });
-            }
+                    setTimeout(function () { isSyncing = false; }, 10);
+                }
+            });
 
             ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
                 var tbl = document.getElementById(tableId);
                 if (tbl) {
                     tbl.addEventListener('scroll', function () {
-                        updateFloatingNavButtons();
-                        if (stickyBar && !isSyncing) {
+                        if (!isSyncing) {
                             isSyncing = true;
                             stickyBar.scrollLeft = tbl.scrollLeft;
                             setTimeout(function () { isSyncing = false; }, 10);
