@@ -390,6 +390,39 @@
 
     }
 
+    /* Thanh kéo ngang phụ ở đỉnh bảng hóa đơn */
+    .fdi-table-top-scroll {
+        overflow-x: auto;
+        overflow-y: hidden;
+        width: 100%;
+        height: 12px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: none;
+    }
+
+    .fdi-table-top-scroll::-webkit-scrollbar,
+    #invoiceTable::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .fdi-table-top-scroll::-webkit-scrollbar-track,
+    #invoiceTable::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .fdi-table-top-scroll::-webkit-scrollbar-thumb,
+    #invoiceTable::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 4px;
+    }
+
+    .fdi-table-top-scroll::-webkit-scrollbar-thumb:hover,
+    #invoiceTable::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+
 </style>
 
 
@@ -1002,7 +1035,10 @@
 
         </div>
 
-
+        <!-- Thanh kéo ngang phụ ở đỉnh bảng (Đồng bộ với bảng hóa đơn bên dưới) -->
+        <div class="fdi-table-top-scroll" id="tableTopScrollWrapper" title="Kéo để xem các cột thông tin bên phải">
+            <div id="tableTopScrollInner" style="height: 1px;"></div>
+        </div>
 
         <div class="table-responsive" id="invoiceTable">
 
@@ -1396,7 +1432,62 @@
                     locale: vnLocale
                 });
             }
+
+            // Đồng bộ thanh cuộn ngang phụ ở đỉnh bảng với bảng hóa đơn
+            initDoubleScroll();
         });
+
+        function initDoubleScroll() {
+            var topWrapper = document.getElementById('tableTopScrollWrapper');
+            var topInner = document.getElementById('tableTopScrollInner');
+            var tableWrapper = document.getElementById('invoiceTable');
+            if (!topWrapper || !topInner || !tableWrapper) return;
+
+            var tableEl = tableWrapper.querySelector('table');
+            if (!tableEl) return;
+
+            function updateScrollWidth() {
+                var scrollW = tableEl.scrollWidth;
+                var clientW = tableWrapper.clientWidth;
+                topInner.style.width = scrollW + 'px';
+
+                if (scrollW > clientW + 2) {
+                    topWrapper.style.display = 'block';
+                } else {
+                    topWrapper.style.display = 'none';
+                }
+            }
+
+            updateScrollWidth();
+            window.addEventListener('resize', updateScrollWidth);
+
+            var isSyncingTop = false;
+            var isSyncingBottom = false;
+
+            topWrapper.addEventListener('scroll', function () {
+                if (!isSyncingTop) {
+                    isSyncingBottom = true;
+                    tableWrapper.scrollLeft = topWrapper.scrollLeft;
+                }
+                isSyncingTop = false;
+            });
+
+            tableWrapper.addEventListener('scroll', function () {
+                if (!isSyncingBottom) {
+                    isSyncingTop = true;
+                    topWrapper.scrollLeft = tableWrapper.scrollLeft;
+                }
+                isSyncingBottom = false;
+            });
+
+            if (window.ResizeObserver) {
+                var ro = new ResizeObserver(function () {
+                    updateScrollWidth();
+                });
+                ro.observe(tableEl);
+                ro.observe(tableWrapper);
+            }
+        }
 
         $('#selectAll').on('change', function() {
 
