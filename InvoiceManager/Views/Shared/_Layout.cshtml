@@ -1242,12 +1242,16 @@
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 
-    <!-- THANH CUỘN NGANG NỔI SÁT ĐÁY MÀN HÌNH (CHUẨN SCROLLBAR TỰ NHIÊN NHƯ ẢNH 1) -->
-    <div id="fdiFloatingScrollbar" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 14px !important; background: #f1f5f9 !important; border-top: 1px solid #e2e8f0 !important; overflow-x: scroll !important; overflow-y: hidden !important; z-index: 2147483647 !important; display: none; box-shadow: 0 -2px 6px rgba(0,0,0,0.08) !important;">
-        <div id="fdiFloatingScrollbarInner" style="width: 4500px; height: 1px; min-height: 1px;">&nbsp;</div>
+    <!-- THANH CUỘN NGANG NỔI SÁT ĐÁY MÀN HÌNH (CHUẨN SCROLLBAR TỰ NHIÊN NHƯ BẢNG HÓA ĐƠN) -->
+    <div id="fdiFloatingScrollbar" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100vw !important; height: 14px !important; background: #f1f5f9 !important; border-top: 1px solid #cbd5e1 !important; overflow-x: scroll !important; overflow-y: hidden !important; z-index: 2147483647 !important; display: none; box-shadow: 0 -2px 6px rgba(0,0,0,0.06) !important;">
+        <div id="fdiFloatingScrollbarInner" style="height: 1px; min-height: 1px; line-height: 1px; font-size: 1px;">&nbsp;</div>
     </div>
 
     <style>
+        #fdiFloatingScrollbar {
+            scrollbar-color: #94a3b8 #f1f5f9 !important;
+            scrollbar-width: thin !important;
+        }
         #fdiFloatingScrollbar::-webkit-scrollbar {
             height: 12px !important;
         }
@@ -1269,68 +1273,124 @@
             function getActiveTable() {
                 var d = document.getElementById('invoiceDetailTable');
                 if (d && !d.classList.contains('d-none')) return d;
-                return document.getElementById('invoiceTable');
+                var t = document.getElementById('invoiceTable');
+                if (t && !t.classList.contains('d-none')) return t;
+                return document.querySelector('.table-responsive');
             }
 
             function setupFloatingScroll() {
                 var bar = document.getElementById('fdiFloatingScrollbar');
                 var inner = document.getElementById('fdiFloatingScrollbarInner');
-
                 if (!bar || !inner) return;
 
-                var tbl = getActiveTable();
-                if (!tbl) {
-                    bar.style.display = 'none';
-                    return;
-                }
+                var isSyncing = false;
 
-                // Luôn hiển thị thanh cuộn nổi cố định ở mép đáy màn hình khi có bảng dữ liệu
-                bar.style.display = 'block';
-
-                function sync() {
+                function updateScrollMetrics() {
                     var currentTbl = getActiveTable();
-                    if (!currentTbl) return;
+                    if (!currentTbl) {
+                        bar.style.display = 'none';
+                        return;
+                    }
 
                     var tableEl = currentTbl.querySelector('table');
-                    var scrollW = Math.max(
+                    var tblScrollWidth = Math.max(
                         currentTbl.scrollWidth || 0,
                         tableEl ? (tableEl.scrollWidth || 0) : 0,
-                        tableEl ? (tableEl.offsetWidth || 0) : 0,
-                        4000
+                        tableEl ? (tableEl.offsetWidth || 0) : 0
                     );
-                    inner.style.width = scrollW + 'px';
+                    var tblClientWidth = currentTbl.clientWidth || window.innerWidth;
+                    var hasOverflow = tblScrollWidth > (tblClientWidth + 10);
+
+                    if (!hasOverflow) {
+                        bar.style.display = 'none';
+                        return;
+                    }
+
+                    var rect = currentTbl.getBoundingClientRect();
+                    var isInView = rect.bottom > 80 && rect.top < window.innerHeight;
+
+                    if (!isInView) {
+                        bar.style.display = 'none';
+                        return;
+                    }
+
+                    bar.style.display = 'block';
+
+                    if (inner.offsetWidth !== tblScrollWidth) {
+                        inner.style.width = tblScrollWidth + 'px';
+                    }
+
                     if (!isSyncing) {
-                        bar.scrollLeft = currentTbl.scrollLeft;
+                        var maxTableScroll = tblScrollWidth - tblClientWidth;
+                        var maxBarScroll = inner.offsetWidth - bar.clientWidth;
+                        if (maxBarScroll > 0 && maxTableScroll > 0) {
+                            var ratio = currentTbl.scrollLeft / maxTableScroll;
+                            bar.scrollLeft = Math.round(ratio * maxBarScroll);
+                        } else {
+                            bar.scrollLeft = currentTbl.scrollLeft;
+                        }
                     }
                 }
 
-                var isSyncing = false;
                 bar.addEventListener('scroll', function() {
-                    if (!isSyncing) {
-                        isSyncing = true;
-                        var currentTbl = getActiveTable();
-                        if (currentTbl) currentTbl.scrollLeft = bar.scrollLeft;
-                        setTimeout(function() { isSyncing = false; }, 10);
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    var currentTbl = getActiveTable();
+                    if (currentTbl) {
+                        var tableEl = currentTbl.querySelector('table');
+                        var tblScrollWidth = Math.max(
+                            currentTbl.scrollWidth || 0,
+                            tableEl ? (tableEl.scrollWidth || 0) : 0
+                        );
+                        var tblClientWidth = currentTbl.clientWidth || window.innerWidth;
+                        var maxTableScroll = tblScrollWidth - tblClientWidth;
+                        var maxBarScroll = inner.offsetWidth - bar.clientWidth;
+                        if (maxBarScroll > 0 && maxTableScroll > 0) {
+                            var ratio = bar.scrollLeft / maxBarScroll;
+                            currentTbl.scrollLeft = Math.round(ratio * maxTableScroll);
+                        } else {
+                            currentTbl.scrollLeft = bar.scrollLeft;
+                        }
                     }
+                    setTimeout(function() { isSyncing = false; }, 20);
                 });
+
+                function onTableScroll(e) {
+                    if (isSyncing) return;
+                    isSyncing = true;
+                    var tbl = e.currentTarget;
+                    var tableEl = tbl.querySelector('table');
+                    var tblScrollWidth = Math.max(
+                        tbl.scrollWidth || 0,
+                        tableEl ? (tableEl.scrollWidth || 0) : 0
+                    );
+                    var tblClientWidth = tbl.clientWidth || window.innerWidth;
+                    var maxTableScroll = tblScrollWidth - tblClientWidth;
+                    var maxBarScroll = inner.offsetWidth - bar.clientWidth;
+                    if (maxBarScroll > 0 && maxTableScroll > 0) {
+                        var ratio = tbl.scrollLeft / maxTableScroll;
+                        bar.scrollLeft = Math.round(ratio * maxBarScroll);
+                    } else {
+                        bar.scrollLeft = tbl.scrollLeft;
+                    }
+                    setTimeout(function() { isSyncing = false; }, 20);
+                }
 
                 ['invoiceTable', 'invoiceDetailTable'].forEach(function(id) {
-                    var t = document.getElementById(id);
-                    if (t) {
-                        t.addEventListener('scroll', function() {
-                            if (!isSyncing) {
-                                isSyncing = true;
-                                bar.scrollLeft = t.scrollLeft;
-                                setTimeout(function() { isSyncing = false; }, 10);
-                            }
-                        });
+                    var el = document.getElementById(id);
+                    if (el && !el._hasFloatingScrollListener) {
+                        el._hasFloatingScrollListener = true;
+                        el.addEventListener('scroll', onTableScroll, { passive: true });
                     }
                 });
 
-                window.addEventListener('resize', sync);
-                window.addEventListener('scroll', sync, { passive: true });
-                setInterval(sync, 1500);
-                sync();
+                window.activeTableScrollUpdate = updateScrollMetrics;
+
+                window.addEventListener('scroll', updateScrollMetrics, { passive: true });
+                window.addEventListener('resize', updateScrollMetrics);
+
+                updateScrollMetrics();
+                setInterval(updateScrollMetrics, 800);
             }
 
             if (document.readyState === 'loading') {
@@ -1341,11 +1401,6 @@
             setTimeout(setupFloatingScroll, 100);
             setTimeout(setupFloatingScroll, 500);
             setTimeout(setupFloatingScroll, 1500);
-        })();
-    </script>
-            }
-            setTimeout(setupFloatingScroll, 300);
-            setTimeout(setupFloatingScroll, 1000);
         })();
     </script>
 </body>
