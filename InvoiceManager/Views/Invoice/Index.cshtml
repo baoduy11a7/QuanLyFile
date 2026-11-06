@@ -413,6 +413,48 @@
         background: #64748b;
     }
 
+    /* Thanh cuộn ngang linh động nổi ở đáy màn hình khi xem dữ liệu bảng (Floating Scrollbar) */
+    #fdiDynamicScrollbar {
+        position: fixed !important;
+        bottom: 0 !important;
+        height: 16px !important;
+        background: #f8fafc !important;
+        border-top: 1px solid #cbd5e1 !important;
+        overflow-x: scroll !important;
+        overflow-y: hidden !important;
+        z-index: 1045 !important;
+        display: none;
+        box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.15) !important;
+        scrollbar-color: #64748b #f1f5f9 !important;
+        scrollbar-width: thin !important;
+    }
+
+    #fdiDynamicScrollbar::-webkit-scrollbar {
+        height: 14px !important;
+    }
+
+    #fdiDynamicScrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9 !important;
+        border-radius: 4px !important;
+    }
+
+    #fdiDynamicScrollbar::-webkit-scrollbar-thumb {
+        background: #94a3b8 !important;
+        border-radius: 9999px !important;
+        border: 2px solid #f1f5f9 !important;
+    }
+
+    #fdiDynamicScrollbar::-webkit-scrollbar-thumb:hover {
+        background: #475569 !important;
+    }
+
+    #fdiDynamicScrollbarTrack {
+        height: 1px !important;
+        min-height: 1px !important;
+        line-height: 1px !important;
+        font-size: 1px !important;
+    }
+
 </style>
 
 
@@ -1655,6 +1697,11 @@
 
 </div>
 
+<!-- Thanh trượt ngang linh hoạt nổi ở đáy màn hình khi xem giữa bảng -->
+<div id="fdiDynamicScrollbar" title="Kéo để xem các cột thông tin bên phải">
+    <div id="fdiDynamicScrollbarTrack" style="height: 1px; min-height: 1px; line-height: 1px; font-size: 1px;">&nbsp;</div>
+</div>
+
 
 
 <!-- Modal Xem PDF Gốc Hóa Đơn Điện Tử -->
@@ -1742,6 +1789,9 @@
 
             // Kích hoạt tính năng kéo chuột trực tiếp trên bảng (Drag to Scroll)
             setupTableDragToScroll();
+
+            // Kích hoạt thanh trượt ngang linh động nổi khi cuộn trang ở giữa bảng (Dynamic Floating Scrollbar)
+            setupDynamicFloatingScrollbar();
         });
 
         // Chuyển đổi giữa 2 tab: Tổng quát & Chi tiết hoá đơn
@@ -1765,13 +1815,13 @@
 
             // Đồng bộ lại vị trí thanh cuộn sau khi chuyển tab
             setTimeout(function() {
-                if (window.activeTableScrollUpdate) {
-                    window.activeTableScrollUpdate();
+                if (window.updateDynamicFloatingScrollbar) {
+                    window.updateDynamicFloatingScrollbar();
                 }
             }, 30);
             setTimeout(function() {
-                if (window.activeTableScrollUpdate) {
-                    window.activeTableScrollUpdate();
+                if (window.updateDynamicFloatingScrollbar) {
+                    window.updateDynamicFloatingScrollbar();
                 }
             }, 150);
         }
@@ -1831,6 +1881,102 @@
                     }, { passive: true });
                 }
             });
+        }
+
+        // Thiết lập thanh trượt ngang linh động nổi khi cuộn trang ở giữa bảng (Dynamic Floating Scrollbar)
+        function setupDynamicFloatingScrollbar() {
+            var bar = document.getElementById('fdiDynamicScrollbar');
+            var track = document.getElementById('fdiDynamicScrollbarTrack');
+            if (!bar || !track) return;
+
+            var isSyncing = false;
+
+            function updateMetrics() {
+                var activeTable = getActiveTableWrapper();
+                if (!activeTable) {
+                    bar.style.display = 'none';
+                    return;
+                }
+
+                var tableEl = activeTable.querySelector('table');
+                var contentWidth = Math.max(
+                    activeTable.scrollWidth || 0,
+                    tableEl ? (tableEl.scrollWidth || 0) : 0,
+                    tableEl ? (tableEl.offsetWidth || 0) : 0
+                );
+                var containerWidth = activeTable.clientWidth || 0;
+
+                // Nếu bảng không bị tràn ngang thì ẩn thanh trượt
+                if (contentWidth <= containerWidth + 10) {
+                    bar.style.display = 'none';
+                    return;
+                }
+
+                var rect = activeTable.getBoundingClientRect();
+                var winH = window.innerHeight || document.documentElement.clientHeight;
+
+                // Người dùng đang xem trong phạm vi bảng và đáy bảng thực tế đang nằm ngoài màn hình phía dưới
+                var isTableInView = rect.top < (winH - 40) && rect.bottom > 50;
+                var isTableBottomOffscreen = rect.bottom > winH;
+
+                if (isTableInView && isTableBottomOffscreen) {
+                    var left = Math.max(0, rect.left);
+                    var right = Math.min(window.innerWidth, rect.right);
+                    var width = right - left;
+
+                    if (width > 50) {
+                        bar.style.left = left + 'px';
+                        bar.style.width = width + 'px';
+                        bar.style.display = 'block';
+
+                        track.style.width = contentWidth + 'px';
+
+                        if (!isSyncing && Math.abs(bar.scrollLeft - activeTable.scrollLeft) > 1) {
+                            bar.scrollLeft = activeTable.scrollLeft;
+                        }
+                        return;
+                    }
+                }
+
+                bar.style.display = 'none';
+            }
+
+            // Kéo thanh trượt nổi -> cuộn bảng tương ứng
+            bar.addEventListener('scroll', function() {
+                if (isSyncing) return;
+                isSyncing = true;
+                var activeTable = getActiveTableWrapper();
+                if (activeTable) {
+                    activeTable.scrollLeft = bar.scrollLeft;
+                }
+                requestAnimationFrame(function() {
+                    isSyncing = false;
+                });
+            });
+
+            // Khi bảng tự cuộn (kéo chuột trên bảng, phím mũi tên, shift+lăn chuột) -> đồng bộ sang thanh trượt nổi
+            ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
+                var el = document.getElementById(tableId);
+                if (el && !el._hasDynamicScrollSync) {
+                    el._hasDynamicScrollSync = true;
+                    el.addEventListener('scroll', function() {
+                        if (isSyncing) return;
+                        isSyncing = true;
+                        bar.scrollLeft = el.scrollLeft;
+                        requestAnimationFrame(function() {
+                            isSyncing = false;
+                        });
+                    }, { passive: true });
+                }
+            });
+
+            window.updateDynamicFloatingScrollbar = updateMetrics;
+
+            window.addEventListener('scroll', updateMetrics, { passive: true });
+            window.addEventListener('resize', updateMetrics);
+
+            updateMetrics();
+            setInterval(updateMetrics, 500);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
