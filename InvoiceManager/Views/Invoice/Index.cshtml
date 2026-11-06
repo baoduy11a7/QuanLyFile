@@ -1827,21 +1827,22 @@
             return document.getElementById('invoiceTable');
         }
 
-        // Kích hoạt tính năng kéo chuột trực tiếp trên bảng để trượt ngang (Grab & Drag to Scroll)
+        // Kích hoạt tính năng kéo chuột trực tiếp trên bảng để trượt ngang linh hoạt (Grab & Drag to Scroll)
         function setupTableDragToScroll() {
             ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
                 var tbl = document.getElementById(tableId);
                 if (tbl) {
                     var isDown = false;
-                    var startX;
-                    var scrollLeft;
+                    var startX = 0;
+                    var scrollLeft = 0;
+                    var hasDragged = false;
 
                     tbl.addEventListener('mousedown', function(e) {
                         if (e.button !== 0) return;
-                        if (e.target.closest('a, button, input, select, textarea, .btn')) return;
+                        if (e.target.closest('a, button, input, select, textarea, .btn, .form-check-input, .badge')) return;
                         isDown = true;
-                        tbl.style.cursor = 'grab';
-                        startX = e.pageX - tbl.offsetLeft;
+                        hasDragged = false;
+                        startX = e.pageX;
                         scrollLeft = tbl.scrollLeft;
                     });
 
@@ -1849,16 +1850,28 @@
                         if (isDown) {
                             isDown = false;
                             tbl.style.cursor = '';
+                            tbl.classList.remove('user-select-none');
                         }
                     });
 
                     window.addEventListener('mousemove', function(e) {
                         if (!isDown) return;
-                        e.preventDefault();
-                        var x = e.pageX - tbl.offsetLeft;
-                        var walk = (x - startX) * 1.5;
-                        tbl.scrollLeft = scrollLeft - walk;
+                        var dx = e.pageX - startX;
+                        if (Math.abs(dx) > 3) {
+                            hasDragged = true;
+                            tbl.style.cursor = 'grabbing';
+                            tbl.classList.add('user-select-none');
+                            e.preventDefault();
+                            tbl.scrollLeft = scrollLeft - (dx * 1.2);
+                        }
                     });
+
+                    // Hỗ trợ cuộn ngang nhanh bằng Shift + cuộn chuột khi rê chuột vào bảng
+                    tbl.addEventListener('wheel', function(e) {
+                        if (e.shiftKey) {
+                            tbl.scrollLeft += e.deltaY;
+                        }
+                    }, { passive: true });
                 }
             });
         }
