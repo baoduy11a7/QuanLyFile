@@ -1242,25 +1242,25 @@
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 
-    <!-- THANH CUỘN NGANG NỔI SÁT ĐÁY MÀN HÌNH (CHUẨN SCROLLBAR TỰ NHIÊN, KHÔNG NÚT BẤM) -->
-    <div id="fdiFloatingScrollbar" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 16px !important; background: #f1f5f9 !important; border-top: 1px solid #cbd5e1 !important; overflow-x: scroll !important; overflow-y: hidden !important; z-index: 2147483647 !important; display: none; box-shadow: 0 -2px 8px rgba(0,0,0,0.15) !important;">
+    <!-- THANH CUỘN NGANG NỔI SÁT ĐÁY MÀN HÌNH (CHUẨN SCROLLBAR TỰ NHIÊN NHƯ ẢNH 1) -->
+    <div id="fdiFloatingScrollbar" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 14px !important; background: #f1f5f9 !important; border-top: 1px solid #e2e8f0 !important; overflow-x: scroll !important; overflow-y: hidden !important; z-index: 2147483647 !important; display: none; box-shadow: 0 -2px 6px rgba(0,0,0,0.08) !important;">
         <div id="fdiFloatingScrollbarInner" style="width: 4500px; height: 1px; min-height: 1px;">&nbsp;</div>
     </div>
 
     <style>
         #fdiFloatingScrollbar::-webkit-scrollbar {
-            height: 14px !important;
+            height: 12px !important;
         }
         #fdiFloatingScrollbar::-webkit-scrollbar-track {
             background: #f1f5f9 !important;
+            border-radius: 4px !important;
         }
         #fdiFloatingScrollbar::-webkit-scrollbar-thumb {
-            background: #64748b !important;
-            border-radius: 7px !important;
-            border: 2px solid #f1f5f9 !important;
+            background: #94a3b8 !important;
+            border-radius: 6px !important;
         }
         #fdiFloatingScrollbar::-webkit-scrollbar-thumb:hover {
-            background: #334155 !important;
+            background: #64748b !important;
         }
     </style>
 
@@ -1284,6 +1284,9 @@
                     return;
                 }
 
+                // Luôn hiển thị thanh cuộn nổi cố định ở mép đáy màn hình khi có bảng dữ liệu
+                bar.style.display = 'block';
+
                 function sync() {
                     var currentTbl = getActiveTable();
                     if (!currentTbl) return;
@@ -1296,19 +1299,8 @@
                         4000
                     );
                     inner.style.width = scrollW + 'px';
-
-                    var rect = currentTbl.getBoundingClientRect();
-                    var windowHeight = window.innerHeight || document.documentElement.clientHeight;
-
-                    // Chỉ hiện khi bảng đang hiển thị và đáy bảng chưa chạm tới đáy màn hình
-                    var isTableInView = rect.top < windowHeight - 40 && rect.bottom > windowHeight;
-                    if (isTableInView) {
-                        bar.style.display = 'block';
-                        if (!isSyncing) {
-                            bar.scrollLeft = currentTbl.scrollLeft;
-                        }
-                    } else {
-                        bar.style.display = 'none';
+                    if (!isSyncing) {
+                        bar.scrollLeft = currentTbl.scrollLeft;
                     }
                 }
 
@@ -1337,6 +1329,7 @@
 
                 window.addEventListener('resize', sync);
                 window.addEventListener('scroll', sync, { passive: true });
+                setInterval(sync, 1500);
                 sync();
             }
 
@@ -1345,8 +1338,9 @@
             } else {
                 setupFloatingScroll();
             }
-            setTimeout(setupFloatingScroll, 300);
-            setTimeout(setupFloatingScroll, 1000);
+            setTimeout(setupFloatingScroll, 100);
+            setTimeout(setupFloatingScroll, 500);
+            setTimeout(setupFloatingScroll, 1500);
         })();
     </script>
             }
