@@ -390,35 +390,20 @@
 
     }
 
-    /* Thanh kéo ngang phụ ở đỉnh bảng hóa đơn */
-    .fdi-table-top-scroll {
-        overflow-x: auto;
-        overflow-y: hidden;
-        width: 100%;
-        height: 12px;
-        background: #f8fafc;
-        border-bottom: 1px solid #e2e8f0;
-        display: none;
-    }
-
-    .fdi-table-top-scroll::-webkit-scrollbar,
     #invoiceTable::-webkit-scrollbar {
         height: 10px;
     }
 
-    .fdi-table-top-scroll::-webkit-scrollbar-track,
     #invoiceTable::-webkit-scrollbar-track {
         background: #f1f5f9;
         border-radius: 4px;
     }
 
-    .fdi-table-top-scroll::-webkit-scrollbar-thumb,
     #invoiceTable::-webkit-scrollbar-thumb {
         background: #94a3b8;
         border-radius: 4px;
     }
 
-    .fdi-table-top-scroll::-webkit-scrollbar-thumb:hover,
     #invoiceTable::-webkit-scrollbar-thumb:hover {
         background: #64748b;
     }
@@ -1066,11 +1051,6 @@
 
         </div>
 
-        <!-- Thanh kéo ngang phụ ở đỉnh bảng (Đồng bộ với bảng hóa đơn bên dưới) -->
-        <div class="fdi-table-top-scroll" id="tableTopScrollWrapper" title="Kéo để xem các cột thông tin bên phải">
-            <div id="tableTopScrollInner" style="height: 1px;"></div>
-        </div>
-
         <div class="table-responsive" id="invoiceTable">
 
             <table class="table fdi-table align-middle mb-0">
@@ -1473,34 +1453,17 @@
             initTableHorizontalScrollbars();
         });
 
+        // Khởi tạo thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng
         function initTableHorizontalScrollbars() {
-            var topWrapper = document.getElementById('tableTopScrollWrapper');
-            var topInner = document.getElementById('tableTopScrollInner');
             var tableWrapper = document.getElementById('invoiceTable');
             var stickyBar = document.getElementById('stickyHorizontalScrollbar');
             var stickyInner = document.getElementById('stickyHorizontalScrollInner');
-            if (!tableWrapper) return;
+            if (!tableWrapper || !stickyBar || !stickyInner) return;
 
             var tableEl = tableWrapper.querySelector('table');
             if (!tableEl) return;
 
-            function updateScrollDimensions() {
-                var scrollW = tableEl.scrollWidth;
-                var clientW = tableWrapper.clientWidth;
-                var hasOverflow = scrollW > clientW + 2;
-
-                if (topInner) topInner.style.width = scrollW + 'px';
-                if (stickyInner) stickyInner.style.width = scrollW + 'px';
-
-                if (topWrapper) {
-                    topWrapper.style.display = hasOverflow ? 'block' : 'none';
-                }
-
-                updateStickyVisibility();
-            }
-
-            function updateStickyVisibility() {
-                if (!stickyBar) return;
+            function updateStickyPosition() {
                 var scrollW = tableEl.scrollWidth;
                 var clientW = tableWrapper.clientWidth;
                 if (scrollW <= clientW + 2) {
@@ -1508,10 +1471,12 @@
                     return;
                 }
 
+                stickyInner.style.width = scrollW + 'px';
+
                 var rect = tableWrapper.getBoundingClientRect();
                 var windowHeight = window.innerHeight || document.documentElement.clientHeight;
 
-                // Khi bảng đang hiển thị trên màn hình nhưng đáy thật của bảng vẫn nằm dưới đáy màn hình:
+                // Khi bảng đang hiển thị trên màn hình nhưng đáy thật của bảng vẫn nằm dưới mép dưới màn hình:
                 // Hiện thanh kéo ngang nổi dính đáy màn hình (ngay trước thanh taskbar)
                 var isTableInView = rect.top < windowHeight - 40;
                 var isBottomBelowScreen = rect.bottom > windowHeight + 15;
@@ -1530,43 +1495,34 @@
 
             var isSyncing = false;
 
-            function syncAll(source, target1, target2) {
-                if (isSyncing) return;
-                isSyncing = true;
-                var pos = source.scrollLeft;
-                if (target1 && target1 !== source) target1.scrollLeft = pos;
-                if (target2 && target2 !== source) target2.scrollLeft = pos;
-                setTimeout(function () { isSyncing = false; }, 15);
-            }
-
-            if (topWrapper) {
-                topWrapper.addEventListener('scroll', function () {
-                    syncAll(topWrapper, tableWrapper, stickyBar);
-                });
-            }
-
-            tableWrapper.addEventListener('scroll', function () {
-                syncAll(tableWrapper, topWrapper, stickyBar);
+            stickyBar.addEventListener('scroll', function () {
+                if (!isSyncing) {
+                    isSyncing = true;
+                    tableWrapper.scrollLeft = stickyBar.scrollLeft;
+                    setTimeout(function () { isSyncing = false; }, 10);
+                }
             });
 
-            if (stickyBar) {
-                stickyBar.addEventListener('scroll', function () {
-                    syncAll(stickyBar, tableWrapper, topWrapper);
-                });
-            }
+            tableWrapper.addEventListener('scroll', function () {
+                if (!isSyncing) {
+                    isSyncing = true;
+                    stickyBar.scrollLeft = tableWrapper.scrollLeft;
+                    setTimeout(function () { isSyncing = false; }, 10);
+                }
+            });
 
-            window.addEventListener('scroll', updateStickyVisibility, { passive: true });
-            window.addEventListener('resize', updateScrollDimensions);
+            window.addEventListener('scroll', updateStickyPosition, { passive: true });
+            window.addEventListener('resize', updateStickyPosition);
 
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function () {
-                    updateScrollDimensions();
+                    updateStickyPosition();
                 });
                 ro.observe(tableEl);
                 ro.observe(tableWrapper);
             }
 
-            updateScrollDimensions();
+            updateStickyPosition();
         }
 
         $('#selectAll').on('change', function() {
