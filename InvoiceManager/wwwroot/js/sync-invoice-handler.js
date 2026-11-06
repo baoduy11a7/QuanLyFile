@@ -16,6 +16,29 @@
         return day + '/' + month + '/' + year;
     }
 
+    // Helper: Định dạng ngày Date -> yyyy-MM-dd cho input[type="date"]
+    function formatDateYMD(d) {
+        var year = d.getFullYear();
+        var month = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+    }
+
+    // Helper: Mở date picker cho input[type="date"]
+    window.openDatePicker = function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (typeof el.showPicker === 'function') {
+            try {
+                el.showPicker();
+            } catch (e) {
+                el.focus();
+            }
+        } else {
+            el.focus();
+        }
+    };
+
     // Helper: Lấy Verification Token
     function getCsrfToken() {
         return $('input[name="__RequestVerificationToken"]').val() || '';
@@ -29,15 +52,18 @@
         past30Days.setDate(now.getDate() - 30);
 
         if (!$('#syncFromDate').val()) {
-            $('#syncFromDate').val(formatDateDMY(past30Days));
+            $('#syncFromDate').val(formatDateYMD(past30Days));
         }
         if (!$('#syncToDate').val()) {
-            $('#syncToDate').val(formatDateDMY(now));
+            $('#syncToDate').val(formatDateYMD(now));
         }
 
         // Ẩn alert và progress nếu còn dư từ lần trước
         $('#syncModalAlert').addClass('d-none').text('');
         $('#syncLiveProgressBox').addClass('d-none');
+        $('#syncLiveSpinner').removeClass('d-none');
+        $('#syncLiveSuccessIcon').addClass('d-none');
+        $('#syncLiveErrorIcon').addClass('d-none');
         resetSyncButtons();
 
         // Mở Modal
@@ -131,8 +157,14 @@
         $('#btnCancelSync').prop('disabled', true);
 
         $('#syncLiveProgressBox').removeClass('d-none');
-        $('#syncLiveProgressBar').css('width', '10%').removeClass('bg-danger bg-success').addClass('bg-teal').css('background-color', '#0d9488');
-        $('#syncLivePercentBadge').text('10%');
+        $('#syncLiveSpinner').removeClass('d-none');
+        $('#syncLiveSuccessIcon').addClass('d-none');
+        $('#syncLiveErrorIcon').addClass('d-none');
+        $('#syncLiveProgressBar').css('width', '10%')
+            .removeClass('bg-danger bg-success')
+            .addClass('progress-bar-animated progress-bar-striped bg-teal')
+            .css('background-color', '#0d9488');
+        $('#syncLivePercentBadge').text('10%').removeClass('bg-danger bg-success').addClass('bg-teal');
         $('#syncLiveStageText').text('Đang tự động kết nối Cổng Tổng cục Thuế và giải Captcha AI ngầm...');
         $('#syncLiveStatsText').text('Khởi chạy tiến trình đồng bộ ngầm...');
         $('#syncModalAlert').addClass('d-none').text('');
@@ -212,15 +244,32 @@
                         syncPollingTimer = null;
                         activeSyncJobId = null;
 
-                        $('#syncLiveProgressBar').css('width', '100%').removeClass('bg-teal').addClass('bg-success');
+                        // 1. TẮT HOÀN TOÀN BIỂU TƯỢNG QUAY VÒNG TRÒN VÀ THAY BẰNG DẤU TÍCH XANH
+                        $('#syncLiveSpinner').addClass('d-none');
+                        $('#syncLiveSuccessIcon').removeClass('d-none');
+                        $('#syncLiveErrorIcon').addClass('d-none');
+
+                        // 2. Tắt animation chuyển động của thanh progress bar
+                        $('#syncLiveProgressBar').css('width', '100%')
+                            .removeClass('progress-bar-animated progress-bar-striped bg-teal')
+                            .addClass('bg-success');
                         $('#syncLivePercentBadge').text('100%').removeClass('bg-teal').addClass('bg-success');
                         $('#syncLiveStageText').text('Đồng bộ hoàn tất thành công!');
 
                         resetSyncButtons();
                         loadSyncHistory(true);
 
+                        var summaryMsg = res.stage || 'Đã đồng bộ xong toàn bộ hóa đơn từ Cổng Tổng cục Thuế.';
                         $('#syncModalAlert').removeClass('d-none alert-danger').addClass('alert-success')
-                            .html('<i class="bi bi-check-circle-fill me-1"></i> Đồng bộ hóa đơn thành công! ' + (res.stage || ''));
+                            .html('<i class="bi bi-check-circle-fill me-1"></i> <strong>Đồng bộ hóa đơn thành công!</strong> ' + summaryMsg);
+
+                        // Cuộn lên đầu modal để người dùng thấy thông báo
+                        $('#modalSyncInvoices .modal-body').animate({ scrollTop: 0 }, 200);
+
+                        // 3. THÔNG BÁO RÕ RÀNG BẰNG POPUP (KHÔNG ĐỂ NGƯỜI DÙNG PHẢI ĐỢI QUAY VÒNG NỮA)
+                        setTimeout(function () {
+                            alert('🎉 ĐỒNG BỘ HÓA ĐƠN THÀNH CÔNG!\n\n' + summaryMsg);
+                        }, 200);
 
                         // Tự động làm mới bảng hóa đơn trên màn hình chính nếu có
                         if (typeof window.applyInvoiceFilter === 'function') {
@@ -233,15 +282,27 @@
                         syncPollingTimer = null;
                         activeSyncJobId = null;
 
-                        $('#syncLiveProgressBar').removeClass('bg-teal').addClass('bg-danger');
+                        // Tắt hoàn toàn spinner và thay bằng dấu X đỏ
+                        $('#syncLiveSpinner').addClass('d-none');
+                        $('#syncLiveSuccessIcon').addClass('d-none');
+                        $('#syncLiveErrorIcon').removeClass('d-none');
+
+                        $('#syncLiveProgressBar').removeClass('progress-bar-animated progress-bar-striped bg-teal').addClass('bg-danger');
                         $('#syncLivePercentBadge').removeClass('bg-teal').addClass('bg-danger');
                         $('#syncLiveStageText').text('Tiến trình đồng bộ thất bại');
 
                         resetSyncButtons();
                         loadSyncHistory(true);
 
+                        var errMsg = res.stage || 'Lỗi khi đồng bộ hóa đơn từ Cổng Thuế.';
                         $('#syncModalAlert').removeClass('d-none alert-success').addClass('alert-danger')
-                            .html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (res.stage || 'Lỗi khi đồng bộ hóa đơn từ Cổng Thuế.'));
+                            .html('<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + errMsg);
+
+                        $('#modalSyncInvoices .modal-body').animate({ scrollTop: 0 }, 200);
+
+                        setTimeout(function () {
+                            alert('⚠️ ĐỒNG BỘ THẤT BẠI: ' + errMsg);
+                        }, 200);
                     }
                 },
                 error: function () {
