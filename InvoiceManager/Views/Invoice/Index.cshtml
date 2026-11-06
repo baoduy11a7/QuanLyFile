@@ -256,6 +256,38 @@
 
         line-height: 1;
 
+        z-index: 2;
+
+    }
+
+    .fdi-date-box .date-box-icon {
+
+        position: absolute;
+
+        right: 9px;
+
+        top: 50%;
+
+        transform: translateY(-50%);
+
+        color: #64748b;
+
+        pointer-events: none;
+
+        font-size: 0.82rem;
+
+        z-index: 2;
+
+    }
+
+    .fdi-filter-datepicker {
+
+        padding-right: 28px !important;
+
+        font-size: 0.85rem !important;
+
+        cursor: pointer;
+
     }
 
     .fdi-table-card {
@@ -732,7 +764,9 @@
 
                                         <span class="date-sub-label">Từ ngày</span>
 
-                                        <input type="date" name="FromDate" id="inputFromDate" class="form-control" value="@(filter.FromDate?.ToString("yyyy-MM-dd"))" />
+                                        <input type="text" name="FromDate" id="inputFromDate" class="form-control fdi-filter-datepicker bg-white" placeholder="dd/MM/yyyy" value="@(filter.FromDate?.ToString("dd/MM/yyyy"))" autocomplete="off" />
+
+                                        <i class="bi bi-calendar3 date-box-icon"></i>
 
                                     </div>
 
@@ -740,7 +774,9 @@
 
                                         <span class="date-sub-label">Đến ngày</span>
 
-                                        <input type="date" name="ToDate" id="inputToDate" class="form-control" value="@(filter.ToDate?.ToString("yyyy-MM-dd"))" />
+                                        <input type="text" name="ToDate" id="inputToDate" class="form-control fdi-filter-datepicker bg-white" placeholder="dd/MM/yyyy" value="@(filter.ToDate?.ToString("dd/MM/yyyy"))" autocomplete="off" />
+
+                                        <i class="bi bi-calendar3 date-box-icon"></i>
 
                                     </div>
 
@@ -1341,6 +1377,26 @@
 @section Scripts {
 
     <script>
+        $(document).ready(function () {
+            if (typeof flatpickr !== 'undefined') {
+                var vnLocale = (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.vn) ? flatpickr.l10ns.vn : {
+                    weekdays: {
+                        shorthand: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
+                        longhand: ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]
+                    },
+                    months: {
+                        shorthand: ["Th1", "Th2", "Th3", "Th4", "Th5", "Th6", "Th7", "Th8", "Th9", "Th10", "Th11", "Th12"],
+                        longhand: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"]
+                    }
+                };
+
+                flatpickr('.fdi-filter-datepicker', {
+                    dateFormat: "d/m/Y",
+                    allowInput: true,
+                    locale: vnLocale
+                });
+            }
+        });
 
         $('#selectAll').on('change', function() {
 

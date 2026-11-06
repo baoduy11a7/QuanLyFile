@@ -222,6 +222,21 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
 });
 
+// Thiết lập định dạng chuẩn Việt Nam: Ngày trước, Tháng sau, Năm (dd/MM/yyyy) cho toàn bộ hệ thống
+var viCulture = new System.Globalization.CultureInfo("vi-VN");
+viCulture.DateTimeFormat.ShortDatePattern = "dd/MM/yyyy";
+viCulture.DateTimeFormat.DateSeparator = "/";
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = viCulture;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = viCulture;
+
+var localizationOptions = new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(viCulture),
+    SupportedCultures = new List<System.Globalization.CultureInfo> { viCulture },
+    SupportedUICultures = new List<System.Globalization.CultureInfo> { viCulture }
+};
+app.UseRequestLocalization(localizationOptions);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();

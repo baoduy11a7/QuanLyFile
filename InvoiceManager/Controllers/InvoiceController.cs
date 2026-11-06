@@ -53,6 +53,22 @@ namespace InvoiceManager.Controllers
                 return RedirectToAction("Index", "TaxAccount");
             }
 
+            // Bóc tách chính xác định dạng Ngày trước rồi tới Tháng, Năm (dd/MM/yyyy) từ QueryString
+            if (Request.Query.TryGetValue("FromDate", out var qFrom) && !string.IsNullOrWhiteSpace(qFrom))
+            {
+                if (DateTime.TryParseExact(qFrom.ToString().Trim(), new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedFrom))
+                {
+                    filter.FromDate = parsedFrom;
+                }
+            }
+            if (Request.Query.TryGetValue("ToDate", out var qTo) && !string.IsNullOrWhiteSpace(qTo))
+            {
+                if (DateTime.TryParseExact(qTo.ToString().Trim(), new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedTo))
+                {
+                    filter.ToDate = parsedTo;
+                }
+            }
+
             // Thiết lập khoảng ngày mặc định nếu chưa chọn
             SetupDateRange(filter);
 
