@@ -419,21 +419,22 @@
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        width: 100vw !important;
-        height: 22px !important;
-        background: #e2e8f0 !important;
-        border-top: 2px solid #2563eb !important;
+        width: 100% !important;
+        height: 26px !important;
+        box-sizing: border-box !important;
+        background: #f1f5f9 !important;
+        border-top: 3px solid #2563eb !important;
         overflow-x: scroll !important;
         overflow-y: hidden !important;
         z-index: 2147483647 !important;
-        display: block !important;
-        box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.35) !important;
-        scrollbar-width: auto;
-        scrollbar-color: #2563eb #cbd5e1;
+        display: none;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35) !important;
+        scrollbar-width: auto !important;
+        scrollbar-color: #2563eb #cbd5e1 !important;
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar {
-        height: 20px !important;
+        height: 22px !important;
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
@@ -442,7 +443,7 @@
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {
         background: #2563eb !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         border: 2px solid #ffffff !important;
     }
 
@@ -450,9 +451,9 @@
         background: #1d4ed8 !important;
     }
 
-    /* Đệm khoảng trống ở chân trang để thanh cuộn cố định không che nội dung phân trang */
+    /* Đệm khoảng trống ở chân trang để thanh cuộn cố định không che nội dung phân trang hoặc bảng */
     .fdi-table-card {
-        margin-bottom: 35px !important;
+        margin-bottom: 45px !important;
     }
 
 </style>
@@ -1627,7 +1628,7 @@
 
         <!-- Thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar) -->
         <div id="stickyHorizontalScrollbar" class="sticky-horizontal-scrollbar" title="Kéo để xem các cột thông tin bên phải">
-            <div id="stickyHorizontalScrollInner" style="height: 1px; min-height: 1px;">&nbsp;</div>
+            <div id="stickyHorizontalScrollInner" style="width: 3200px; height: 12px; min-height: 12px;"></div>
         </div>
 
 
@@ -1844,9 +1845,14 @@
                 document.body.appendChild(stickyBar);
             }
 
-            function syncScrollWidth() {
+            var isSyncing = false;
+
+            function updateStickyScrollbar() {
                 var tableWrapper = getActiveTableWrapper();
-                if (!tableWrapper) return;
+                if (!tableWrapper) {
+                    stickyBar.style.display = 'none';
+                    return;
+                }
 
                 var tableEl = tableWrapper.querySelector('table');
                 var scrollW = Math.max(
@@ -1854,18 +1860,35 @@
                     tableEl ? (tableEl.scrollWidth || 0) : 0,
                     tableEl ? (tableEl.offsetWidth || 0) : 0
                 );
+                var clientW = tableWrapper.clientWidth || window.innerWidth;
 
-                if (scrollW > 0) {
-                    stickyInner.style.width = scrollW + 'px';
+                // Nếu bảng không bị tràn ngang thì ẩn thanh cuộn nổi
+                if (!scrollW || scrollW <= clientW + 2) {
+                    stickyBar.style.display = 'none';
+                    return;
+                }
+
+                stickyInner.style.width = scrollW + 'px';
+
+                var rect = tableWrapper.getBoundingClientRect();
+                var windowHeight = window.innerHeight || document.documentElement.clientHeight;
+
+                // Bảng đang hiển thị trong màn hình:
+                // Người dùng đang cuộn xem các dòng ở giữa bảng (đỉnh bảng đã vào, nhưng đáy bảng chưa chạm tới đáy màn hình)
+                // Khi cuộn xuống tận cùng thấy thanh cuộn tự nhiên của bảng thì ẩn thanh nổi
+                var isTableInMiddle = (rect.top < windowHeight - 40 && rect.bottom > windowHeight);
+
+                if (isTableInMiddle) {
+                    stickyBar.style.display = 'block';
                     if (!isSyncing) {
                         stickyBar.scrollLeft = tableWrapper.scrollLeft;
                     }
+                } else {
+                    stickyBar.style.display = 'none';
                 }
             }
 
-            window.activeTableScrollUpdate = syncScrollWidth;
-
-            var isSyncing = false;
+            window.activeTableScrollUpdate = updateStickyScrollbar;
 
             stickyBar.addEventListener('scroll', function () {
                 if (!isSyncing) {
@@ -1891,11 +1914,12 @@
                 }
             });
 
-            window.addEventListener('resize', syncScrollWidth);
+            window.addEventListener('scroll', updateStickyScrollbar, { passive: true });
+            window.addEventListener('resize', updateStickyScrollbar);
 
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function () {
-                    syncScrollWidth();
+                    updateStickyScrollbar();
                 });
                 var t1 = document.getElementById('invoiceTable');
                 var t2 = document.getElementById('invoiceDetailTable');
@@ -1903,11 +1927,11 @@
                 if (t2) ro.observe(t2);
             }
 
-            syncScrollWidth();
-            setTimeout(syncScrollWidth, 50);
-            setTimeout(syncScrollWidth, 200);
-            setTimeout(syncScrollWidth, 600);
-            setTimeout(syncScrollWidth, 1500);
+            updateStickyScrollbar();
+            setTimeout(updateStickyScrollbar, 50);
+            setTimeout(updateStickyScrollbar, 200);
+            setTimeout(updateStickyScrollbar, 600);
+            setTimeout(updateStickyScrollbar, 1500);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
