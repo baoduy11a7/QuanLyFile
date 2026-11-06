@@ -390,48 +390,59 @@
 
     }
 
-    /* Ẩn thanh cuộn gốc của bảng để thanh cuộn nổi ở đáy màn hình là thanh duy nhất, không bị nhân đôi hay vướng */
+    /* Thanh cuộn tự nhiên của bảng: hiển thị đẹp, rõ ràng */
     #invoiceTable::-webkit-scrollbar,
     #invoiceDetailTable::-webkit-scrollbar {
-        height: 0px;
-        display: none;
+        height: 12px;
     }
 
-    #invoiceTable,
-    #invoiceDetailTable {
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-
-    /* Thanh kéo ngang luôn nổi dính sát mép dưới màn hình (ngay trên taskbar) khi xem bảng */
-    .sticky-horizontal-scrollbar {
-        position: fixed;
-        bottom: 0;
-        height: 16px;
+    #invoiceTable::-webkit-scrollbar-track,
+    #invoiceDetailTable::-webkit-scrollbar-track {
         background: #f1f5f9;
-        border-top: 1px solid #cbd5e1;
-        overflow-x: auto;
-        overflow-y: hidden;
-        z-index: 1050;
-        display: none;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+        border-radius: 4px;
     }
 
-    .sticky-horizontal-scrollbar::-webkit-scrollbar {
-        height: 14px;
-    }
-
-    .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
-        background: #f1f5f9;
-    }
-
-    .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {
-        background: #64748b;
+    #invoiceTable::-webkit-scrollbar-thumb,
+    #invoiceDetailTable::-webkit-scrollbar-thumb {
+        background: #94a3b8;
         border-radius: 6px;
     }
 
+    #invoiceTable::-webkit-scrollbar-thumb:hover,
+    #invoiceDetailTable::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+
+    /* Thanh kéo ngang nổi ghim cố định sát mép dưới màn hình (ngay trên taskbar) */
+    .sticky-horizontal-scrollbar {
+        position: fixed;
+        bottom: 0;
+        height: 20px;
+        background: #e2e8f0;
+        border-top: 2px solid #94a3b8;
+        overflow-x: scroll !important;
+        overflow-y: hidden;
+        z-index: 99999;
+        display: none;
+        box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar {
+        height: 16px;
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
+        background: #e2e8f0;
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 6px;
+        border: 2px solid #e2e8f0;
+    }
+
     .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: #334155;
+        background: #1e293b;
     }
 
 </style>
@@ -1606,7 +1617,7 @@
 
         <!-- Thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar) -->
         <div id="stickyHorizontalScrollbar" class="sticky-horizontal-scrollbar" title="Kéo để xem các cột thông tin bên phải">
-            <div id="stickyHorizontalScrollInner" style="height: 1px;"></div>
+            <div id="stickyHorizontalScrollInner" style="height: 20px;"></div>
         </div>
 
 
@@ -1791,9 +1802,17 @@
                 if (tableTongQuat) tableTongQuat.classList.remove('d-none');
             }
 
-            if (window.activeTableScrollUpdate) {
-                window.activeTableScrollUpdate();
-            }
+            // Đồng bộ lại vị trí thanh cuộn sau khi chuyển tab
+            setTimeout(function() {
+                if (window.activeTableScrollUpdate) {
+                    window.activeTableScrollUpdate();
+                }
+            }, 30);
+            setTimeout(function() {
+                if (window.activeTableScrollUpdate) {
+                    window.activeTableScrollUpdate();
+                }
+            }, 150);
         }
 
         function getActiveTableWrapper() {
@@ -1818,12 +1837,11 @@
                 }
 
                 var tableEl = tableWrapper.querySelector('table');
-                if (!tableEl) return;
-
-                var scrollW = tableEl.scrollWidth;
+                var scrollW = tableEl ? tableEl.scrollWidth : tableWrapper.scrollWidth;
                 var clientW = tableWrapper.clientWidth;
+
                 // Nếu bảng không bị tràn ngang thì ẩn thanh cuộn nổi
-                if (scrollW <= clientW + 2) {
+                if (!scrollW || !clientW || scrollW <= clientW + 2) {
                     stickyBar.style.display = 'none';
                     return;
                 }
@@ -1833,14 +1851,14 @@
                 var rect = tableWrapper.getBoundingClientRect();
                 var windowHeight = window.innerHeight || document.documentElement.clientHeight;
 
-                // Bảng đang hiển thị trong màn hình (kéo xuống tới đâu từ dòng đầu đến dòng cuối cùng đều thấy)
-                var isTableInView = rect.top < windowHeight - 30 && rect.bottom > 50;
+                // Bảng đang hiển thị trong màn hình: từ khi bảng xuất hiện đến khi cuộn hết dòng cuối cùng
+                var isTableInView = rect.top < windowHeight && rect.bottom > 30;
 
                 // Thanh trượt ngang luôn nổi dính sát mép dưới màn hình khi kéo xem bất cứ dòng nào
                 if (isTableInView) {
                     stickyBar.style.display = 'block';
-                    stickyBar.style.left = rect.left + 'px';
-                    stickyBar.style.width = rect.width + 'px';
+                    stickyBar.style.left = Math.max(0, rect.left) + 'px';
+                    stickyBar.style.width = (rect.width > 0 ? rect.width : clientW) + 'px';
                     if (!isSyncing) {
                         stickyBar.scrollLeft = tableWrapper.scrollLeft;
                     }
@@ -1891,6 +1909,8 @@
             }
 
             updateStickyPosition();
+            setTimeout(updateStickyPosition, 100);
+            setTimeout(updateStickyPosition, 400);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
