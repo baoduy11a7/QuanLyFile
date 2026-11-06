@@ -390,34 +390,25 @@
 
     }
 
+    /* Ẩn thanh cuộn gốc của bảng để thanh cuộn nổi ở đáy màn hình là thanh duy nhất, không bị nhân đôi hay vướng */
     #invoiceTable::-webkit-scrollbar,
     #invoiceDetailTable::-webkit-scrollbar {
-        height: 10px;
+        height: 0px;
+        display: none;
     }
 
-    #invoiceTable::-webkit-scrollbar-track,
-    #invoiceDetailTable::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 4px;
+    #invoiceTable,
+    #invoiceDetailTable {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
     }
 
-    #invoiceTable::-webkit-scrollbar-thumb,
-    #invoiceDetailTable::-webkit-scrollbar-thumb {
-        background: #94a3b8;
-        border-radius: 4px;
-    }
-
-    #invoiceTable::-webkit-scrollbar-thumb:hover,
-    #invoiceDetailTable::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-    }
-
-    /* Thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng */
+    /* Thanh kéo ngang luôn nổi dính sát mép dưới màn hình (ngay trên taskbar) khi xem bảng */
     .sticky-horizontal-scrollbar {
         position: fixed;
         bottom: 0;
-        height: 15px;
-        background: #f8fafc;
+        height: 16px;
+        background: #f1f5f9;
         border-top: 1px solid #cbd5e1;
         overflow-x: auto;
         overflow-y: hidden;
@@ -427,7 +418,7 @@
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar {
-        height: 13px;
+        height: 14px;
     }
 
     .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
@@ -1842,13 +1833,11 @@
                 var rect = tableWrapper.getBoundingClientRect();
                 var windowHeight = window.innerHeight || document.documentElement.clientHeight;
 
-                // Bảng đã bắt đầu lọt vào màn hình
-                var isTableInView = rect.top < windowHeight - 30;
-                // Chân bảng (thanh cuộn tự nhiên của bảng) vẫn đang nằm dưới đáy màn hình
-                var isBottomBelowScreen = rect.bottom > windowHeight;
+                // Bảng đang hiển thị trong màn hình (kéo xuống tới đâu từ dòng đầu đến dòng cuối cùng đều thấy)
+                var isTableInView = rect.top < windowHeight - 30 && rect.bottom > 50;
 
-                // Tự động ghim nổi ở đáy màn hình khi xem ở giữa bảng; tự động ẩn khi cuộn xuống hết bảng
-                if (isTableInView && isBottomBelowScreen) {
+                // Thanh trượt ngang luôn nổi dính sát mép dưới màn hình khi kéo xem bất cứ dòng nào
+                if (isTableInView) {
                     stickyBar.style.display = 'block';
                     stickyBar.style.left = rect.left + 'px';
                     stickyBar.style.width = rect.width + 'px';
