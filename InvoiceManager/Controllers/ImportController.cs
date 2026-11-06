@@ -518,7 +518,7 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin,Accountant")]
-        [ValidateAntiForgeryToken]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> AutoSync([FromBody] AutoSyncRequest? request)
         {
             var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
@@ -679,7 +679,7 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin,Accountant")]
-        [ValidateAntiForgeryToken]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> DeleteSyncData([FromBody] DeleteSyncDataRequest? request)
         {
             var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
@@ -926,7 +926,7 @@ namespace InvoiceManager.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin,Accountant")]
-        [ValidateAntiForgeryToken]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> SaveGovConfig([FromBody] SaveGovConfigRequest req)
         {
             var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();

@@ -8,6 +8,13 @@
     var syncPollingTimer = null;
     var activeSyncJobId = null;
 
+    // Helper: Lấy Antiforgery CSRF Token an toàn
+    function getCsrfToken() {
+        return $('#modalSyncInvoices input[name="__RequestVerificationToken"]').val()
+            || $('input[name="__RequestVerificationToken"]').val()
+            || '';
+    }
+
     // Helper: Định dạng ngày Date -> dd/MM/yyyy
     function formatDateDMY(d) {
         var day = String(d.getDate()).padStart(2, '0');
@@ -204,84 +211,98 @@
 
     // Thực hiện đồng bộ hóa đơn ngầm
     window.executeDirectGovSync = function () {
-        var direction = $('input[name="syncInvoiceDirection"]:checked').val() || 'All';
-        var category = $('input[name="syncInvoiceCategory"]:checked').val() || 'All';
-        var fromDate = ($('#syncFromDate').val() || '').trim();
-        var toDate = ($('#syncToDate').val() || '').trim();
-        var rangeText = ($('#syncDateRange').val() || '').trim();
+        try {
+            var direction = $('input[name="syncInvoiceDirection"]:checked').val() || 'All';
+            var category = $('input[name="syncInvoiceCategory"]:checked').val() || 'All';
+            var fromDate = ($('#syncFromDate').val() || '').trim();
+            var toDate = ($('#syncToDate').val() || '').trim();
+            var rangeText = ($('#syncDateRange').val() || '').trim();
 
-        if ((!fromDate || !toDate) && rangeText) {
-            var parts = rangeText.split(/đến|to|-/);
-            if (parts.length >= 2) {
-                fromDate = parts[0].trim();
-                toDate = parts[1].trim();
-            } else if (parts.length === 1 && parts[0].trim()) {
-                fromDate = parts[0].trim();
-                toDate = parts[0].trim();
-            }
-        }
-
-        if (!fromDate || !toDate) {
-            alert('Vui lòng chọn thời gian đồng bộ.');
-            return;
-        }
-
-        // Khóa các nút và hiển thị tiến trình
-        $('#btnSubmitSyncGov').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1.5" role="status"></span> Đang đồng bộ...');
-        $('#btnDeleteSyncData').prop('disabled', true);
-        $('#btnCancelSync').prop('disabled', true);
-
-        $('#syncLiveProgressBox').removeClass('d-none');
-        $('#syncLiveSpinner').removeClass('d-none');
-        $('#syncLiveSuccessIcon').addClass('d-none');
-        $('#syncLiveErrorIcon').addClass('d-none');
-        $('#syncLiveProgressBar').css('width', '10%')
-            .removeClass('bg-danger bg-success')
-            .addClass('progress-bar-animated progress-bar-striped bg-teal')
-            .css('background-color', '#0d9488');
-        $('#syncLivePercentBadge').text('10%').removeClass('bg-danger bg-success').addClass('bg-teal');
-        $('#syncLiveStageText').text('Đang tự động kết nối Cổng Tổng cục Thuế và giải Captcha AI ngầm...');
-        $('#syncLiveStatsText').text('Khởi chạy tiến trình đồng bộ ngầm...');
-        $('#syncModalAlert').addClass('d-none').text('');
-
-        var payload = {
-            FromDate: fromDate,
-            ToDate: toDate,
-            InvoiceType: direction,
-            CategoryType: category
-        };
-
-        $.ajax({
-            url: '/Import/AutoSync',
-            type: 'POST',
-            contentType: 'application/json',
-            headers: { "RequestVerificationToken": getCsrfToken() },
-            data: JSON.stringify(payload),
-            success: function (res) {
-                if (res.needSetup) {
-                    resetSyncButtons();
-                    $('#syncLiveProgressBox').addClass('d-none');
-                    promptForInitialPassword(res.message);
-                    return;
+            if ((!fromDate || !toDate) && rangeText) {
+                var parts = rangeText.split(/đến|to|-/);
+                if (parts.length >= 2) {
+                    fromDate = parts[0].trim();
+                    toDate = parts[1].trim();
+                } else if (parts.length === 1 && parts[0].trim()) {
+                    fromDate = parts[0].trim();
+                    toDate = parts[0].trim();
                 }
+            }
 
-                if (res.success && res.jobId) {
-                    activeSyncJobId = res.jobId;
-                    startSyncPolling(res.jobId);
-                } else {
+            if (!fromDate || !toDate) {
+                alert('Vui lòng chọn thời gian đồng bộ.');
+                return;
+            }
+
+            // Khóa các nút và hiển thị tiến trình
+            $('#btnSubmitSyncGov').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1.5" role="status"></span> Đang đồng bộ...');
+            $('#btnDeleteSyncData').prop('disabled', true);
+            $('#btnCancelSync').prop('disabled', true);
+
+            $('#syncLiveProgressBox').removeClass('d-none');
+            $('#syncLiveSpinner').removeClass('d-none');
+            $('#syncLiveSuccessIcon').addClass('d-none');
+            $('#syncLiveErrorIcon').addClass('d-none');
+            $('#syncLiveProgressBar').css('width', '10%')
+                .removeClass('bg-danger bg-success')
+                .addClass('progress-bar-animated progress-bar-striped bg-teal')
+                .css('background-color', '#0d9488');
+            $('#syncLivePercentBadge').text('10%').removeClass('bg-danger bg-success').addClass('bg-teal');
+            $('#syncLiveStageText').text('Đang tự động kết nối Cổng Tổng cục Thuế và giải Captcha AI ngầm...');
+            $('#syncLiveStatsText').text('Khởi chạy tiến trình đồng bộ ngầm...');
+            $('#syncModalAlert').addClass('d-none').text('');
+
+            var payload = {
+                FromDate: fromDate,
+                ToDate: toDate,
+                InvoiceType: direction,
+                CategoryType: category
+            };
+
+            var csrfToken = getCsrfToken();
+            var headers = {};
+            if (csrfToken) {
+                headers["RequestVerificationToken"] = csrfToken;
+            }
+
+            $.ajax({
+                url: '/Import/AutoSync',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: headers,
+                data: JSON.stringify(payload),
+                success: function (res) {
+                    if (res.needSetup) {
+                        resetSyncButtons();
+                        $('#syncLiveProgressBox').addClass('d-none');
+                        promptForInitialPassword(res.message);
+                        return;
+                    }
+
+                    if (res.success && res.jobId) {
+                        activeSyncJobId = res.jobId;
+                        startSyncPolling(res.jobId);
+                    } else {
+                        resetSyncButtons();
+                        $('#syncLiveProgressBox').addClass('d-none');
+                        $('#syncModalAlert').removeClass('d-none alert-success').addClass('alert-danger')
+                            .html('<i class="bi bi-exclamation-circle me-1"></i> ' + (res.message || 'Lỗi khi khởi chạy đồng bộ hóa đơn.'));
+                    }
+                },
+                error: function (xhr) {
                     resetSyncButtons();
                     $('#syncLiveProgressBox').addClass('d-none');
+                    var errText = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Lỗi kết nối máy chủ khi gọi đồng bộ Cổng Thuế.';
                     $('#syncModalAlert').removeClass('d-none alert-success').addClass('alert-danger')
-                        .html('<i class="bi bi-exclamation-circle me-1"></i> ' + (res.message || 'Lỗi khi khởi chạy đồng bộ hóa đơn.'));
+                        .html('<i class="bi bi-exclamation-circle me-1"></i> ' + errText);
                 }
-            },
-            error: function (xhr) {
-                resetSyncButtons();
-                $('#syncLiveProgressBox').addClass('d-none');
-                $('#syncModalAlert').removeClass('d-none alert-success').addClass('alert-danger')
-                    .html('<i class="bi bi-exclamation-circle me-1"></i> Lỗi kết nối máy chủ khi gọi đồng bộ Cổng Thuế.');
-            }
-        });
+            });
+        } catch (err) {
+            console.error('Lỗi khi thực thi executeDirectGovSync:', err);
+            resetSyncButtons();
+            $('#syncLiveProgressBox').addClass('d-none');
+            alert('Lỗi thao tác đồng bộ: ' + (err.message || err));
+        }
     };
 
     // Theo dõi tiến trình đồng bộ ngầm
