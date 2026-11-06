@@ -427,7 +427,7 @@
         overflow-x: scroll !important;
         overflow-y: hidden !important;
         z-index: 2147483647 !important;
-        display: none;
+        display: block !important;
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35) !important;
         scrollbar-width: auto !important;
         scrollbar-color: #2563eb #cbd5e1 !important;
@@ -1834,7 +1834,7 @@
             return document.getElementById('invoiceTable');
         }
 
-        // Khởi tạo thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng (Sticky Bottom Scrollbar)
+        // Khởi tạo thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar)
         function initTableHorizontalScrollbars() {
             var stickyBar = document.getElementById('stickyHorizontalScrollbar');
             var stickyInner = document.getElementById('stickyHorizontalScrollInner');
@@ -1845,50 +1845,30 @@
                 document.body.appendChild(stickyBar);
             }
 
+            // Luôn đảm bảo hiển thị nổi dính đáy màn hình
+            stickyBar.style.display = 'block';
+
             var isSyncing = false;
 
-            function updateStickyScrollbar() {
+            function syncScrollWidth() {
                 var tableWrapper = getActiveTableWrapper();
-                if (!tableWrapper) {
-                    stickyBar.style.display = 'none';
-                    return;
-                }
+                if (!tableWrapper) return;
 
                 var tableEl = tableWrapper.querySelector('table');
                 var scrollW = Math.max(
                     tableWrapper.scrollWidth || 0,
                     tableEl ? (tableEl.scrollWidth || 0) : 0,
-                    tableEl ? (tableEl.offsetWidth || 0) : 0
+                    tableEl ? (tableEl.offsetWidth || 0) : 0,
+                    3500
                 );
-                var clientW = tableWrapper.clientWidth || window.innerWidth;
-
-                // Nếu bảng không bị tràn ngang thì ẩn thanh cuộn nổi
-                if (!scrollW || scrollW <= clientW + 2) {
-                    stickyBar.style.display = 'none';
-                    return;
-                }
 
                 stickyInner.style.width = scrollW + 'px';
-
-                var rect = tableWrapper.getBoundingClientRect();
-                var windowHeight = window.innerHeight || document.documentElement.clientHeight;
-
-                // Bảng đang hiển thị trong màn hình:
-                // Người dùng đang cuộn xem các dòng ở giữa bảng (đỉnh bảng đã vào, nhưng đáy bảng chưa chạm tới đáy màn hình)
-                // Khi cuộn xuống tận cùng thấy thanh cuộn tự nhiên của bảng thì ẩn thanh nổi
-                var isTableInMiddle = (rect.top < windowHeight - 40 && rect.bottom > windowHeight);
-
-                if (isTableInMiddle) {
-                    stickyBar.style.display = 'block';
-                    if (!isSyncing) {
-                        stickyBar.scrollLeft = tableWrapper.scrollLeft;
-                    }
-                } else {
-                    stickyBar.style.display = 'none';
+                if (!isSyncing) {
+                    stickyBar.scrollLeft = tableWrapper.scrollLeft;
                 }
             }
 
-            window.activeTableScrollUpdate = updateStickyScrollbar;
+            window.activeTableScrollUpdate = syncScrollWidth;
 
             stickyBar.addEventListener('scroll', function () {
                 if (!isSyncing) {
@@ -1911,15 +1891,46 @@
                             setTimeout(function () { isSyncing = false; }, 10);
                         }
                     });
+
+                    // Tính năng: Kéo chuột trực tiếp trên bảng để trượt ngang (Grab & Drag to Scroll)
+                    var isDown = false;
+                    var startX;
+                    var scrollLeft;
+
+                    tbl.addEventListener('mousedown', function(e) {
+                        if (e.button !== 0) return;
+                        if (e.target.closest('a, button, input, select, textarea, .btn')) return;
+                        isDown = true;
+                        tbl.style.cursor = 'grab';
+                        startX = e.pageX - tbl.offsetLeft;
+                        scrollLeft = tbl.scrollLeft;
+                    });
+
+                    window.addEventListener('mouseup', function() {
+                        if (isDown) {
+                            isDown = false;
+                            tbl.style.cursor = '';
+                        }
+                    });
+
+                    window.addEventListener('mousemove', function(e) {
+                        if (!isDown) return;
+                        e.preventDefault();
+                        var x = e.pageX - tbl.offsetLeft;
+                        var walk = (x - startX) * 1.5;
+                        tbl.scrollLeft = scrollLeft - walk;
+                        if (stickyBar) {
+                            stickyBar.scrollLeft = tbl.scrollLeft;
+                        }
+                    });
                 }
             });
 
-            window.addEventListener('scroll', updateStickyScrollbar, { passive: true });
-            window.addEventListener('resize', updateStickyScrollbar);
+            window.addEventListener('resize', syncScrollWidth);
 
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function () {
-                    updateStickyScrollbar();
+                    syncScrollWidth();
                 });
                 var t1 = document.getElementById('invoiceTable');
                 var t2 = document.getElementById('invoiceDetailTable');
@@ -1927,11 +1938,11 @@
                 if (t2) ro.observe(t2);
             }
 
-            updateStickyScrollbar();
-            setTimeout(updateStickyScrollbar, 50);
-            setTimeout(updateStickyScrollbar, 200);
-            setTimeout(updateStickyScrollbar, 600);
-            setTimeout(updateStickyScrollbar, 1500);
+            syncScrollWidth();
+            setTimeout(syncScrollWidth, 50);
+            setTimeout(syncScrollWidth, 200);
+            setTimeout(syncScrollWidth, 600);
+            setTimeout(syncScrollWidth, 1500);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
