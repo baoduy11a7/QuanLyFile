@@ -423,6 +423,37 @@
         background: #64748b;
     }
 
+    /* Thanh kéo ngang nổi dính đáy màn hình khi cuộn ở giữa bảng */
+    .sticky-horizontal-scrollbar {
+        position: fixed;
+        bottom: 0;
+        height: 14px;
+        background: #f8fafc;
+        border-top: 1px solid #cbd5e1;
+        overflow-x: auto;
+        overflow-y: hidden;
+        z-index: 1040;
+        display: none;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.12);
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar {
+        height: 12px;
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {
+        background: #64748b;
+        border-radius: 6px;
+    }
+
+    .sticky-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #334155;
+    }
+
 </style>
 
 
@@ -1274,6 +1305,11 @@
 
         </div>
 
+        <!-- Thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar) -->
+        <div id="stickyHorizontalScrollbar" class="sticky-horizontal-scrollbar" title="Kéo để xem các cột thông tin bên phải">
+            <div id="stickyHorizontalScrollInner" style="height: 1px;"></div>
+        </div>
+
 
 
         <!-- Phân trang -->
@@ -1433,60 +1469,104 @@
                 });
             }
 
-            // Đồng bộ thanh cuộn ngang phụ ở đỉnh bảng với bảng hóa đơn
-            initDoubleScroll();
+            // Khởi tạo hệ thống thanh kéo ngang đồng bộ (Đỉnh bảng & Nổi dính đáy màn hình)
+            initTableHorizontalScrollbars();
         });
 
-        function initDoubleScroll() {
+        function initTableHorizontalScrollbars() {
             var topWrapper = document.getElementById('tableTopScrollWrapper');
             var topInner = document.getElementById('tableTopScrollInner');
             var tableWrapper = document.getElementById('invoiceTable');
-            if (!topWrapper || !topInner || !tableWrapper) return;
+            var stickyBar = document.getElementById('stickyHorizontalScrollbar');
+            var stickyInner = document.getElementById('stickyHorizontalScrollInner');
+            if (!tableWrapper) return;
 
             var tableEl = tableWrapper.querySelector('table');
             if (!tableEl) return;
 
-            function updateScrollWidth() {
+            function updateScrollDimensions() {
                 var scrollW = tableEl.scrollWidth;
                 var clientW = tableWrapper.clientWidth;
-                topInner.style.width = scrollW + 'px';
+                var hasOverflow = scrollW > clientW + 2;
 
-                if (scrollW > clientW + 2) {
-                    topWrapper.style.display = 'block';
+                if (topInner) topInner.style.width = scrollW + 'px';
+                if (stickyInner) stickyInner.style.width = scrollW + 'px';
+
+                if (topWrapper) {
+                    topWrapper.style.display = hasOverflow ? 'block' : 'none';
+                }
+
+                updateStickyVisibility();
+            }
+
+            function updateStickyVisibility() {
+                if (!stickyBar) return;
+                var scrollW = tableEl.scrollWidth;
+                var clientW = tableWrapper.clientWidth;
+                if (scrollW <= clientW + 2) {
+                    stickyBar.style.display = 'none';
+                    return;
+                }
+
+                var rect = tableWrapper.getBoundingClientRect();
+                var windowHeight = window.innerHeight || document.documentElement.clientHeight;
+
+                // Khi bảng đang hiển thị trên màn hình nhưng đáy thật của bảng vẫn nằm dưới đáy màn hình:
+                // Hiện thanh kéo ngang nổi dính đáy màn hình (ngay trước thanh taskbar)
+                var isTableInView = rect.top < windowHeight - 40;
+                var isBottomBelowScreen = rect.bottom > windowHeight + 15;
+
+                if (isTableInView && isBottomBelowScreen) {
+                    stickyBar.style.display = 'block';
+                    stickyBar.style.left = rect.left + 'px';
+                    stickyBar.style.width = rect.width + 'px';
+                    if (!isSyncing) {
+                        stickyBar.scrollLeft = tableWrapper.scrollLeft;
+                    }
                 } else {
-                    topWrapper.style.display = 'none';
+                    stickyBar.style.display = 'none';
                 }
             }
 
-            updateScrollWidth();
-            window.addEventListener('resize', updateScrollWidth);
+            var isSyncing = false;
 
-            var isSyncingTop = false;
-            var isSyncingBottom = false;
+            function syncAll(source, target1, target2) {
+                if (isSyncing) return;
+                isSyncing = true;
+                var pos = source.scrollLeft;
+                if (target1 && target1 !== source) target1.scrollLeft = pos;
+                if (target2 && target2 !== source) target2.scrollLeft = pos;
+                setTimeout(function () { isSyncing = false; }, 15);
+            }
 
-            topWrapper.addEventListener('scroll', function () {
-                if (!isSyncingTop) {
-                    isSyncingBottom = true;
-                    tableWrapper.scrollLeft = topWrapper.scrollLeft;
-                }
-                isSyncingTop = false;
-            });
+            if (topWrapper) {
+                topWrapper.addEventListener('scroll', function () {
+                    syncAll(topWrapper, tableWrapper, stickyBar);
+                });
+            }
 
             tableWrapper.addEventListener('scroll', function () {
-                if (!isSyncingBottom) {
-                    isSyncingTop = true;
-                    topWrapper.scrollLeft = tableWrapper.scrollLeft;
-                }
-                isSyncingBottom = false;
+                syncAll(tableWrapper, topWrapper, stickyBar);
             });
+
+            if (stickyBar) {
+                stickyBar.addEventListener('scroll', function () {
+                    syncAll(stickyBar, tableWrapper, topWrapper);
+                });
+            }
+
+            window.addEventListener('scroll', updateStickyVisibility, { passive: true });
+            window.addEventListener('resize', updateScrollDimensions);
 
             if (window.ResizeObserver) {
                 var ro = new ResizeObserver(function () {
-                    updateScrollWidth();
+                    updateScrollDimensions();
                 });
                 ro.observe(tableEl);
                 ro.observe(tableWrapper);
             }
+
+            updateScrollDimensions();
         }
 
         $('#selectAll').on('change', function() {
