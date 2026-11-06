@@ -404,35 +404,44 @@ namespace InvoiceManager.Services.Parsers
         {
             if (!string.IsNullOrWhiteSpace(rawLookupUrl) && rawLookupUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                return rawLookupUrl.Trim();
+                var cleanRaw = rawLookupUrl.Trim();
+                if (cleanRaw.Contains("vinvoice.viettel.vn", StringComparison.OrdinalIgnoreCase) && cleanRaw.EndsWith("/tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "https://vinvoice.viettel.vn/tracuu";
+                }
+                if (cleanRaw.Contains("meinvoice.vn", StringComparison.OrdinalIgnoreCase) && cleanRaw.Contains("tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "https://meinvoice.vn/tra-cuu";
+                }
+                return cleanRaw;
             }
 
             var gp = (msttcgp ?? string.Empty).Trim();
             var stc = (sellerTaxCode ?? string.Empty).Trim();
 
-            // Viettel Solutions / Viettel Telecom
+            // Viettel Solutions / Viettel Telecom (Route: /tracuu)
             if (gp == "0100109106" || stc == "0100109106" || stc == "0308808576" || stc == "0301260925" || stc == "1001099064-002" || stc.StartsWith("0100109106") || gp.StartsWith("0100109106"))
-                return "https://vinvoice.viettel.vn/tra-cuu-hoa-don";
+                return "https://vinvoice.viettel.vn/tracuu";
 
             // MISA
             if (gp == "0101243150" || stc == "0101243150" || gp.StartsWith("0101243150") || stc.StartsWith("0101243150"))
-                return "https://www.meinvoice.vn/tra-cuu-hoa-don/";
+                return "https://meinvoice.vn/tra-cuu";
 
             // VNPT
             if (gp == "0106869738" || stc == "0106869738" || gp == "0100684378" || stc == "0100684378")
-                return "https://tra-cuu.vnpt-invoice.com.vn/";
+                return "https://portaltool.vnpt-invoice.com.vn/";
 
             // BKAV
             if (gp == "0101360697" || stc == "0101360697")
-                return "https://van.ehoadon.vn/tracuu";
+                return "https://van.ehoadon.vn/";
 
             // FPT
             if (gp == "0104128565" || stc == "0104128565")
-                return "https://einvoice.fpt.com.vn/tra-cuu";
+                return "https://portal.einvoice.fpt.com.vn";
 
             // CyberBill
             if (gp == "0109282176" || stc == "0109282176")
-                return "https://tra-cuu.cyberbill.vn/";
+                return "https://tracuu.cyberbill.vn";
 
             // EasyInvoice (Softdreams)
             if (gp == "0401486901" || stc == "0401486901")

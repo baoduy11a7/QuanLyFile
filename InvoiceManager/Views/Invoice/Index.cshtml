@@ -1330,6 +1330,14 @@
                                 <td>
                                     @{
                                         var targetLookupUrl = !string.IsNullOrEmpty(inv.LookupUrl) ? inv.LookupUrl : "https://hoadondientu.gdt.gov.vn/";
+                                        if (targetLookupUrl.Contains("vinvoice.viettel.vn", StringComparison.OrdinalIgnoreCase) && (targetLookupUrl.EndsWith("/tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase) || targetLookupUrl.EndsWith("/404", StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            targetLookupUrl = "https://vinvoice.viettel.vn/tracuu";
+                                        }
+                                        else if (targetLookupUrl.Contains("meinvoice.vn", StringComparison.OrdinalIgnoreCase) && targetLookupUrl.Contains("tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            targetLookupUrl = "https://meinvoice.vn/tra-cuu";
+                                        }
                                     }
                                     <a href="@targetLookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block font-monospace" style="max-width: 180px;" title="@targetLookupUrl">
                                         @targetLookupUrl
@@ -1340,7 +1348,7 @@
                                     @{
                                         var lookupCodeVal = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (!string.IsNullOrEmpty(inv.TaxAuthorityCode) ? inv.TaxAuthorityCode : inv.InvoiceNumber);
                                     }
-                                    <a href="@targetLookupUrl" target="_blank" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Tra cứu mã @lookupCodeVal">@lookupCodeVal</a>
+                                    <a href="@targetLookupUrl" target="_blank" onclick="copyLookupCodeAndOpen('@lookupCodeVal', '@targetLookupUrl', event)" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Bấm để sao chép mã và mở trang tra cứu">@lookupCodeVal</a>
                                 </td>
 
                                 <td class="text-center fw-semibold">@(string.IsNullOrEmpty(inv.Currency) ? "VND" : inv.Currency)</td>
@@ -1699,6 +1707,14 @@
                                     <td>
                                         @{
                                             var targetDetailLookupUrl = !string.IsNullOrEmpty(inv.LookupUrl) ? inv.LookupUrl : "https://hoadondientu.gdt.gov.vn/";
+                                            if (targetDetailLookupUrl.Contains("vinvoice.viettel.vn", StringComparison.OrdinalIgnoreCase) && (targetDetailLookupUrl.EndsWith("/tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase) || targetDetailLookupUrl.EndsWith("/404", StringComparison.OrdinalIgnoreCase)))
+                                            {
+                                                targetDetailLookupUrl = "https://vinvoice.viettel.vn/tracuu";
+                                            }
+                                            else if (targetDetailLookupUrl.Contains("meinvoice.vn", StringComparison.OrdinalIgnoreCase) && targetDetailLookupUrl.Contains("tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                targetDetailLookupUrl = "https://meinvoice.vn/tra-cuu";
+                                            }
                                         }
                                         <a href="@targetDetailLookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block font-monospace" style="max-width: 180px;" title="@targetDetailLookupUrl">
                                             @targetDetailLookupUrl
@@ -1709,7 +1725,7 @@
                                         @{
                                             var detailLookupCodeVal = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (!string.IsNullOrEmpty(inv.TaxAuthorityCode) ? inv.TaxAuthorityCode : inv.InvoiceNumber);
                                         }
-                                        <a href="@targetDetailLookupUrl" target="_blank" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Tra cứu mã @detailLookupCodeVal">@detailLookupCodeVal</a>
+                                        <a href="@targetDetailLookupUrl" target="_blank" onclick="copyLookupCodeAndOpen('@detailLookupCodeVal', '@targetDetailLookupUrl', event)" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Bấm để sao chép mã và mở trang tra cứu">@detailLookupCodeVal</a>
                                     </td>
 
                                     <td class="text-center fw-semibold">@(string.IsNullOrEmpty(inv.Currency) ? "VND" : inv.Currency)</td>
@@ -2056,6 +2072,33 @@
             }
 
             updateStickyPosition();
+        }
+
+        function copyLookupCodeAndOpen(code, url, event) {
+            if (code && code !== '-') {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(code).catch(function () {});
+                } else {
+                    var temp = document.createElement("textarea");
+                    temp.value = code;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(temp);
+                }
+                showFloatingToast('Đã sao chép mã tra cứu: ' + code);
+            }
+        }
+
+        function showFloatingToast(message) {
+            var toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 p-3';
+            toast.style.zIndex = '99999';
+            toast.innerHTML = '<div class="toast align-items-center text-white bg-primary border-0 show shadow-lg" role="alert"><div class="d-flex"><div class="toast-body"><i class="bi bi-clipboard-check me-2"></i>' + message + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+            document.body.appendChild(toast);
+            setTimeout(function() {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 3500);
         }
 
         $('#selectAll').on('change', function() {
