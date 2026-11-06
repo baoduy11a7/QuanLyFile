@@ -1241,5 +1241,117 @@
 
     </script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <!-- THANH ĐIỀU HƯỚNG & CUỘN NGANG NỔI CỐ ĐỊNH SÁT ĐÁY MÀN HÌNH -->
+    <div id="fdiFloatingScrollWrapper" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 38px !important; background: #0f172a !important; border-top: 3px solid #2563eb !important; z-index: 2147483647 !important; display: none; align-items: center !important; gap: 8px !important; padding: 2px 10px !important; box-shadow: 0 -4px 20px rgba(0,0,0,0.5) !important;">
+        <button type="button" id="fdiScrollLeftBtn" style="flex-shrink: 0; height: 28px; padding: 0 12px; background: #2563eb; color: #ffffff; border: none; border-radius: 4px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Trượt sang trái">
+            ◀ Trượt trái
+        </button>
+        <div id="fdiFloatingScrollbar" style="flex: 1 !important; height: 26px !important; overflow-x: scroll !important; overflow-y: hidden !important; background: #1e293b !important; border-radius: 4px !important;">
+            <div id="fdiFloatingScrollbarInner" style="width: 4500px; height: 10px;">&nbsp;</div>
+        </div>
+        <button type="button" id="fdiScrollRightBtn" style="flex-shrink: 0; height: 28px; padding: 0 12px; background: #2563eb; color: #ffffff; border: none; border-radius: 4px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Trượt sang phải">
+            Trượt phải ▶
+        </button>
+    </div>
+
+    <script>
+        (function() {
+            function getActiveTable() {
+                var d = document.getElementById('invoiceDetailTable');
+                if (d && !d.classList.contains('d-none')) return d;
+                return document.getElementById('invoiceTable');
+            }
+
+            function setupFloatingScroll() {
+                var wrapper = document.getElementById('fdiFloatingScrollWrapper');
+                var bar = document.getElementById('fdiFloatingScrollbar');
+                var inner = document.getElementById('fdiFloatingScrollbarInner');
+                var btnLeft = document.getElementById('fdiScrollLeftBtn');
+                var btnRight = document.getElementById('fdiScrollRightBtn');
+
+                if (!wrapper || !bar || !inner) return;
+
+                var tbl = getActiveTable();
+                if (!tbl) {
+                    wrapper.style.display = 'none';
+                    return;
+                }
+
+                wrapper.style.display = 'flex';
+
+                function sync() {
+                    var currentTbl = getActiveTable();
+                    if (!currentTbl) return;
+                    var tableEl = currentTbl.querySelector('table');
+                    var scrollW = Math.max(
+                        currentTbl.scrollWidth || 0,
+                        tableEl ? (tableEl.scrollWidth || 0) : 0,
+                        tableEl ? (tableEl.offsetWidth || 0) : 0,
+                        4000
+                    );
+                    inner.style.width = scrollW + 'px';
+                    bar.scrollLeft = currentTbl.scrollLeft;
+                }
+
+                var isSyncing = false;
+                bar.addEventListener('scroll', function() {
+                    if (!isSyncing) {
+                        isSyncing = true;
+                        var currentTbl = getActiveTable();
+                        if (currentTbl) currentTbl.scrollLeft = bar.scrollLeft;
+                        setTimeout(function() { isSyncing = false; }, 10);
+                    }
+                });
+
+                if (btnLeft) {
+                    btnLeft.onclick = function(e) {
+                        e.preventDefault();
+                        var currentTbl = getActiveTable();
+                        if (currentTbl) {
+                            currentTbl.scrollBy({ left: -400, behavior: 'smooth' });
+                            setTimeout(function() { bar.scrollLeft = currentTbl.scrollLeft; }, 50);
+                        }
+                    };
+                }
+
+                if (btnRight) {
+                    btnRight.onclick = function(e) {
+                        e.preventDefault();
+                        var currentTbl = getActiveTable();
+                        if (currentTbl) {
+                            currentTbl.scrollBy({ left: 400, behavior: 'smooth' });
+                            setTimeout(function() { bar.scrollLeft = currentTbl.scrollLeft; }, 50);
+                        }
+                    };
+                }
+
+                ['invoiceTable', 'invoiceDetailTable'].forEach(function(id) {
+                    var t = document.getElementById(id);
+                    if (t) {
+                        t.addEventListener('scroll', function() {
+                            if (!isSyncing) {
+                                isSyncing = true;
+                                bar.scrollLeft = t.scrollLeft;
+                                setTimeout(function() { isSyncing = false; }, 10);
+                            }
+                        });
+                    }
+                });
+
+                window.addEventListener('resize', sync);
+                setInterval(sync, 1000);
+                sync();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', setupFloatingScroll);
+            } else {
+                setupFloatingScroll();
+            }
+            setTimeout(setupFloatingScroll, 300);
+            setTimeout(setupFloatingScroll, 1000);
+        })();
+    </script>
 </body>
 </html>

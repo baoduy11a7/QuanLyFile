@@ -1626,13 +1626,6 @@
 
         </div>
 
-        <!-- Thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar) -->
-        <div id="stickyHorizontalScrollbar" class="sticky-horizontal-scrollbar" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100vw !important; height: 28px !important; box-sizing: border-box !important; background: #e2e8f0 !important; border-top: 3px solid #2563eb !important; overflow-x: scroll !important; overflow-y: hidden !important; z-index: 2147483647 !important; display: block !important; box-shadow: 0 -4px 16px rgba(0,0,0,0.4) !important;" title="Kéo để xem các cột thông tin bên phải">
-            <div id="stickyHorizontalScrollInner" style="width: 4500px; height: 16px; min-height: 16px;">&nbsp;</div>
-        </div>
-
-
-
         <!-- Phân trang -->
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top bg-light">
@@ -1790,8 +1783,8 @@
                 });
             }
 
-            // Khởi tạo hệ thống thanh kéo ngang đồng bộ (Đỉnh bảng & Nổi dính đáy màn hình)
-            initTableHorizontalScrollbars();
+            // Kích hoạt tính năng kéo chuột trực tiếp trên bảng (Drag to Scroll)
+            setupTableDragToScroll();
         });
 
         // Chuyển đổi giữa 2 tab: Tổng quát & Chi tiết hoá đơn
@@ -1834,68 +1827,11 @@
             return document.getElementById('invoiceTable');
         }
 
-        // Khởi tạo thanh kéo ngang nổi dính đáy màn hình (Sticky Bottom Scrollbar)
-        function initTableHorizontalScrollbars() {
-            var stickyBar = document.getElementById('stickyHorizontalScrollbar');
-            var stickyInner = document.getElementById('stickyHorizontalScrollInner');
-            if (!stickyBar || !stickyInner) return;
-
-            // Đưa thanh cuộn nổi ra trực tiếp thẻ <body> để không bị giới hạn hay che khuất bởi bất kỳ thẻ cha nào
-            if (stickyBar.parentNode !== document.body) {
-                document.body.appendChild(stickyBar);
-            }
-
-            // Luôn đảm bảo hiển thị nổi dính đáy màn hình
-            stickyBar.style.display = 'block';
-
-            var isSyncing = false;
-
-            function syncScrollWidth() {
-                if (stickyBar.parentNode !== document.body) {
-                    document.body.appendChild(stickyBar);
-                }
-                var tableWrapper = getActiveTableWrapper();
-                if (!tableWrapper) return;
-
-                var tableEl = tableWrapper.querySelector('table');
-                var scrollW = Math.max(
-                    tableWrapper.scrollWidth || 0,
-                    tableEl ? (tableEl.scrollWidth || 0) : 0,
-                    tableEl ? (tableEl.offsetWidth || 0) : 0,
-                    4000
-                );
-
-                stickyInner.style.width = scrollW + 'px';
-                if (!isSyncing) {
-                    stickyBar.scrollLeft = tableWrapper.scrollLeft;
-                }
-            }
-
-            window.activeTableScrollUpdate = syncScrollWidth;
-
-            stickyBar.addEventListener('scroll', function () {
-                if (!isSyncing) {
-                    isSyncing = true;
-                    var tableWrapper = getActiveTableWrapper();
-                    if (tableWrapper) {
-                        tableWrapper.scrollLeft = stickyBar.scrollLeft;
-                    }
-                    setTimeout(function () { isSyncing = false; }, 10);
-                }
-            });
-
+        // Kích hoạt tính năng kéo chuột trực tiếp trên bảng để trượt ngang (Grab & Drag to Scroll)
+        function setupTableDragToScroll() {
             ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
                 var tbl = document.getElementById(tableId);
                 if (tbl) {
-                    tbl.addEventListener('scroll', function () {
-                        if (!isSyncing) {
-                            isSyncing = true;
-                            stickyBar.scrollLeft = tbl.scrollLeft;
-                            setTimeout(function () { isSyncing = false; }, 10);
-                        }
-                    });
-
-                    // Tính năng: Kéo chuột trực tiếp trên bảng để trượt ngang (Grab & Drag to Scroll)
                     var isDown = false;
                     var startX;
                     var scrollLeft;
@@ -1922,31 +1858,9 @@
                         var x = e.pageX - tbl.offsetLeft;
                         var walk = (x - startX) * 1.5;
                         tbl.scrollLeft = scrollLeft - walk;
-                        if (stickyBar) {
-                            stickyBar.scrollLeft = tbl.scrollLeft;
-                        }
                     });
                 }
             });
-
-            window.addEventListener('resize', syncScrollWidth);
-
-            if (window.ResizeObserver) {
-                var ro = new ResizeObserver(function () {
-                    syncScrollWidth();
-                });
-                var t1 = document.getElementById('invoiceTable');
-                var t2 = document.getElementById('invoiceDetailTable');
-                if (t1) ro.observe(t1);
-                if (t2) ro.observe(t2);
-            }
-
-            syncScrollWidth();
-            setTimeout(syncScrollWidth, 50);
-            setTimeout(syncScrollWidth, 200);
-            setTimeout(syncScrollWidth, 600);
-            setTimeout(syncScrollWidth, 1500);
-            setInterval(syncScrollWidth, 1500);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
