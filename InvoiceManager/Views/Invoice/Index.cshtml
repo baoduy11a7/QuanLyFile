@@ -413,49 +413,6 @@
         background: #64748b;
     }
 
-    /* Thanh cuộn ngang dính đáy bảng (Sticky Bottom Scrollbar) */
-    #tableStickyScrollbar {
-        position: sticky !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        height: 20px !important;
-        background: #f1f5f9 !important;
-        border-top: 1px solid #cbd5e1 !important;
-        overflow-x: scroll !important;
-        overflow-y: hidden !important;
-        z-index: 1020 !important;
-        display: block !important;
-        box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.08) !important;
-        scrollbar-color: #94a3b8 #f1f5f9 !important;
-        scrollbar-width: thin !important;
-    }
-
-    #tableStickyScrollbar::-webkit-scrollbar {
-        height: 16px !important;
-    }
-
-    #tableStickyScrollbar::-webkit-scrollbar-track {
-        background: #f1f5f9 !important;
-        border-radius: 4px !important;
-    }
-
-    #tableStickyScrollbar::-webkit-scrollbar-thumb {
-        background: #94a3b8 !important;
-        border-radius: 9999px !important;
-        border: 2px solid #f1f5f9 !important;
-    }
-
-    #tableStickyScrollbar::-webkit-scrollbar-thumb:hover {
-        background: #64748b !important;
-    }
-
-    /* Đệm khoảng trống ở chân trang để thanh cuộn cố định không che nội dung phân trang hoặc bảng */
-    .fdi-table-card {
-        margin-bottom: 50px !important;
-    }
-
 </style>
 
 
@@ -1626,11 +1583,6 @@
 
         </div>
 
-        <!-- Thanh cuộn ngang dính đáy bảng (Sticky Bottom Scrollbar) -->
-        <div id="tableStickyScrollbar" title="Kéo để xem các cột thông tin bên phải">
-            <div id="tableStickyScrollbarInner" style="width: 3500px; height: 1px; min-height: 1px; line-height: 1px; font-size: 1px;">&nbsp;</div>
-        </div>
-
         <!-- Phân trang -->
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top bg-light">
@@ -1790,9 +1742,6 @@
 
             // Kích hoạt tính năng kéo chuột trực tiếp trên bảng (Drag to Scroll)
             setupTableDragToScroll();
-
-            // Kích hoạt thanh cuộn ngang dính đáy bảng (Sticky Bottom Scrollbar)
-            setupStickyTableScroll();
         });
 
         // Chuyển đổi giữa 2 tab: Tổng quát & Chi tiết hoá đơn
@@ -1882,57 +1831,6 @@
                     }, { passive: true });
                 }
             });
-        }
-
-        // Đồng bộ thanh cuộn ngang dính đáy bảng (Sticky Table Scrollbar)
-        function setupStickyTableScroll() {
-            var bar = document.getElementById('tableStickyScrollbar');
-            var inner = document.getElementById('tableStickyScrollbarInner');
-            if (!bar || !inner) return;
-
-            var isSyncing = false;
-
-            function syncWidth() {
-                var tbl = getActiveTableWrapper();
-                if (!tbl) return;
-                var tableEl = tbl.querySelector('table');
-                var w = Math.max(
-                    tbl.scrollWidth || 0,
-                    tableEl ? (tableEl.scrollWidth || 0) : 0,
-                    tableEl ? (tableEl.offsetWidth || 0) : 0,
-                    3500
-                );
-                inner.style.width = w + 'px';
-                if (!isSyncing) {
-                    bar.scrollLeft = tbl.scrollLeft;
-                }
-            }
-
-            bar.addEventListener('scroll', function() {
-                if (isSyncing) return;
-                isSyncing = true;
-                var tbl = getActiveTableWrapper();
-                if (tbl) {
-                    tbl.scrollLeft = bar.scrollLeft;
-                }
-                setTimeout(function() { isSyncing = false; }, 15);
-            });
-
-            ['invoiceTable', 'invoiceDetailTable'].forEach(function(id) {
-                var tbl = document.getElementById(id);
-                if (tbl) {
-                    tbl.addEventListener('scroll', function() {
-                        if (isSyncing) return;
-                        isSyncing = true;
-                        bar.scrollLeft = tbl.scrollLeft;
-                        setTimeout(function() { isSyncing = false; }, 15);
-                    }, { passive: true });
-                }
-            });
-
-            window.addEventListener('resize', syncWidth);
-            syncWidth();
-            setInterval(syncWidth, 800);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
