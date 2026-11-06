@@ -405,9 +405,9 @@ namespace InvoiceManager.Services.Parsers
             if (!string.IsNullOrWhiteSpace(rawLookupUrl) && rawLookupUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
                 var cleanRaw = rawLookupUrl.Trim();
-                if (cleanRaw.Contains("vinvoice.viettel.vn", StringComparison.OrdinalIgnoreCase) && cleanRaw.EndsWith("/tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
+                if (cleanRaw.Contains("vinvoice.viettel.vn", StringComparison.OrdinalIgnoreCase))
                 {
-                    return "https://vinvoice.viettel.vn/tracuu";
+                    return "https://vinvoice.viettel.vn/utilities/invoice-search";
                 }
                 if (cleanRaw.Contains("meinvoice.vn", StringComparison.OrdinalIgnoreCase) && cleanRaw.Contains("tra-cuu-hoa-don", StringComparison.OrdinalIgnoreCase))
                 {
@@ -419,9 +419,9 @@ namespace InvoiceManager.Services.Parsers
             var gp = (msttcgp ?? string.Empty).Trim();
             var stc = (sellerTaxCode ?? string.Empty).Trim();
 
-            // Viettel Solutions / Viettel Telecom (Route: /tracuu)
+            // Viettel Solutions / Viettel Telecom (Tiện ích > Tra cứu hóa đơn: https://vinvoice.viettel.vn/utilities/invoice-search)
             if (gp == "0100109106" || stc == "0100109106" || stc == "0308808576" || stc == "0301260925" || stc == "1001099064-002" || stc.StartsWith("0100109106") || gp.StartsWith("0100109106"))
-                return "https://vinvoice.viettel.vn/tracuu";
+                return "https://vinvoice.viettel.vn/utilities/invoice-search";
 
             // MISA
             if (gp == "0101243150" || stc == "0101243150" || gp.StartsWith("0101243150") || stc.StartsWith("0101243150"))
