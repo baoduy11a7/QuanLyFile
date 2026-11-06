@@ -390,56 +390,72 @@
 
     }
 
-    /* Thanh cuộn tự nhiên của bảng: ẩn đi để dùng thanh trượt nổi thống nhất */
-    #invoiceTable,
-    #invoiceDetailTable {
-        scrollbar-width: none !important;
-        -ms-overflow-style: none !important;
-    }
-
+    /* Thanh cuộn tự nhiên của bảng: hiển thị đẹp, rõ ràng ở cuối bảng */
     #invoiceTable::-webkit-scrollbar,
     #invoiceDetailTable::-webkit-scrollbar {
-        display: none !important;
-        height: 0px !important;
+        height: 14px !important;
     }
 
-    /* Thanh cuộn ngang linh động nổi ở đáy màn hình khi xem dữ liệu bảng (Floating Scrollbar) */
-    #fdiDynamicScrollbar {
-        position: fixed !important;
-        bottom: 0 !important;
-        height: 18px !important;
+    #invoiceTable::-webkit-scrollbar-track,
+    #invoiceDetailTable::-webkit-scrollbar-track {
         background: #f1f5f9 !important;
-        border-top: 2px solid #cbd5e1 !important;
-        overflow-x: scroll !important;
-        overflow-y: hidden !important;
-        z-index: 1045 !important;
-        display: none;
-        box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.2) !important;
+        border-radius: 4px !important;
     }
 
-    #fdiDynamicScrollbar::-webkit-scrollbar {
-        height: 16px !important;
-    }
-
-    #fdiDynamicScrollbar::-webkit-scrollbar-track {
-        background: #f1f5f9 !important;
-    }
-
-    #fdiDynamicScrollbar::-webkit-scrollbar-thumb {
-        background: #475569 !important;
-        border-radius: 9999px !important;
+    #invoiceTable::-webkit-scrollbar-thumb,
+    #invoiceDetailTable::-webkit-scrollbar-thumb {
+        background: #64748b !important;
+        border-radius: 8px !important;
         border: 2px solid #f1f5f9 !important;
     }
 
-    #fdiDynamicScrollbar::-webkit-scrollbar-thumb:hover {
-        background: #1e293b !important;
+    #invoiceTable::-webkit-scrollbar-thumb:hover,
+    #invoiceDetailTable::-webkit-scrollbar-thumb:hover {
+        background: #334155 !important;
     }
 
-    #fdiDynamicScrollbarTrack {
-        height: 1px !important;
-        min-height: 1px !important;
-        line-height: 1px !important;
-        font-size: 1px !important;
+    /* Thanh trượt nổi tuỳ chỉnh chuyên nghiệp - không bao giờ bị Windows ẩn */
+    #fdiFloatingScrollBar {
+        position: fixed !important;
+        bottom: 0 !important;
+        height: 22px !important;
+        background: #f1f5f9 !important;
+        border-top: 2px solid #cbd5e1 !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+        z-index: 1045 !important;
+        display: none;
+        cursor: pointer;
+        box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.22) !important;
+        user-select: none;
+    }
+
+    #fdiScrollBarThumb {
+        position: absolute;
+        top: 2px;
+        height: 16px;
+        min-width: 45px;
+        background: #3b82f6;
+        border-radius: 9999px;
+        cursor: grab;
+        transition: background-color 0.15s ease;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #fdiScrollBarThumb:hover,
+    #fdiScrollBarThumb.active {
+        background: #1d4ed8;
+        cursor: grabbing;
+    }
+
+    .fdi-thumb-grip {
+        width: 24px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 2px;
+        pointer-events: none;
     }
 
 </style>
@@ -1684,9 +1700,11 @@
 
 </div>
 
-<!-- Thanh trượt ngang linh hoạt nổi ở đáy màn hình khi xem giữa bảng -->
-<div id="fdiDynamicScrollbar" title="Kéo để xem các cột thông tin bên phải">
-    <div id="fdiDynamicScrollbarTrack" style="height: 1px; min-height: 1px; line-height: 1px; font-size: 1px;">&nbsp;</div>
+<!-- Thanh trượt ngang linh hoạt nổi ở đáy màn hình khi xem dữ liệu bảng -->
+<div id="fdiFloatingScrollBar" title="Bấm hoặc kéo con trượt để xem các cột thông tin bên phải">
+    <div id="fdiScrollBarThumb">
+        <span class="fdi-thumb-grip"></span>
+    </div>
 </div>
 
 
@@ -1777,8 +1795,8 @@
             // Kích hoạt tính năng kéo chuột trực tiếp trên bảng (Drag to Scroll)
             setupTableDragToScroll();
 
-            // Kích hoạt thanh trượt ngang linh động nổi khi cuộn trang ở giữa bảng (Dynamic Floating Scrollbar)
-            setupDynamicFloatingScrollbar();
+            // Kích hoạt thanh trượt ngang linh động nổi khi cuộn trang ở giữa bảng (Custom Floating Scrollbar)
+            setupCustomFloatingScrollBar();
         });
 
         // Chuyển đổi giữa 2 tab: Tổng quát & Chi tiết hoá đơn
@@ -1870,31 +1888,30 @@
             });
         }
 
-        // Thiết lập thanh trượt ngang linh động nổi khi cuộn trang ở giữa bảng (Dynamic Floating Scrollbar)
-        function setupDynamicFloatingScrollbar() {
-            var bar = document.getElementById('fdiDynamicScrollbar');
-            var track = document.getElementById('fdiDynamicScrollbarTrack');
-            if (!bar || !track) return;
+        // Thiết lập thanh trượt nổi tuỳ chỉnh chuyên nghiệp (Custom Floating Scrollbar)
+        function setupCustomFloatingScrollBar() {
+            var bar = document.getElementById('fdiFloatingScrollBar');
+            var thumb = document.getElementById('fdiScrollBarThumb');
+            if (!bar || !thumb) return;
 
-            var isSyncing = false;
+            var isDragging = false;
+            var isInternalSync = false;
+            var startX = 0;
+            var startLeft = 0;
 
-            function updateMetrics() {
+            function updateBarMetrics() {
                 var activeTable = getActiveTableWrapper();
                 if (!activeTable) {
                     bar.style.display = 'none';
                     return;
                 }
 
-                var tableEl = activeTable.querySelector('table');
-                var contentWidth = Math.max(
-                    activeTable.scrollWidth || 0,
-                    tableEl ? (tableEl.scrollWidth || 0) : 0,
-                    tableEl ? (tableEl.offsetWidth || 0) : 0
-                );
-                var containerWidth = activeTable.clientWidth || 0;
+                var scrollWidth = activeTable.scrollWidth || 0;
+                var clientWidth = activeTable.clientWidth || 0;
+                var maxScroll = scrollWidth - clientWidth;
 
                 // Nếu bảng không bị tràn ngang thì ẩn thanh trượt
-                if (contentWidth <= containerWidth + 10) {
+                if (maxScroll <= 5) {
                     bar.style.display = 'none';
                     return;
                 }
@@ -1902,70 +1919,138 @@
                 var rect = activeTable.getBoundingClientRect();
                 var winH = window.innerHeight || document.documentElement.clientHeight;
 
-                // Hiển thị thanh trượt nổi bất cứ khi nào bảng đang hiển thị trên màn hình và có tràn ngang
-                var isTableInView = rect.top < (winH - 20) && rect.bottom > 70;
-
-                if (isTableInView) {
-                    var left = Math.max(0, rect.left);
-                    var right = Math.min(window.innerWidth, rect.right);
-                    var width = right - left;
-
-                    if (width > 50) {
-                        bar.style.left = left + 'px';
-                        bar.style.width = width + 'px';
-                        bar.style.display = 'block';
-
-                        track.style.width = contentWidth + 'px';
-
-                        if (!isSyncing && Math.abs(bar.scrollLeft - activeTable.scrollLeft) > 1) {
-                            bar.scrollLeft = activeTable.scrollLeft;
-                        }
-                        return;
-                    }
+                // Hiển thị thanh trượt nổi khi bảng đang ở trong vùng nhìn thấy của màn hình
+                var isVisible = rect.top < (winH - 20) && rect.bottom > 60;
+                if (!isVisible) {
+                    bar.style.display = 'none';
+                    return;
                 }
 
-                bar.style.display = 'none';
+                var left = Math.max(0, rect.left);
+                var right = Math.min(window.innerWidth, rect.right);
+                var barWidth = right - left;
+
+                if (barWidth <= 60) {
+                    bar.style.display = 'none';
+                    return;
+                }
+
+                bar.style.left = left + 'px';
+                bar.style.width = barWidth + 'px';
+                bar.style.display = 'block';
+
+                // Tính toán độ dài con trượt tỉ lệ với dữ liệu
+                var thumbWidth = Math.max(50, Math.round((clientWidth / scrollWidth) * barWidth));
+                thumb.style.width = thumbWidth + 'px';
+
+                // Cập nhật vị trí con trượt theo vị trí cuộn của bảng
+                if (!isDragging && !isInternalSync) {
+                    var maxThumbLeft = barWidth - thumbWidth;
+                    var ratio = maxScroll > 0 ? (activeTable.scrollLeft / maxScroll) : 0;
+                    thumb.style.left = Math.round(ratio * maxThumbLeft) + 'px';
+                }
             }
 
-            // Kéo thanh trượt nổi -> cuộn bảng tương ứng
-            bar.addEventListener('scroll', function() {
-                if (isSyncing) return;
-                isSyncing = true;
-                var activeTable = getActiveTableWrapper();
-                if (activeTable) {
-                    activeTable.scrollLeft = bar.scrollLeft;
-                }
-                requestAnimationFrame(function() {
-                    isSyncing = false;
-                });
+            // Kéo rê con trượt bằng chuột
+            thumb.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                isDragging = true;
+                startX = e.clientX;
+                startLeft = thumb.offsetLeft;
+                document.body.style.userSelect = 'none';
+                thumb.classList.add('active');
             });
 
-            // Khi bảng tự cuộn (kéo chuột trên bảng, phím mũi tên, shift+lăn chuột) -> đồng bộ sang thanh trượt nổi
+            window.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                var delta = e.clientX - startX;
+                var barWidth = bar.clientWidth;
+                var thumbWidth = thumb.offsetWidth;
+                var maxThumbLeft = barWidth - thumbWidth;
+                if (maxThumbLeft <= 0) return;
+
+                var newLeft = Math.max(0, Math.min(maxThumbLeft, startLeft + delta));
+                thumb.style.left = newLeft + 'px';
+
+                var activeTable = getActiveTableWrapper();
+                if (activeTable) {
+                    var maxScroll = activeTable.scrollWidth - activeTable.clientWidth;
+                    var ratio = newLeft / maxThumbLeft;
+                    isInternalSync = true;
+                    activeTable.scrollLeft = Math.round(ratio * maxScroll);
+                    requestAnimationFrame(function() {
+                        isInternalSync = false;
+                    });
+                }
+            });
+
+            window.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                    thumb.classList.remove('active');
+                }
+            });
+
+            // Bấm vào thanh trượt ngoài con trượt -> nhảy đến vị trí bấm
+            bar.addEventListener('mousedown', function(e) {
+                if (e.target === thumb || thumb.contains(e.target)) return;
+                var barRect = bar.getBoundingClientRect();
+                var clickX = e.clientX - barRect.left;
+                var barWidth = bar.clientWidth;
+                var thumbWidth = thumb.offsetWidth;
+                var maxThumbLeft = barWidth - thumbWidth;
+                if (maxThumbLeft <= 0) return;
+
+                var newLeft = Math.max(0, Math.min(maxThumbLeft, clickX - (thumbWidth / 2)));
+                thumb.style.left = newLeft + 'px';
+
+                var activeTable = getActiveTableWrapper();
+                if (activeTable) {
+                    var maxScroll = activeTable.scrollWidth - activeTable.clientWidth;
+                    var ratio = newLeft / maxThumbLeft;
+                    isInternalSync = true;
+                    activeTable.scrollLeft = Math.round(ratio * maxScroll);
+                    requestAnimationFrame(function() {
+                        isInternalSync = false;
+                    });
+                }
+            });
+
+            // Khi bảng tự cuộn (kéo chuột trên bảng, bàn phím, shift+lăn chuột, cuộn tự nhiên)
             ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
                 var el = document.getElementById(tableId);
-                if (el && !el._hasDynamicScrollSync) {
-                    el._hasDynamicScrollSync = true;
+                if (el && !el._hasCustomScrollBarSync) {
+                    el._hasCustomScrollBarSync = true;
                     el.addEventListener('scroll', function() {
-                        if (isSyncing) return;
-                        isSyncing = true;
-                        bar.scrollLeft = el.scrollLeft;
-                        requestAnimationFrame(function() {
-                            isSyncing = false;
-                        });
+                        if (isDragging || isInternalSync) return;
+                        var scrollWidth = el.scrollWidth || 0;
+                        var clientWidth = el.clientWidth || 0;
+                        var maxScroll = scrollWidth - clientWidth;
+                        var barWidth = bar.clientWidth;
+                        var thumbWidth = thumb.offsetWidth;
+                        var maxThumbLeft = barWidth - thumbWidth;
+                        if (maxScroll > 0 && maxThumbLeft > 0) {
+                            var ratio = el.scrollLeft / maxScroll;
+                            thumb.style.left = Math.round(ratio * maxThumbLeft) + 'px';
+                        }
                     }, { passive: true });
                 }
             });
 
-            window.updateDynamicFloatingScrollbar = updateMetrics;
+            window.updateDynamicFloatingScrollbar = updateBarMetrics;
 
-            window.addEventListener('scroll', updateMetrics, { passive: true });
-            window.addEventListener('resize', updateMetrics);
+            window.addEventListener('scroll', updateBarMetrics, { passive: true });
+            window.addEventListener('resize', updateBarMetrics);
 
-            updateMetrics();
-            setTimeout(updateMetrics, 100);
-            setTimeout(updateMetrics, 300);
-            setTimeout(updateMetrics, 800);
-            setInterval(updateMetrics, 400);
+            updateBarMetrics();
+            setTimeout(updateBarMetrics, 50);
+            setTimeout(updateBarMetrics, 200);
+            setTimeout(updateBarMetrics, 500);
+            setTimeout(updateBarMetrics, 1200);
+            setInterval(updateBarMetrics, 400);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
