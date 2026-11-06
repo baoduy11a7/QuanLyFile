@@ -1076,6 +1076,15 @@ namespace InvoiceManager.Services.Providers.Gdt
                 if (string.IsNullOrEmpty(lookupUrl)) lookupUrl = GetJsonStringValue(item, "urltra");
                 if (string.IsNullOrEmpty(lookupUrl)) lookupUrl = GetJsonStringValue(item, "url");
 
+                var msttcgp = GetJsonStringValue(item, "msttcgp");
+                if (string.IsNullOrEmpty(msttcgp)) msttcgp = GetJsonStringValue(item, "mstgp");
+
+                lookupUrl = StandardTctParser.ResolveLookupUrl(msttcgp, sellerMst, sellerWebsite, lookupUrl);
+                if (string.IsNullOrEmpty(lookupCode))
+                {
+                    lookupCode = !string.IsNullOrWhiteSpace(mcqt) ? mcqt : normalizedNumber;
+                }
+
                 var discountAmount = GetJsonDecimalValue(item, "ttcktmai");
                 if (discountAmount == 0) discountAmount = GetJsonDecimalValue(item, "stckhau");
 

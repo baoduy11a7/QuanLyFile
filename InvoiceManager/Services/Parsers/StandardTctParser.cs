@@ -275,6 +275,16 @@ namespace InvoiceManager.Services.Parsers
                 // Validation quy tắc nghiệp vụ hóa đơn
                 ValidateInvoiceData(result);
 
+                // Đảm bảo LookupUrl và LookupCode luôn được thiết lập chính xác
+                if (string.IsNullOrWhiteSpace(result.LookupUrl))
+                {
+                    result.LookupUrl = ResolveLookupUrl(null, result.SellerTaxCode, result.SellerWebsite, null);
+                }
+                if (string.IsNullOrWhiteSpace(result.LookupCode))
+                {
+                    result.LookupCode = !string.IsNullOrWhiteSpace(result.TaxAuthorityCode) ? result.TaxAuthorityCode : result.InvoiceNumber;
+                }
+
                 result.Success = true;
             }
             catch (Exception ex)
@@ -388,6 +398,66 @@ namespace InvoiceManager.Services.Parsers
             var clean = value.Replace("%", "").Trim();
             if (clean.Equals("KCT", StringComparison.OrdinalIgnoreCase) || clean.Contains("chịu")) return -1;
             return decimal.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var rate) ? rate : 10;
+        }
+
+        public static string ResolveLookupUrl(string? msttcgp, string? sellerTaxCode, string? sellerWebsite, string? rawLookupUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(rawLookupUrl) && rawLookupUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return rawLookupUrl.Trim();
+            }
+
+            var gp = (msttcgp ?? string.Empty).Trim();
+            var stc = (sellerTaxCode ?? string.Empty).Trim();
+
+            // Viettel Solutions / Viettel Telecom
+            if (gp == "0100109106" || stc == "0100109106" || stc == "0308808576" || stc == "0301260925" || stc == "1001099064-002" || stc.StartsWith("0100109106") || gp.StartsWith("0100109106"))
+                return "https://vinvoice.viettel.vn/tra-cuu-hoa-don";
+
+            // MISA
+            if (gp == "0101243150" || stc == "0101243150" || gp.StartsWith("0101243150") || stc.StartsWith("0101243150"))
+                return "https://www.meinvoice.vn/tra-cuu-hoa-don/";
+
+            // VNPT
+            if (gp == "0106869738" || stc == "0106869738" || gp == "0100684378" || stc == "0100684378")
+                return "https://tra-cuu.vnpt-invoice.com.vn/";
+
+            // BKAV
+            if (gp == "0101360697" || stc == "0101360697")
+                return "https://van.ehoadon.vn/tracuu";
+
+            // FPT
+            if (gp == "0104128565" || stc == "0104128565")
+                return "https://einvoice.fpt.com.vn/tra-cuu";
+
+            // CyberBill
+            if (gp == "0109282176" || stc == "0109282176")
+                return "https://tra-cuu.cyberbill.vn/";
+
+            // EasyInvoice (Softdreams)
+            if (gp == "0401486901" || stc == "0401486901")
+                return "https://tracuu.easyinvoice.vn/";
+
+            // Thái Sơn E-Invoice
+            if (gp == "0309478306" || stc == "0309478306")
+                return "https://einvoice.vn/tra-cuu";
+
+            // Mobifone
+            if (gp == "0100686209" || stc == "0100686209")
+                return "https://mobifoneinvoice.vn/tra-cuu";
+
+            // VNPAY
+            if (gp == "0102182292" || stc == "0102182292")
+                return "https://vnpayinvoice.vn/tra-cuu";
+
+            if (!string.IsNullOrWhiteSpace(sellerWebsite))
+            {
+                var web = sellerWebsite.Trim();
+                if (web.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return web;
+                return "https://" + web;
+            }
+
+            return "https://hoadondientu.gdt.gov.vn/";
         }
     }
 }

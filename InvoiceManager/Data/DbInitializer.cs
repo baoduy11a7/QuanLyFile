@@ -868,10 +868,13 @@ IF COL_LENGTH('InvoiceDetails', 'TotalAmountVnd') IS NULL ALTER TABLE [InvoiceDe
                     }
                     if (string.IsNullOrEmpty(inv.LookupUrl))
                     {
-                        if (inv.SellerTaxCode == "0100109106") { inv.LookupUrl = "https://vinvoice.viettel.vn/tra-cuu-hoa-don"; modified = true; }
-                        else if (inv.SellerTaxCode == "0101243150") { inv.LookupUrl = "https://www.meinvoice.vn/tra-cuu-hoa-don/"; modified = true; }
-                        else if (inv.SellerTaxCode == "0106869738") { inv.LookupUrl = "https://tra-cuu.vnpt-invoice.com.vn"; modified = true; }
-                        else if (!string.IsNullOrEmpty(inv.SellerWebsite) && inv.SellerWebsite.StartsWith("http", StringComparison.OrdinalIgnoreCase)) { inv.LookupUrl = inv.SellerWebsite; modified = true; }
+                        inv.LookupUrl = StandardTctParser.ResolveLookupUrl(null, inv.SellerTaxCode, inv.SellerWebsite, null);
+                        modified = true;
+                    }
+                    if (string.IsNullOrEmpty(inv.LookupCode))
+                    {
+                        inv.LookupCode = !string.IsNullOrWhiteSpace(inv.TaxAuthorityCode) ? inv.TaxAuthorityCode : inv.InvoiceNumber;
+                        modified = true;
                     }
                     foreach (var d in inv.Details)
                     {

@@ -1122,21 +1122,37 @@
 
                         <th style="width: 140px;" class="text-center">Kết quả kiểm tra hóa đơn</th>
 
-                        <th style="width: 90px;" class="text-center">Đơn vị tiền tệ</th>
-
-                        <th style="width: 80px;" class="text-end">Tỉ giá</th>
-
-                        <th style="width: 110px;" class="text-center">Biển số xe</th>
-
-                        <th style="min-width: 200px;">Ghi chú HĐ bị thay thế, điều chỉnh</th>
-
-                        <th style="width: 130px;" class="text-center">Mã tra cứu hóa đơn gốc</th>
-
                         <th style="min-width: 160px;">Website người bán</th>
 
                         <th style="min-width: 180px;">Url tra cứu hóa đơn gốc</th>
 
-                        <th style="width: 115px;" class="text-center">Thao tác</th>
+                        <th style="width: 150px;" class="text-center">Mã tra cứu hóa đơn gốc</th>
+
+                        <th style="width: 90px;" class="text-center">Đơn vị tiền tệ</th>
+
+                        <th style="width: 80px;" class="text-end">Tỷ giá</th>
+
+                        <th style="width: 110px;" class="text-center">Biển số xe</th>
+
+                        <th style="min-width: 240px;">Ghi chú: Hóa đơn thay thế, điều chỉnh, bị thay thế, bị điều chỉnh</th>
+
+                        <th style="width: 120px;" class="text-center">Xem hóa đơn</th>
+
+                        <th style="width: 110px;" class="text-center">Tải file</th>
+
+                        <th style="width: 150px;" class="text-center">Mã tra cứu hóa đơn gốc</th>
+
+                        <th style="width: 90px;" class="text-center">Đơn vị tiền tệ</th>
+
+                        <th style="width: 80px;" class="text-end">Tỷ giá</th>
+
+                        <th style="width: 110px;" class="text-center">Biển số xe</th>
+
+                        <th style="min-width: 240px;">Ghi chú: Hóa đơn thay thế, điều chỉnh, bị thay thế, bị điều chỉnh</th>
+
+                        <th style="width: 120px;" class="text-center">Xem hóa đơn</th>
+
+                        <th style="width: 110px;" class="text-center">Tải file</th>
 
                     </tr>
 
@@ -1300,6 +1316,33 @@
 
                                 </td>
 
+                                <td>
+                                    @if (!string.IsNullOrEmpty(inv.SellerWebsite))
+                                    {
+                                        <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;" title="@inv.SellerWebsite">@inv.SellerWebsite</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+
+                                <td>
+                                    @{
+                                        var targetLookupUrl = !string.IsNullOrEmpty(inv.LookupUrl) ? inv.LookupUrl : "https://hoadondientu.gdt.gov.vn/";
+                                    }
+                                    <a href="@targetLookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block font-monospace" style="max-width: 180px;" title="@targetLookupUrl">
+                                        @targetLookupUrl
+                                    </a>
+                                </td>
+
+                                <td class="text-center font-monospace">
+                                    @{
+                                        var lookupCodeVal = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (!string.IsNullOrEmpty(inv.TaxAuthorityCode) ? inv.TaxAuthorityCode : inv.InvoiceNumber);
+                                    }
+                                    <a href="@targetLookupUrl" target="_blank" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Tra cứu mã @lookupCodeVal">@lookupCodeVal</a>
+                                </td>
+
                                 <td class="text-center fw-semibold">@(string.IsNullOrEmpty(inv.Currency) ? "VND" : inv.Currency)</td>
 
                                 <td class="text-end font-monospace">@(inv.ExchangeRate > 0 ? inv.ExchangeRate.ToString("N0") : "1")</td>
@@ -1307,95 +1350,24 @@
                                 <td class="text-center">@(string.IsNullOrEmpty(inv.VehicleNumber) ? "-" : inv.VehicleNumber)</td>
 
                                 <td>
-
-                                    <div class="small text-muted text-wrap" style="max-width: 200px;">@(string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote) ? "-" : inv.ReplacedOrAdjustedNote)</div>
-
-                                </td>
-
-                                <td class="text-center font-monospace">@(string.IsNullOrEmpty(inv.LookupCode) ? "-" : inv.LookupCode)</td>
-
-                                <td>
-
-                                    @if (!string.IsNullOrEmpty(inv.SellerWebsite))
-
-                                    {
-
-                                        <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;">@inv.SellerWebsite</a>
-
-                                    }
-
-                                    else
-
-                                    {
-
-                                        <span class="text-muted">-</span>
-
-                                    }
-
-                                </td>
-
-                                <td>
-
-                                    @if (!string.IsNullOrEmpty(inv.LookupUrl))
-
-                                    {
-
-                                        <a href="@inv.LookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block" style="max-width: 180px;" title="@inv.LookupUrl">
-
-                                            <i class="bi bi-box-arrow-up-right me-1"></i>@inv.LookupUrl
-
-                                        </a>
-
-                                    }
-
-                                    else
-
-                                    {
-
-                                        <span class="text-muted">-</span>
-
-                                    }
-
+                                    <div class="small text-muted text-wrap" style="max-width: 240px;">@(string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote) ? "-" : inv.ReplacedOrAdjustedNote)</div>
                                 </td>
 
                                 <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 d-inline-flex align-items-center gap-1" onclick="openInvoiceModal(@inv.Id)" title="Xem chi tiết và PDF gốc">
+                                        <i class="bi bi-eye"></i> Xem hóa đơn
+                                    </button>
+                                </td>
 
-                                    <div class="d-inline-flex gap-1">
-
-                                        <!-- Xem chi tiết & PDF gốc -->
-
-                                        <button type="button" class="btn-action-icon" title="Chi tiết hóa đơn & Xem PDF gốc" onclick="openInvoiceModal(@inv.Id)">
-
-                                            <i class="bi bi-file-earmark-text text-primary"></i>
-
-                                        </button>
-
-                                        <!-- Tải trọn bộ file gốc (.zip) -->
-
-                                        <a asp-action="DownloadAllFiles" asp-route-invoiceId="@inv.Id" class="btn-action-icon" title="Tải trọn bộ file hóa đơn gốc (.zip)">
-
-                                            <i class="bi bi-file-earmark-zip text-warning"></i>
-
+                                <td class="text-center">
+                                    <div class="d-inline-flex align-items-center gap-1">
+                                        <a asp-action="DownloadAllFiles" asp-route-invoiceId="@inv.Id" class="btn btn-sm btn-link text-primary text-decoration-none p-0 d-inline-flex align-items-center gap-1" title="Tải file hóa đơn (.zip)">
+                                            <i class="bi bi-download"></i> Tải file
                                         </a>
-
-                                        <!-- Xem XML gốc trong tab mới -->
-
-                                        <a asp-action="ViewRawXml" asp-route-id="@inv.Id" target="_blank" class="btn-action-icon" title="Xem nội dung XML gốc">
-
-                                            <i class="bi bi-code-slash text-secondary"></i>
-
-                                        </a>
-
-                                        <!-- Xóa hóa đơn -->
-
-                                        <button type="button" class="btn-action-icon text-danger" title="Xóa hóa đơn này" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
-
+                                        <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" title="Xóa hóa đơn" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
                                             <i class="bi bi-trash"></i>
-
                                         </button>
-
                                     </div>
-
                                 </td>
 
                             </tr>
@@ -1412,7 +1384,7 @@
 
                         <tr>
 
-                            <td colspan="36" class="text-muted py-4 px-3 text-center">
+                            <td colspan="37" class="text-muted py-4 px-3 text-center">
 
                                 Không có dữ liệu hóa đơn nào phù hợp với bộ lọc hiện tại.
 
@@ -1508,6 +1480,20 @@
                         <th style="min-width: 160px;">Website người bán</th>
 
                         <th style="min-width: 180px;">Url tra cứu hóa đơn gốc</th>
+
+                        <th style="width: 150px;" class="text-center">Mã tra cứu hóa đơn gốc</th>
+
+                        <th style="width: 90px;" class="text-center">Đơn vị tiền tệ</th>
+
+                        <th style="width: 80px;" class="text-end">Tỷ giá</th>
+
+                        <th style="width: 110px;" class="text-center">Biển số xe</th>
+
+                        <th style="min-width: 240px;">Ghi chú: Hóa đơn thay thế, điều chỉnh, bị thay thế, bị điều chỉnh</th>
+
+                        <th style="width: 120px;" class="text-center">Xem hóa đơn</th>
+
+                        <th style="width: 110px;" class="text-center">Tải file</th>
 
                     </tr>
 
@@ -1700,47 +1686,57 @@
                                     </td>
 
                                     <td>
-
                                         @if (!string.IsNullOrEmpty(inv.SellerWebsite))
-
                                         {
-
-                                            <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;">@inv.SellerWebsite</a>
-
+                                            <a href="@(inv.SellerWebsite.StartsWith("http") ? inv.SellerWebsite : "https://" + inv.SellerWebsite)" target="_blank" class="text-truncate d-inline-block text-primary" style="max-width: 150px;" title="@inv.SellerWebsite">@inv.SellerWebsite</a>
                                         }
-
                                         else
-
                                         {
-
                                             <span class="text-muted">-</span>
-
                                         }
-
                                     </td>
 
                                     <td>
+                                        @{
+                                            var targetDetailLookupUrl = !string.IsNullOrEmpty(inv.LookupUrl) ? inv.LookupUrl : "https://hoadondientu.gdt.gov.vn/";
+                                        }
+                                        <a href="@targetDetailLookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block font-monospace" style="max-width: 180px;" title="@targetDetailLookupUrl">
+                                            @targetDetailLookupUrl
+                                        </a>
+                                    </td>
 
-                                        @if (!string.IsNullOrEmpty(inv.LookupUrl))
+                                    <td class="text-center font-monospace">
+                                        @{
+                                            var detailLookupCodeVal = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (!string.IsNullOrEmpty(inv.TaxAuthorityCode) ? inv.TaxAuthorityCode : inv.InvoiceNumber);
+                                        }
+                                        <a href="@targetDetailLookupUrl" target="_blank" class="font-monospace fw-semibold text-primary text-decoration-underline" title="Tra cứu mã @detailLookupCodeVal">@detailLookupCodeVal</a>
+                                    </td>
 
-                                        {
+                                    <td class="text-center fw-semibold">@(string.IsNullOrEmpty(inv.Currency) ? "VND" : inv.Currency)</td>
 
-                                            <a href="@inv.LookupUrl" target="_blank" class="text-primary text-decoration-underline text-truncate d-inline-block" style="max-width: 180px;" title="@inv.LookupUrl">
+                                    <td class="text-end font-monospace">@(inv.ExchangeRate > 0 ? inv.ExchangeRate.ToString("N0") : "1")</td>
 
-                                                <i class="bi bi-box-arrow-up-right me-1"></i>@inv.LookupUrl
+                                    <td class="text-center">@(string.IsNullOrEmpty(inv.VehicleNumber) ? "-" : inv.VehicleNumber)</td>
 
+                                    <td>
+                                        <div class="small text-muted text-wrap" style="max-width: 240px;">@(string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote) ? "-" : inv.ReplacedOrAdjustedNote)</div>
+                                    </td>
+
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-link text-primary text-decoration-none p-0 d-inline-flex align-items-center gap-1" onclick="openInvoiceModal(@inv.Id)" title="Xem chi tiết và PDF gốc">
+                                            <i class="bi bi-eye"></i> Xem hóa đơn
+                                        </button>
+                                    </td>
+
+                                    <td class="text-center">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <a asp-action="DownloadAllFiles" asp-route-invoiceId="@inv.Id" class="btn btn-sm btn-link text-primary text-decoration-none p-0 d-inline-flex align-items-center gap-1" title="Tải file hóa đơn (.zip)">
+                                                <i class="bi bi-download"></i> Tải file
                                             </a>
-
-                                        }
-
-                                        else
-
-                                        {
-
-                                            <span class="text-muted">-</span>
-
-                                        }
-
+                                            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" title="Xóa hóa đơn" onclick="deleteSingleInvoice(@inv.Id, '@inv.InvoiceSymbol', '@inv.InvoiceNumber')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
                                     </td>
 
                                 </tr>
@@ -1759,7 +1755,7 @@
 
                         <tr>
 
-                            <td colspan="36" class="text-muted py-4 px-3 text-center">
+                            <td colspan="37" class="text-muted py-4 px-3 text-center">
 
                                 Không có dữ liệu mặt hàng nào phù hợp với bộ lọc hiện tại.
 
