@@ -1243,7 +1243,7 @@
     @await RenderSectionAsync("Scripts", required: false)
 
     <!-- THANH ĐIỀU HƯỚNG & CUỘN NGANG NỔI CỐ ĐỊNH SÁT ĐÁY MÀN HÌNH -->
-    <div id="fdiFloatingScrollWrapper" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 38px !important; background: #0f172a !important; border-top: 3px solid #2563eb !important; z-index: 2147483647 !important; display: none; align-items: center !important; gap: 8px !important; padding: 2px 10px !important; box-shadow: 0 -4px 20px rgba(0,0,0,0.5) !important;">
+    <div id="fdiFloatingScrollWrapper" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: 100% !important; height: 38px !important; background: #0f172a !important; border-top: 3px solid #2563eb !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; gap: 8px !important; padding: 2px 10px !important; box-shadow: 0 -4px 20px rgba(0,0,0,0.5) !important;">
         <button type="button" id="fdiScrollLeftBtn" style="flex-shrink: 0; height: 28px; padding: 0 12px; background: #2563eb; color: #ffffff; border: none; border-radius: 4px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Trượt sang trái">
             ◀ Trượt trái
         </button>
@@ -1273,7 +1273,7 @@
                 if (!wrapper || !bar || !inner) return;
 
                 var tbl = getActiveTable();
-                if (!tbl) {
+                if (!tbl && !window.location.pathname.includes('phan-mem-ke-toan') && !window.location.pathname.includes('Invoice')) {
                     wrapper.style.display = 'none';
                     return;
                 }
