@@ -404,16 +404,18 @@
         width: 0 !important;
     }
 
-    /* Thanh trượt ngang linh hoạt luôn nằm ở phía dưới màn hình (không cố định ở cuối trang) */
+    /* Thanh trượt ngang linh hoạt luôn bám sát mép dưới màn hình khi cuộn giữa bảng (không cố định ở cuối trang) */
     #fdiFloatingScrollBar {
-        position: fixed !important;
-        bottom: 0px;
+        position: sticky !important;
+        bottom: 0px !important;
+        left: 0 !important;
+        width: 100% !important;
         height: 18px !important;
         background: #f1f5f9 !important;
         border-top: 1px solid #cbd5e1 !important;
         border-bottom: 1px solid #cbd5e1 !important;
-        z-index: 2147483000 !important;
-        display: none;
+        z-index: 1050 !important;
+        display: block;
         cursor: pointer;
         box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.08) !important;
         user-select: none;
@@ -422,6 +424,8 @@
     #fdiScrollBarThumb {
         position: absolute;
         top: 2px;
+        left: 0px;
+        width: 45%;
         height: 12px;
         min-width: 50px;
         background: #94a3b8;
@@ -1606,6 +1610,11 @@
 
         </div>
 
+        <!-- Thanh trượt ngang linh hoạt bám sát mép dưới màn hình khi cuộn xem dữ liệu bảng -->
+        <div id="fdiFloatingScrollBar" title="Bấm hoặc kéo thanh trượt để xem các cột thông tin bên phải">
+            <div id="fdiScrollBarThumb"></div>
+        </div>
+
         <!-- Phân trang -->
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top bg-light">
@@ -1676,11 +1685,6 @@
 
     </div>
 
-</div>
-
-<!-- Thanh trượt ngang linh hoạt nổi ở đáy màn hình khi xem dữ liệu bảng -->
-<div id="fdiFloatingScrollBar" title="Bấm hoặc kéo thanh trượt để xem các cột thông tin bên phải">
-    <div id="fdiScrollBarThumb"></div>
 </div>
 
 
@@ -1864,15 +1868,16 @@
             });
         }
 
-        // Thiết lập thanh trượt nổi linh hoạt luôn đi theo đáy màn hình (Custom Floating Scrollbar)
+        // Thiết lập thanh trượt ngang linh hoạt bám sát mép dưới màn hình (Sticky Floating Scrollbar)
         function setupCustomFloatingScrollBar() {
             var bar = document.getElementById('fdiFloatingScrollBar');
             var thumb = document.getElementById('fdiScrollBarThumb');
             if (!bar || !thumb) return;
-
-            if (bar.parentElement !== document.body) {
-                document.body.appendChild(bar);
+            if (bar._isInitialized) {
+                if (window.updateDynamicFloatingScrollbar) window.updateDynamicFloatingScrollbar();
+                return;
             }
+            bar._isInitialized = true;
 
             var isDragging = false;
             var isInternalSync = false;
@@ -1890,47 +1895,24 @@
                 var clientWidth = activeTable.clientWidth || 0;
                 var maxScroll = scrollWidth - clientWidth;
 
-                // Nếu bảng không bị tràn ngang thì ẩn thanh trượt
-                if (maxScroll <= 5) {
+                // Nếu bảng đã render kích thước thực tế và không bị tràn ngang thì mới ẩn thanh trượt
+                if (scrollWidth > 0 && clientWidth > 0 && maxScroll <= 5) {
                     bar.style.display = 'none';
                     return;
                 }
 
-                var rect = activeTable.getBoundingClientRect();
-                var winH = window.innerHeight || document.documentElement.clientHeight;
-
-                // Hiển thị thanh trượt khi bảng đang nằm trong vùng nhìn thấy của màn hình
-                var isVisible = rect.top < (winH - 20) && rect.bottom > 40;
-                if (!isVisible) {
-                    bar.style.display = 'none';
-                    return;
-                }
-
-                var left = Math.max(0, Math.round(rect.left));
-                var right = Math.min(window.innerWidth, Math.round(rect.right));
-                var barWidth = right - left;
-
-                if (barWidth <= 60) {
-                    bar.style.display = 'none';
-                    return;
-                }
-
-                // Khi đang ở giữa danh sách hóa đơn (rect.bottom > winH) -> nằm sát đáy màn hình (bottom: 0px)
-                // Khi cuộn tới đáy bảng hóa đơn (rect.bottom <= winH) -> neo ngay sát đáy bảng (phía trên phân trang)
-                var bottomOffset = Math.max(0, Math.round(winH - rect.bottom));
-
-                bar.style.left = left + 'px';
-                bar.style.width = barWidth + 'px';
-                bar.style.bottom = bottomOffset + 'px';
                 bar.style.display = 'block';
 
+                var barWidth = bar.clientWidth || clientWidth;
+                if (barWidth <= 0 || scrollWidth <= 0) return;
+
                 // Tính toán độ dài con trượt tỉ lệ với dữ liệu
-                var thumbWidth = Math.max(50, Math.round((clientWidth / scrollWidth) * barWidth));
+                var thumbWidth = Math.max(50, Math.min(barWidth, Math.round((clientWidth / scrollWidth) * barWidth)));
                 thumb.style.width = thumbWidth + 'px';
 
                 // Cập nhật vị trí con trượt theo vị trí cuộn của bảng
                 if (!isDragging && !isInternalSync) {
-                    var maxThumbLeft = barWidth - thumbWidth;
+                    var maxThumbLeft = Math.max(0, barWidth - thumbWidth);
                     var ratio = maxScroll > 0 ? (activeTable.scrollLeft / maxScroll) : 0;
                     thumb.style.left = Math.round(ratio * maxThumbLeft) + 'px';
                 }
@@ -2037,7 +2019,6 @@
             window.updateDynamicFloatingScrollbar = updateBarMetrics;
 
             window.addEventListener('scroll', updateBarMetrics, { passive: true });
-            document.addEventListener('scroll', updateBarMetrics, { capture: true, passive: true });
             window.addEventListener('resize', updateBarMetrics);
 
             updateBarMetrics();
@@ -2045,8 +2026,9 @@
             setTimeout(updateBarMetrics, 200);
             setTimeout(updateBarMetrics, 500);
             setTimeout(updateBarMetrics, 1200);
-            setInterval(updateBarMetrics, 300);
+            setInterval(updateBarMetrics, 400);
         }
+        setupCustomFloatingScrollBar();
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
             if (code && code !== '-') {
