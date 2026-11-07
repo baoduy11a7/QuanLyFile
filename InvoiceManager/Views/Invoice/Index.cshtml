@@ -568,15 +568,33 @@
 
 
 
-            <div class="dropdown">
+            <div class="btn-group">
 
-                <button class="btn btn-primary btn-sm dropdown-toggle fw-semibold px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <button class="btn btn-primary btn-sm fw-semibold px-3" type="button" onclick="openExportExcelModal()">
 
                     <i class="bi bi-file-earmark-excel me-1"></i> Xuất file excel tổng hợp và hóa đơn
 
                 </button>
 
+                <button type="button" class="btn btn-primary btn-sm dropdown-toggle dropdown-toggle-split px-2" data-bs-toggle="dropdown" aria-expanded="false" title="Tùy chọn xuất nhanh">
+
+                    <span class="visually-hidden">Mở menu xuất file</span>
+
+                </button>
+
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="font-size: 0.84rem;">
+
+                    <li>
+
+                        <button type="button" class="dropdown-item py-2 fw-bold" style="color: #059669;" onclick="openExportExcelModal()">
+
+                            <i class="bi bi-sliders2-vertical me-2" style="color: #059669;"></i> Tùy chọn xuất file Excel & Hóa đơn (HTML/XML/PDF)...
+
+                        </button>
+
+                    </li>
+
+                    <li><hr class="dropdown-divider"></li>
 
                     <li>
 
@@ -1689,6 +1707,99 @@
 
 
 
+<!-- Modal Xuất File Excel & Hóa Đơn Đi Kèm (HTML / XML / PDF) -->
+<div class="modal fade" id="exportExcelModal" tabindex="-1" aria-labelledby="exportExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+        <div class="modal-content border-0" style="border-radius: 12px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22); padding: 22px 26px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-semibold mb-0" id="exportExcelModalLabel" style="font-size: 1.15rem; color: #1e293b;">Xuất file excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.85rem;"></button>
+            </div>
+
+            <!-- Cảnh báo vàng -->
+            <div style="background: #fefce8; border: 1px solid #fef08a; color: #b45309; border-radius: 8px; padding: 10px 14px; font-size: 0.88rem; font-weight: 500; margin-bottom: 10px;">
+                Bạn chỉ xuất được hóa đơn trong khoảng thời gian bạn đã đồng bộ.
+            </div>
+
+            <!-- Thông báo xanh khi chọn PDF -->
+            <div id="exportPdfNoticeBox" style="background: #eff6ff; border: 1px solid #dbeafe; color: #1d4ed8; border-radius: 8px; padding: 10px 14px; font-size: 0.88rem; font-weight: 500; margin-bottom: 20px;">
+                Phần mềm sẽ cần chút thời gian để xuất file PDF nhé.
+            </div>
+
+            <!-- Loại hóa đơn (Floating Label trên viền) -->
+            <div class="position-relative mb-3" style="margin-top: 6px;">
+                <label for="exportModalInvoiceType" style="position: absolute; top: -9px; left: 12px; background: #ffffff; padding: 0 5px; font-size: 0.76rem; color: #64748b; z-index: 2;">Loại hóa đơn</label>
+                <select id="exportModalInvoiceType" class="form-select" style="height: 44px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #1e293b; box-shadow: none;">
+                    <option value="ALL">Tất cả hóa đơn</option>
+                    <option value="MuaVao">Hóa đơn điện tử mua vào</option>
+                    <option value="BanRa">Hóa đơn điện tử bán ra</option>
+                    <option value="SmartPro">Sổ kế toán Smart Pro (KTSC)</option>
+                </select>
+            </div>
+
+            <!-- Từ ngày & Đến ngày (Floating Label trên viền) -->
+            <div class="row g-3 mb-3" style="margin-top: 2px;">
+                <div class="col-6">
+                    <div class="position-relative">
+                        <label for="exportModalFromDate" style="position: absolute; top: -9px; left: 12px; background: #ffffff; padding: 0 5px; font-size: 0.76rem; color: #64748b; z-index: 2;">Từ ngày</label>
+                        <input type="text" id="exportModalFromDate" class="form-control fdi-export-datepicker" placeholder="dd/MM/yyyy"
+                               value="@(Model.Filter.FromDate?.ToString("dd/MM/yyyy") ?? DateTime.Today.AddDays(-30).ToString("dd/MM/yyyy"))"
+                               style="height: 44px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #1e293b; padding-right: 36px; box-shadow: none;" />
+                        <i class="bi bi-calendar4-week text-secondary" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.95rem;"></i>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="position-relative">
+                        <label for="exportModalToDate" style="position: absolute; top: -9px; left: 12px; background: #ffffff; padding: 0 5px; font-size: 0.76rem; color: #64748b; z-index: 2;">Đến ngày</label>
+                        <input type="text" id="exportModalToDate" class="form-control fdi-export-datepicker" placeholder="dd/MM/yyyy"
+                               value="@(Model.Filter.ToDate?.ToString("dd/MM/yyyy") ?? DateTime.Today.ToString("dd/MM/yyyy"))"
+                               style="height: 44px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #1e293b; padding-right: 36px; box-shadow: none;" />
+                        <i class="bi bi-calendar4-week text-secondary" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.95rem;"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Xuất kèm hoá đơn dạng -->
+            <div class="text-center mt-2 mb-2" style="font-size: 0.94rem; font-weight: 500; color: #1e293b;">
+                Xuất kèm hoá đơn dạng
+            </div>
+            <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap mb-3 py-1">
+                <label class="d-inline-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem; color: #1e293b; user-select: none;">
+                    <input type="checkbox" id="chkExportHtml" checked style="width: 18px; height: 18px; accent-color: #059669; cursor: pointer;" />
+                    <span>Hoá đơn HTML</span>
+                </label>
+                <label class="d-inline-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem; color: #1e293b; user-select: none;">
+                    <input type="checkbox" id="chkExportXml" checked style="width: 18px; height: 18px; accent-color: #059669; cursor: pointer;" />
+                    <span>Hoá đơn XML</span>
+                </label>
+                <label class="d-inline-flex align-items-center gap-2" style="cursor: pointer; font-size: 0.9rem; color: #1e293b; user-select: none;">
+                    <input type="checkbox" id="chkExportPdf" checked onchange="toggleExportPdfNotice()" style="width: 18px; height: 18px; accent-color: #059669; cursor: pointer;" />
+                    <span>Hoá đơn PDF</span>
+                </label>
+            </div>
+
+            <!-- Nút Chọn thư mục lưu file tải ra -->
+            <button type="button" id="btnPickExportFolder" onclick="pickExportFolder()"
+                    style="width: 100%; height: 42px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; color: #059669; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s ease;">
+                <i class="bi bi-folder2-open" id="exportFolderBtnIcon" style="font-size: 1.05rem;"></i>
+                <span id="exportFolderBtnText">Chọn thư mục lưu file tải ra</span>
+            </button>
+
+            <!-- Hộp trạng thái đang xuất file -->
+            <div id="exportModalProgressBox" class="d-none mt-3 p-2 rounded-3 text-center" style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; font-size: 0.85rem;">
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <span id="exportModalProgressText">Đang chuẩn bị dữ liệu và xuất file...</span>
+            </div>
+
+            <!-- Nút Hủy & Xuất file -->
+            <div class="d-flex justify-content-end align-items-center gap-2 mt-4 pt-1">
+                <button type="button" class="btn px-3 py-2 fw-medium" style="background: #f1f5f9; color: #334155; border-radius: 8px; font-size: 0.9rem; border: none;" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" id="btnConfirmExportExcel" onclick="submitCustomExportModal()" class="btn px-4 py-2 fw-semibold text-white" style="background: #52b796; border-radius: 8px; font-size: 0.9rem; border: none;">Xuất file</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Xem PDF Gốc Hóa Đơn Điện Tử -->
 
 <div class="modal fade overflow-hidden" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
@@ -1766,6 +1877,12 @@
                 };
 
                 flatpickr('.fdi-filter-datepicker', {
+                    dateFormat: "d/m/Y",
+                    allowInput: true,
+                    locale: vnLocale
+                });
+
+                flatpickr('.fdi-export-datepicker', {
                     dateFormat: "d/m/Y",
                     allowInput: true,
                     locale: vnLocale
@@ -2149,6 +2266,158 @@
 
             window.location.href = '/Export/' + actionName + '?' + params;
 
+        }
+
+        window._selectedExportDirHandle = null;
+
+        function openExportExcelModal() {
+            // Đồng bộ ngày từ bộ lọc hiện tại nếu có
+            var filterFrom = $('#filterFromDate').val();
+            var filterTo = $('#filterToDate').val();
+            if (filterFrom) {
+                var fromEl = document.getElementById('exportModalFromDate');
+                if (fromEl) {
+                    fromEl.value = filterFrom;
+                    if (fromEl._flatpickr) fromEl._flatpickr.setDate(filterFrom, false, "d/m/Y");
+                }
+            }
+            if (filterTo) {
+                var toEl = document.getElementById('exportModalToDate');
+                if (toEl) {
+                    toEl.value = filterTo;
+                    if (toEl._flatpickr) toEl._flatpickr.setDate(filterTo, false, "d/m/Y");
+                }
+            }
+            toggleExportPdfNotice();
+            $('#exportModalProgressBox').addClass('d-none');
+            $('#btnConfirmExportExcel').prop('disabled', false).text('Xuất file');
+            $('#exportExcelModal').modal('show');
+        }
+
+        function toggleExportPdfNotice() {
+            var isPdfChecked = $('#chkExportPdf').is(':checked');
+            if (isPdfChecked) {
+                $('#exportPdfNoticeBox').slideDown(150);
+            } else {
+                $('#exportPdfNoticeBox').slideUp(150);
+            }
+        }
+
+        async function pickExportFolder() {
+            if (typeof window.showDirectoryPicker === 'function') {
+                try {
+                    var dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                    if (dirHandle) {
+                        window._selectedExportDirHandle = dirHandle;
+                        $('#exportFolderBtnIcon').removeClass('bi-folder2-open').addClass('bi-folder-check');
+                        $('#exportFolderBtnText').text('Thư mục lưu: ' + dirHandle.name + ' (Bấm để đổi)');
+                        $('#btnPickExportFolder').css({
+                            'background': '#ecfdf5',
+                            'border-color': '#10b981',
+                            'color': '#047857'
+                        });
+                    }
+                } catch (err) {
+                    if (err && err.name !== 'AbortError') {
+                        showFloatingToast('Không thể mở hộp thoại chọn thư mục: ' + err.message);
+                    }
+                }
+            } else {
+                showFloatingToast('Trình duyệt sẽ tự động lưu file vào thư mục Tải xuống (Downloads) khi bạn bấm "Xuất file".');
+            }
+        }
+
+        function base64ToUint8Array(base64) {
+            var binaryString = window.atob(base64);
+            var len = binaryString.length;
+            var bytes = new Uint8Array(len);
+            for (var i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        async function submitCustomExportModal() {
+            var invoiceType = $('#exportModalInvoiceType').val() || 'ALL';
+            var fromDate = $('#exportModalFromDate').val() || '';
+            var toDate = $('#exportModalToDate').val() || '';
+            var includeHtml = $('#chkExportHtml').is(':checked');
+            var includeXml = $('#chkExportXml').is(':checked');
+            var includePdf = $('#chkExportPdf').is(':checked');
+
+            var $btn = $('#btnConfirmExportExcel');
+            var $progress = $('#exportModalProgressBox');
+            var $progressText = $('#exportModalProgressText');
+
+            // Nếu người dùng đã chọn thư mục trên máy tính qua nút "Chọn thư mục lưu file tải ra"
+            if (window._selectedExportDirHandle) {
+                try {
+                    $btn.prop('disabled', true).text('Đang xuất...');
+                    $progress.removeClass('d-none');
+                    $progressText.text('Đang tổng hợp dữ liệu Excel và hóa đơn để lưu vào thư mục "' + window._selectedExportDirHandle.name + '"...');
+
+                    var manifestUrl = '/Export/ExportCustomFolderManifest?invoiceType=' + encodeURIComponent(invoiceType)
+                        + '&fromDate=' + encodeURIComponent(fromDate)
+                        + '&toDate=' + encodeURIComponent(toDate)
+                        + '&includeHtml=' + includeHtml
+                        + '&includeXml=' + includeXml
+                        + '&includePdf=' + includePdf;
+
+                    var res = await fetch(manifestUrl);
+                    var data = await res.json();
+                    if (!data || !data.success) {
+                        throw new Error((data && data.message) ? data.message : 'Lỗi khi tạo dữ liệu xuất.');
+                    }
+
+                    var rootDir = window._selectedExportDirHandle;
+                    var subDirs = {};
+
+                    for (var i = 0; i < data.files.length; i++) {
+                        var f = data.files[i];
+                        var targetDir = rootDir;
+                        if (f.folder) {
+                            if (!subDirs[f.folder]) {
+                                subDirs[f.folder] = await rootDir.getDirectoryHandle(f.folder, { create: true });
+                            }
+                            targetDir = subDirs[f.folder];
+                        }
+                        var fileHandle = await targetDir.getFileHandle(f.fileName, { create: true });
+                        var writable = await fileHandle.createWritable();
+                        await writable.write(base64ToUint8Array(f.base64));
+                        await writable.close();
+                    }
+
+                    $progress.addClass('d-none');
+                    $btn.prop('disabled', false).text('Xuất file');
+                    $('#exportExcelModal').modal('hide');
+                    showFloatingToast('Đã lưu thành công <strong>' + data.fileCount + ' file</strong> (' + data.invoiceCount + ' hóa đơn) vào thư mục <strong>' + rootDir.name + '</strong>!');
+                    return;
+                } catch (err) {
+                    console.warn('Fallback to direct browser download:', err);
+                }
+            }
+
+            // Tải trực tiếp qua trình duyệt (.xlsx hoặc gói .zip chứa Excel + HTML + XML + PDF)
+            $btn.prop('disabled', true).text('Đang xuất...');
+            $progress.removeClass('d-none');
+            $progressText.text(includePdf
+                ? 'Đang tạo báo cáo Excel và xuất kèm file hóa đơn (HTML/XML/PDF)...'
+                : 'Đang tạo báo cáo Excel và đóng gói dữ liệu...');
+
+            var downloadUrl = '/Export/ExportCustomBundle?invoiceType=' + encodeURIComponent(invoiceType)
+                + '&fromDate=' + encodeURIComponent(fromDate)
+                + '&toDate=' + encodeURIComponent(toDate)
+                + '&includeHtml=' + includeHtml
+                + '&includeXml=' + includeXml
+                + '&includePdf=' + includePdf;
+
+            window.location.href = downloadUrl;
+
+            setTimeout(function () {
+                $progress.addClass('d-none');
+                $btn.prop('disabled', false).text('Xuất file');
+                $('#exportExcelModal').modal('hide');
+            }, 2200);
         }
 
 

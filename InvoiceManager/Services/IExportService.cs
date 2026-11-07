@@ -16,5 +16,6 @@ namespace InvoiceManager.Services
         Task<byte[]> ExportInvoicesPdfZipAsync(List<Invoice> invoices);
         Task<byte[]> GenerateInvoicePdfAsync(Invoice invoice);
         string GenerateInvoiceHtml(Invoice invoice);
+        string GenerateInvoiceXml(Invoice invoice);
     }
 }

@@ -1799,20 +1799,27 @@ namespace InvoiceManager.Services
                         await writer.WriteAsync(htmlContent);
                     }
 
-                    // 2. Gói file XML gốc nếu có
+                    // 2. Gói file XML gốc (hoặc sinh XML chuẩn NĐ123 nếu chưa có file vật lý)
+                    var xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.xml";
+                    if (entryNames.Contains(xmlEntryName))
+                    {
+                        xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.Id}.xml";
+                    }
+                    entryNames.Add(xmlEntryName);
+
+                    var xmlEntry = archive.CreateEntry(xmlEntryName);
                     if (!string.IsNullOrEmpty(inv.RawXmlPath) && File.Exists(inv.RawXmlPath))
                     {
-                        var xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}.xml";
-                        if (entryNames.Contains(xmlEntryName))
-                        {
-                            xmlEntryName = $"XML_Goc_{inv.InvoiceSymbol}_{inv.InvoiceNumber}_{inv.Id}.xml";
-                        }
-                        entryNames.Add(xmlEntryName);
-
-                        var xmlEntry = archive.CreateEntry(xmlEntryName);
                         using var fs = File.OpenRead(inv.RawXmlPath);
                         using var entryStream = xmlEntry.Open();
                         await fs.CopyToAsync(entryStream);
+                    }
+                    else
+                    {
+                        var xmlContent = GenerateInvoiceXml(inv);
+                        using var entryStream = xmlEntry.Open();
+                        using var writer = new StreamWriter(entryStream, Encoding.UTF8);
+                        await writer.WriteAsync(xmlContent);
                     }
 
                     // 3. Gói file PDF gốc nếu có
@@ -2474,6 +2481,90 @@ namespace InvoiceManager.Services
             sb.AppendLine("</body>");
             sb.AppendLine("</html>");
 
+            return sb.ToString();
+        }
+
+        public string GenerateInvoiceXml(Invoice invoice)
+        {
+            string EscapeXml(string? s) => System.Security.SecurityElement.Escape(s ?? string.Empty) ?? string.Empty;
+            var symbol = invoice.InvoiceSymbol ?? "C26TAA";
+            var khmsHDon = char.IsDigit(symbol.FirstOrDefault()) ? symbol.Substring(0, 1) : "1";
+            var khHDon = char.IsDigit(symbol.FirstOrDefault()) && symbol.Length > 1 ? symbol.Substring(1) : symbol;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            sb.AppendLine("<HDon>");
+            sb.AppendLine("  <DLHDon>");
+            sb.AppendLine("    <TTChung>");
+            sb.AppendLine("      <PBan>2.0.0</PBan>");
+            sb.AppendLine($"      <THDon>{(khmsHDon == "2" ? "Hóa đơn bán hàng" : "Hóa đơn giá trị gia tăng")}</THDon>");
+            sb.AppendLine($"      <KHMSHDon>{EscapeXml(khmsHDon)}</KHMSHDon>");
+            sb.AppendLine($"      <KHHDon>{EscapeXml(khHDon)}</KHHDon>");
+            sb.AppendLine($"      <SHDon>{EscapeXml(invoice.InvoiceNumber)}</SHDon>");
+            sb.AppendLine($"      <NLap>{invoice.IssueDate:yyyy-MM-dd}</NLap>");
+            sb.AppendLine($"      <DVTTe>{EscapeXml(string.IsNullOrWhiteSpace(invoice.Currency) ? "VND" : invoice.Currency)}</DVTTe>");
+            sb.AppendLine($"      <TGia>{invoice.ExchangeRate:0.##}</TGia>");
+            sb.AppendLine($"      <HTTToan>{EscapeXml(string.IsNullOrWhiteSpace(invoice.PaymentMethod) ? "TM/CK" : invoice.PaymentMethod)}</HTTToan>");
+            sb.AppendLine("    </TTChung>");
+            sb.AppendLine("    <NDHDon>");
+            sb.AppendLine("      <NBan>");
+            sb.AppendLine($"        <Ten>{EscapeXml(invoice.SellerName)}</Ten>");
+            sb.AppendLine($"        <MST>{EscapeXml(invoice.SellerTaxCode)}</MST>");
+            sb.AppendLine($"        <DChi>{EscapeXml(invoice.SellerAddress)}</DChi>");
+            sb.AppendLine("      </NBan>");
+            sb.AppendLine("      <NMua>");
+            sb.AppendLine($"        <Ten>{EscapeXml(invoice.BuyerName)}</Ten>");
+            sb.AppendLine($"        <MST>{EscapeXml(invoice.BuyerTaxCode)}</MST>");
+            sb.AppendLine($"        <DChi>{EscapeXml(invoice.BuyerAddress)}</DChi>");
+            sb.AppendLine("      </NMua>");
+            sb.AppendLine("      <DSHHDVu>");
+
+            var details = invoice.Details.OrderBy(d => d.LineNumber).ToList();
+            if (!details.Any())
+            {
+                details.Add(new InvoiceDetail
+                {
+                    LineNumber = 1,
+                    ItemName = "Hàng hóa, dịch vụ theo hóa đơn gốc",
+                    Unit = "Lô/Gói",
+                    Quantity = 1,
+                    UnitPrice = invoice.AmountBeforeTax,
+                    AmountBeforeTax = invoice.AmountBeforeTax,
+                    TaxRate = invoice.AmountBeforeTax > 0 ? Math.Round((invoice.TaxAmount / invoice.AmountBeforeTax) * 100, 0) : 10,
+                    TaxAmount = invoice.TaxAmount,
+                    TotalAmount = invoice.TotalAmount
+                });
+            }
+
+            foreach (var d in details)
+            {
+                sb.AppendLine("        <HHDVu>");
+                sb.AppendLine("          <TChat>1</TChat>");
+                sb.AppendLine($"          <STT>{d.LineNumber}</STT>");
+                sb.AppendLine($"          <MHHDVu>{EscapeXml(d.ItemCode)}</MHHDVu>");
+                sb.AppendLine($"          <THHDVu>{EscapeXml(d.ItemName)}</THHDVu>");
+                sb.AppendLine($"          <DVTinh>{EscapeXml(d.Unit)}</DVTinh>");
+                sb.AppendLine($"          <SLuong>{d.Quantity:0.####}</SLuong>");
+                sb.AppendLine($"          <DGia>{d.UnitPrice:0.##}</DGia>");
+                sb.AppendLine($"          <ThTien>{d.AmountBeforeTax:0.##}</ThTien>");
+                sb.AppendLine($"          <TSuat>{(d.TaxRate < 0 ? "KCT" : $"{d.TaxRate:0}%")}</TSuat>");
+                sb.AppendLine("        </HHDVu>");
+            }
+
+            sb.AppendLine("      </DSHHDVu>");
+            sb.AppendLine("      <TToan>");
+            sb.AppendLine($"        <TgTCThue>{invoice.AmountBeforeTax:0.##}</TgTCThue>");
+            sb.AppendLine($"        <TgTThue>{invoice.TaxAmount:0.##}</TgTThue>");
+            sb.AppendLine($"        <TgTTTBSo>{invoice.TotalAmount:0.##}</TgTTTBSo>");
+            sb.AppendLine($"        <TgTTTBChu>{EscapeXml(NumberToVietnameseWords((long)Math.Round(invoice.TotalAmount)))}</TgTTTBChu>");
+            sb.AppendLine("      </TToan>");
+            sb.AppendLine("    </NDHDon>");
+            sb.AppendLine("  </DLHDon>");
+            if (!string.IsNullOrWhiteSpace(invoice.TaxAuthorityCode))
+            {
+                sb.AppendLine($"  <MCCQT>{EscapeXml(invoice.TaxAuthorityCode)}</MCCQT>");
+            }
+            sb.AppendLine("</HDon>");
             return sb.ToString();
         }
         private static (string Name, string TaxCode, string Address) ResolveCompanyInfo(TaxAccount? taxAccount, List<Invoice> invoices, bool isBanRa)
