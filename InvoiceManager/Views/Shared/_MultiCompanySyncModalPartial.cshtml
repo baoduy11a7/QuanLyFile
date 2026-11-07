@@ -1,0 +1,574 @@
+@*
+    _MultiCompanySyncModalPartial.cshtml
+    Cửa sổ Đồng bộ hóa đơn nhiều công ty
+    Thiết kế chuẩn xác 100% theo giao diện người dùng yêu cầu
+*@
+
+<div class="modal fade" id="modalMultiCompanySync" tabindex="-1" aria-labelledby="modalMultiCompanySyncLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 820px;">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; font-family: inherit;">
+            <!-- Modal Header -->
+            <div class="modal-header border-bottom py-3 px-4 bg-white" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-1" id="modalMultiCompanySyncLabel" style="font-size: 1.15rem;">Đồng bộ hóa đơn nhiều công ty</h5>
+                    <div class="text-muted small" style="font-size: 0.82rem;">Chọn khoảng thời gian cần đồng bộ và các công ty từ hệ thống hóa đơn điện tử</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.85rem;"></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body px-4 py-3" style="background-color: #ffffff;">
+                <!-- 1. Nhóm: Chọn đồng bộ hóa đơn mua vào / bán ra -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.88rem;">Chọn đồng bộ hóa đơn mua vào / bán ra</label>
+                    <div class="d-flex flex-wrap gap-4 align-items-center">
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncDirection" id="multiDirAll" value="All" checked>
+                            <label class="form-check-label text-dark small" for="multiDirAll" style="cursor: pointer; font-size: 0.85rem;">
+                                Đồng bộ tất cả
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncDirection" id="multiDirSold" value="BanRa">
+                            <label class="form-check-label text-dark small" for="multiDirSold" style="cursor: pointer; font-size: 0.85rem;">
+                                Chỉ đồng bộ hóa đơn bán ra
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncDirection" id="multiDirPurchase" value="MuaVao">
+                            <label class="form-check-label text-dark small" for="multiDirPurchase" style="cursor: pointer; font-size: 0.85rem;">
+                                Chỉ đồng bộ hoá đơn mua vào
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Nhóm: Chọn đồng bộ loại hoá đơn -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.88rem;">Chọn đồng bộ loại hoá đơn</label>
+                    <div class="d-flex flex-wrap gap-4 align-items-center">
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncCategory" id="multiCatAll" value="All" checked>
+                            <label class="form-check-label text-dark small" for="multiCatAll" style="cursor: pointer; font-size: 0.85rem;">
+                                Đồng bộ tất cả
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncCategory" id="multiCatExcludeCash" value="NoCashRegister">
+                            <label class="form-check-label text-dark small" for="multiCatExcludeCash" style="cursor: pointer; font-size: 0.85rem;">
+                                Đồng bộ tất cả trừ hoá đơn máy tính tiền
+                            </label>
+                        </div>
+                        <div class="form-check d-flex align-items-center gap-1.5 mb-0">
+                            <input class="form-check-input multi-sync-radio" type="radio" name="multiSyncCategory" id="multiCatOnlyCash" value="OnlyCashRegister">
+                            <label class="form-check-label text-dark small" for="multiCatOnlyCash" style="cursor: pointer; font-size: 0.85rem;">
+                                Chỉ đồng bộ hoá đơn máy tính tiền
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Nhóm: Thời gian (Từ ngày - Đến ngày) -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="position-relative">
+                            <label class="form-label small text-muted mb-0 position-absolute bg-white px-1" style="top: -8px; left: 10px; font-size: 0.75rem; z-index: 2;">Từ ngày</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control multi-sync-date bg-white" id="multiSyncFromDate" placeholder="21/09/2026" style="border-radius: 6px; font-size: 0.88rem; height: 38px; border-color: #cbd5e1;">
+                                <span class="input-group-text bg-white border-start-0 position-absolute end-0 h-100 d-flex align-items-center pe-3" style="border: none; pointer-events: none; z-index: 3;">
+                                    <i class="bi bi-calendar3 text-muted" style="font-size: 0.85rem;"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="position-relative">
+                            <label class="form-label small text-muted mb-0 position-absolute bg-white px-1" style="top: -8px; left: 10px; font-size: 0.75rem; z-index: 2;">Đến ngày</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control multi-sync-date bg-white" id="multiSyncToDate" placeholder="21/10/2026" style="border-radius: 6px; font-size: 0.88rem; height: 38px; border-color: #cbd5e1;">
+                                <span class="input-group-text bg-white border-start-0 position-absolute end-0 h-100 d-flex align-items-center pe-3" style="border: none; pointer-events: none; z-index: 3;">
+                                    <i class="bi bi-calendar3 text-muted" style="font-size: 0.85rem;"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Nhóm: Chọn tài khoản cần đồng bộ (Dropdown Tag Multi-Select) -->
+                <div class="mb-3 position-relative">
+                    <label class="form-label fw-bold text-dark mb-1.5" style="font-size: 0.88rem;">Chọn tài khoản cần đồng bộ</label>
+                    <div class="form-control d-flex align-items-center justify-content-between p-1.5" id="multiSyncAccountBox" onclick="toggleMultiCompanyDropdown(event)" style="min-height: 42px; cursor: pointer; border-radius: 6px; border-color: #cbd5e1;">
+                        <div class="d-flex flex-wrap gap-1.5 align-items-center flex-grow-1" id="multiSyncChipsContainer">
+                            <!-- Các chip/tag công ty sẽ được nạp động ở đây (vd: PHẠM GIA XANH HD [x]) -->
+                            <span class="text-muted small ps-1" id="multiSyncPlaceholder">Đang tải danh sách tài khoản...</span>
+                        </div>
+                        <i class="bi bi-chevron-down text-muted px-2" style="font-size: 0.85rem;"></i>
+                    </div>
+
+                    <!-- Dropdown danh sách công ty để tick chọn -->
+                    <div class="position-absolute bg-white border shadow-sm rounded-2 p-2 d-none w-100" id="multiSyncCompanyDropdown" style="top: 100%; left: 0; z-index: 1050; max-height: 260px; overflow-y: auto;">
+                        <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom">
+                            <input type="text" class="form-control form-control-sm me-2" id="multiSyncSearchCompany" placeholder="Tìm kiếm công ty, MST..." oninput="filterMultiCompanyList()" style="font-size: 0.8rem;">
+                            <div class="d-flex gap-1.5 text-nowrap">
+                                <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2" onclick="selectAllMultiCompanies(true)" style="font-size: 0.75rem;">Chọn tất cả</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2" onclick="selectAllMultiCompanies(false)" style="font-size: 0.75rem;">Bỏ chọn</button>
+                            </div>
+                        </div>
+                        <div id="multiSyncCompanyChecklist">
+                            <!-- Danh sách checkboxes sẽ được JS render -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Nhóm: Tiến trình đồng bộ (Bảng 3 cột) -->
+                <div class="mb-2">
+                    <label class="form-label fw-bold text-dark mb-1.5" style="font-size: 0.88rem;">Tiến trình đồng bộ</label>
+                    <div class="table-responsive border rounded-2" style="min-height: 140px; max-height: 220px; overflow-y: auto; border-color: #e2e8f0 !important;">
+                        <table class="table table-sm align-middle mb-0" id="tableMultiSyncProgress" style="font-size: 0.85rem;">
+                            <thead style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                <tr>
+                                    <th class="py-2 px-3 fw-semibold text-secondary" style="width: 32%;">Tên tài khoản</th>
+                                    <th class="py-2 px-3 fw-semibold text-secondary" style="width: 50%;">Xử lý</th>
+                                    <th class="py-2 px-3 fw-semibold text-secondary text-end" style="width: 18%;">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyMultiSyncProgress">
+                                <tr>
+                                    <td colspan="3" class="text-start py-3 px-3 text-muted" style="font-size: 0.85rem;">
+                                        Không có dữ liệu
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer d-flex justify-content-end gap-2 py-2.5 px-4 bg-white border-top" style="border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                <button type="button" class="btn btn-light border px-3 py-1.5 fw-medium text-secondary" data-bs-dismiss="modal" id="btnCancelMultiSync" style="font-size: 0.88rem; border-radius: 6px;">Hủy</button>
+                <button type="button" class="btn btn-primary px-4 py-1.5 fw-semibold d-flex align-items-center gap-1.5" id="btnSubmitMultiSync" onclick="executeMultiCompanySync()" style="background-color: #2563eb; border-color: #2563eb; font-size: 0.88rem; border-radius: 6px;">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="multiSyncSpinner" role="status"></span>
+                    <span>Đồng bộ</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Styling chính xác theo thiết kế hình ảnh */
+    .multi-sync-radio {
+        accent-color: #2563eb !important;
+        width: 1.15em;
+        height: 1.15em;
+        cursor: pointer;
+    }
+    .multi-sync-chip {
+        display: inline-flex;
+        align-items: center;
+        background-color: #f1f5f9;
+        color: #1e293b;
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        border: 1px solid #e2e8f0;
+    }
+    .multi-sync-chip .btn-remove-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 6px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 0.75rem;
+    }
+    .multi-sync-chip .btn-remove-chip:hover {
+        background-color: #cbd5e1;
+        color: #0f172a;
+    }
+    #tableMultiSyncProgress th {
+        font-weight: 600;
+        font-size: 0.83rem;
+    }
+    #tableMultiSyncProgress td {
+        vertical-align: middle;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+</style>
+
+<script>
+    var multiCompanyAccountsList = [];
+    var selectedMultiCompanyIds = new Set();
+    var multiCompanyRunningJobs = [];
+    var multiCompanyStatusTimer = null;
+
+    function openMultiCompanySyncModal() {
+        var modalEl = document.getElementById('modalMultiCompanySync');
+        if (!modalEl) return;
+
+        // Khởi tạo ngày tháng mặc định (30 ngày gần đây) nếu chưa có
+        var now = new Date();
+        var past30 = new Date();
+        past30.setDate(now.getDate() - 30);
+
+        var formatDateVn = function(d) {
+            var day = String(d.getDate()).padStart(2, '0');
+            var month = String(d.getMonth() + 1).padStart(2, '0');
+            var year = d.getFullYear();
+            return day + '/' + month + '/' + year;
+        };
+
+        if (!$('#multiSyncFromDate').val()) {
+            $('#multiSyncFromDate').val(formatDateVn(past30));
+        }
+        if (!$('#multiSyncToDate').val()) {
+            $('#multiSyncToDate').val(formatDateVn(now));
+        }
+
+        // Khởi tạo flatpickr nếu có
+        if (typeof flatpickr !== 'undefined') {
+            var vnLocale = (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.vn) ? flatpickr.l10ns.vn : {
+                weekdays: { shorthand: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"], longhand: ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"] },
+                months: { shorthand: ["Th1", "Th2", "Th3", "Th4", "Th5", "Th6", "Th7", "Th8", "Th9", "Th10", "Th11", "Th12"], longhand: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"] }
+            };
+            flatpickr('.multi-sync-date', {
+                dateFormat: "d/m/Y",
+                allowInput: true,
+                locale: vnLocale
+            });
+        }
+
+        // Tải danh sách công ty của người dùng
+        loadMultiCompanyAccounts();
+
+        if (window.bootstrap && bootstrap.Modal) {
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        } else {
+            $(modalEl).modal('show');
+        }
+    }
+
+    function loadMultiCompanyAccounts() {
+        $.get('/Import/GetMultiCompanySyncAccounts', function(res) {
+            if (res && res.success && res.accounts) {
+                multiCompanyAccountsList = res.accounts;
+                selectedMultiCompanyIds.clear();
+
+                // Mặc định chọn công ty đang làm việc hiện tại
+                var currentAcc = multiCompanyAccountsList.find(function(a) { return a.isCurrent; });
+                if (currentAcc) {
+                    selectedMultiCompanyIds.add(currentAcc.id);
+                } else if (multiCompanyAccountsList.length > 0) {
+                    selectedMultiCompanyIds.add(multiCompanyAccountsList[0].id);
+                }
+
+                renderMultiCompanyChips();
+                renderMultiCompanyChecklist();
+            } else {
+                $('#multiSyncPlaceholder').text('Không tìm thấy danh sách công ty.');
+            }
+        }).fail(function() {
+            $('#multiSyncPlaceholder').text('Lỗi khi tải danh sách công ty.');
+        });
+    }
+
+    function renderMultiCompanyChips() {
+        var container = $('#multiSyncChipsContainer');
+        container.empty();
+
+        if (selectedMultiCompanyIds.size === 0) {
+            container.html('<span class="text-muted small ps-1" id="multiSyncPlaceholder">Nhấn để chọn một hoặc nhiều tài khoản...</span>');
+            return;
+        }
+
+        selectedMultiCompanyIds.forEach(function(accId) {
+            var acc = multiCompanyAccountsList.find(function(a) { return a.id === accId; });
+            if (acc) {
+                var displayName = acc.aliasName || acc.companyName;
+                if (displayName.length > 25) displayName = displayName.substring(0, 23) + '...';
+
+                var chipHtml = '<span class="multi-sync-chip" data-id="' + acc.id + '">' +
+                    '<span>' + displayName + '</span>' +
+                    '<span class="btn-remove-chip" onclick="removeMultiCompanyChip(event, ' + acc.id + ')">&times;</span>' +
+                    '</span>';
+                container.append(chipHtml);
+            }
+        });
+    }
+
+    function removeMultiCompanyChip(e, accId) {
+        if (e) e.stopPropagation();
+        selectedMultiCompanyIds.delete(accId);
+        renderMultiCompanyChips();
+        renderMultiCompanyChecklist();
+    }
+
+    function toggleMultiCompanyDropdown(e) {
+        if (e) e.stopPropagation();
+        var dd = $('#multiSyncCompanyDropdown');
+        if (dd.hasClass('d-none')) {
+            dd.removeClass('d-none');
+            $('#multiSyncSearchCompany').focus();
+        } else {
+            dd.addClass('d-none');
+        }
+    }
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#multiSyncAccountBox').length && !$(e.target).closest('#multiSyncCompanyDropdown').length) {
+            $('#multiSyncCompanyDropdown').addClass('d-none');
+        }
+    });
+
+    function renderMultiCompanyChecklist() {
+        var listContainer = $('#multiSyncCompanyChecklist');
+        listContainer.empty();
+
+        if (!multiCompanyAccountsList || multiCompanyAccountsList.length === 0) {
+            listContainer.html('<div class="text-muted small p-2">Không có công ty nào.</div>');
+            return;
+        }
+
+        multiCompanyAccountsList.forEach(function(acc) {
+            var isChecked = selectedMultiCompanyIds.has(acc.id) ? 'checked' : '';
+            var displayName = acc.aliasName || acc.companyName;
+            var badgeStatus = acc.hasCredentials 
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 0.7rem;">Đã lưu MK</span>'
+                : '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size: 0.7rem;">Chưa lưu MK</span>';
+
+            var itemHtml = '<div class="form-check d-flex align-items-center justify-content-between p-1.5 rounded hover-bg company-item" data-search="' + (displayName + ' ' + acc.taxCode).toLowerCase() + '">' +
+                '<div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">' +
+                    '<input class="form-check-input mt-0" type="checkbox" id="chk_acc_' + acc.id + '" value="' + acc.id + '" ' + isChecked + ' onchange="toggleSelectMultiCompany(' + acc.id + ', this.checked)">' +
+                    '<label class="form-check-label small text-dark text-truncate mb-0" for="chk_acc_' + acc.id + '" style="cursor: pointer;">' +
+                        '<strong>' + displayName + '</strong> <span class="text-muted">(' + acc.taxCode + ')</span>' +
+                    '</label>' +
+                '</div>' +
+                badgeStatus +
+            '</div>';
+            listContainer.append(itemHtml);
+        });
+    }
+
+    function filterMultiCompanyList() {
+        var kw = ($('#multiSyncSearchCompany').val() || '').toLowerCase().trim();
+        $('#multiSyncCompanyChecklist .company-item').each(function() {
+            var text = $(this).attr('data-search') || '';
+            if (!kw || text.indexOf(kw) !== -1) {
+                $(this).removeClass('d-none');
+            } else {
+                $(this).addClass('d-none');
+            }
+        });
+    }
+
+    function toggleSelectMultiCompany(accId, isChecked) {
+        if (isChecked) {
+            selectedMultiCompanyIds.add(accId);
+        } else {
+            selectedMultiCompanyIds.delete(accId);
+        }
+        renderMultiCompanyChips();
+    }
+
+    function selectAllMultiCompanies(selectAll) {
+        if (selectAll) {
+            multiCompanyAccountsList.forEach(function(a) { selectedMultiCompanyIds.add(a.id); });
+        } else {
+            selectedMultiCompanyIds.clear();
+        }
+        renderMultiCompanyChips();
+        renderMultiCompanyChecklist();
+    }
+
+    function executeMultiCompanySync() {
+        if (selectedMultiCompanyIds.size === 0) {
+            alert('Vui lòng chọn ít nhất một tài khoản công ty để đồng bộ.');
+            return;
+        }
+
+        var btn = $('#btnSubmitMultiSync');
+        var spinner = $('#multiSyncSpinner');
+        btn.prop('disabled', true);
+        spinner.removeClass('d-none');
+
+        var direction = $('input[name="multiSyncDirection"]:checked').val() || 'All';
+        var category = $('input[name="multiSyncCategory"]:checked').val() || 'All';
+        var fromDate = $('#multiSyncFromDate').val();
+        var toDate = $('#multiSyncToDate').val();
+
+        var payload = {
+            AccountIds: Array.from(selectedMultiCompanyIds),
+            Direction: direction,
+            Category: category,
+            FromDate: fromDate,
+            ToDate: toDate
+        };
+
+        var tbody = $('#tbodyMultiSyncProgress');
+        tbody.empty();
+
+        // Render sẵn các dòng trạng thái khởi tạo
+        payload.AccountIds.forEach(function(accId) {
+            var acc = multiCompanyAccountsList.find(function(a) { return a.id === accId; });
+            var displayName = acc ? (acc.aliasName || acc.companyName) : ('Tài khoản #' + accId);
+            var taxCode = acc ? acc.taxCode : '';
+
+            var rowHtml = '<tr id="row_sync_acc_' + accId + '">' +
+                '<td class="py-2.5 px-3">' +
+                    '<div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="' + displayName + '">' + displayName + '</div>' +
+                    '<div class="text-muted small" style="font-size: 0.75rem;">' + taxCode + '</div>' +
+                '</td>' +
+                '<td class="py-2.5 px-3" id="cell_progress_' + accId + '">' +
+                    '<div class="d-flex align-items-center gap-2 mb-1">' +
+                        '<div class="spinner-border spinner-border-sm text-primary" role="status" style="width: 12px; height: 12px;"></div>' +
+                        '<span class="small text-muted sync-stage-text">Đang gửi lệnh kết nối...</span>' +
+                    '</div>' +
+                    '<div class="progress" style="height: 5px;">' +
+                        '<div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 15%;"></div>' +
+                    '</div>' +
+                '</td>' +
+                '<td class="py-2.5 px-3 text-end" id="cell_action_' + accId + '">' +
+                    '<span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.75rem;">Chờ xử lý</span>' +
+                '</td>' +
+            '</tr>';
+            tbody.append(rowHtml);
+        });
+
+        $.ajax({
+            url: '/Import/StartMultiCompanySync',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(res) {
+                if (res && res.success && res.jobs) {
+                    multiCompanyRunningJobs = res.jobs;
+                    startMultiCompanyPolling();
+                } else {
+                    btn.prop('disabled', false);
+                    spinner.addClass('d-none');
+                    alert(res.message || 'Lỗi khi khởi chạy đồng bộ.');
+                }
+            },
+            error: function(xhr) {
+                btn.prop('disabled', false);
+                spinner.addClass('d-none');
+                alert('Lỗi kết nối máy chủ: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText));
+            }
+        });
+    }
+
+    function startMultiCompanyPolling() {
+        if (multiCompanyStatusTimer) clearInterval(multiCompanyStatusTimer);
+
+        multiCompanyStatusTimer = setInterval(function() {
+            var jobIds = multiCompanyRunningJobs.map(function(j) { return j.jobId; });
+            if (jobIds.length === 0) {
+                stopMultiCompanyPolling();
+                return;
+            }
+
+            $.ajax({
+                url: '/Import/GetMultiCompanyJobStatuses',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(jobIds),
+                success: function(res) {
+                    if (res && res.success && res.jobs) {
+                        var allFinished = true;
+
+                        res.jobs.forEach(function(jobProgress) {
+                            var targetJob = multiCompanyRunningJobs.find(function(j) { return j.jobId === jobProgress.jobId; });
+                            if (!targetJob) return;
+
+                            var accId = targetJob.accountId;
+                            var cellProgress = $('#cell_progress_' + accId);
+                            var cellAction = $('#cell_action_' + accId);
+
+                            var percent = jobProgress.percent || 10;
+                            var stage = jobProgress.stage || 'Đang xử lý...';
+                            var isFinished = jobProgress.isFinished;
+                            var status = jobProgress.status;
+
+                            if (!isFinished) allFinished = false;
+
+                            if (status === 'Completed' || (isFinished && status !== 'Failed')) {
+                                cellProgress.html(
+                                    '<div class="d-flex align-items-center gap-1.5 text-success small mb-1">' +
+                                        '<i class="bi bi-check-circle-fill"></i>' +
+                                        '<span class="fw-semibold">Hoàn tất (' + (jobProgress.totalFound || 0) + ' HĐ)</span>' +
+                                    '</div>' +
+                                    '<div class="text-muted" style="font-size: 0.75rem;">' +
+                                        'Mới: ' + (jobProgress.newCount || 0) + ' | Cập nhật: ' + (jobProgress.updatedCount || 0) + ' | Trùng: ' + (jobProgress.duplicateCount || 0) +
+                                    '</div>'
+                                );
+                                cellAction.html(
+                                    '<a href="/Invoice/Index?TaxAccountId=' + accId + '" class="btn btn-sm btn-outline-primary py-0.5 px-2" style="font-size: 0.75rem;" target="_blank">' +
+                                        '<i class="bi bi-eye me-1"></i>Xem HĐ' +
+                                    '</a>'
+                                );
+                            } else if (status === 'Failed') {
+                                cellProgress.html(
+                                    '<div class="d-flex align-items-center gap-1.5 text-danger small mb-1">' +
+                                        '<i class="bi bi-x-circle-fill"></i>' +
+                                        '<span class="fw-semibold">Thất bại</span>' +
+                                    '</div>' +
+                                    '<div class="text-danger text-truncate" style="font-size: 0.75rem; max-width: 320px;" title="' + (jobProgress.errorMessage || 'Lỗi kết nối') + '">' +
+                                        (jobProgress.errorMessage || 'Lỗi kết nối Cổng Thuế') +
+                                    '</div>'
+                                );
+                                cellAction.html(
+                                    '<button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2" style="font-size: 0.75rem;" onclick="retrySingleAccountSync(' + accId + ')">' +
+                                        '<i class="bi bi-arrow-clockwise me-1"></i>Thử lại' +
+                                    '</button>'
+                                );
+                            } else {
+                                cellProgress.html(
+                                    '<div class="d-flex align-items-center justify-content-between mb-1">' +
+                                        '<div class="d-flex align-items-center gap-1.5 small text-truncate" style="max-width: 300px;">' +
+                                            '<div class="spinner-border spinner-border-sm text-primary" role="status" style="width: 12px; height: 12px;"></div>' +
+                                            '<span class="text-dark">' + stage + '</span>' +
+                                        '</div>' +
+                                        '<span class="small fw-semibold text-primary">' + percent + '%</span>' +
+                                    '</div>' +
+                                    '<div class="progress" style="height: 5px;">' +
+                                        '<div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: ' + percent + '%;"></div>' +
+                                    '</div>'
+                                );
+                                cellAction.html(
+                                    '<span class="badge bg-primary-subtle text-primary" style="font-size: 0.75rem;">Đang chạy</span>'
+                                );
+                            }
+                        });
+
+                        if (allFinished) {
+                            stopMultiCompanyPolling();
+                        }
+                    }
+                }
+            });
+        }, 1200);
+    }
+
+    function stopMultiCompanyPolling() {
+        if (multiCompanyStatusTimer) {
+            clearInterval(multiCompanyStatusTimer);
+            multiCompanyStatusTimer = null;
+        }
+        $('#btnSubmitMultiSync').prop('disabled', false);
+        $('#multiSyncSpinner').addClass('d-none');
+    }
+
+    function retrySingleAccountSync(accId) {
+        selectedMultiCompanyIds.clear();
+        selectedMultiCompanyIds.add(accId);
+        renderMultiCompanyChips();
+        executeMultiCompanySync();
+    }
+</script>

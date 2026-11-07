@@ -17,6 +17,9 @@
     @if (User.IsInRole("Accountant"))
     {
         <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-primary btn-sm fw-semibold px-3 shadow-sm" onclick="openMultiCompanySyncModal()">
+                <i class="bi bi-buildings me-1"></i> Đồng bộ nhiều công ty
+            </button>
             <a asp-action="Lookup" class="btn btn-outline-primary btn-sm fw-semibold">
                 <i class="bi bi-search me-1"></i> Tra cứu & Cào MST
             </a>
@@ -332,3 +335,5 @@
         }
     </script>
 }
+
+<partial name="_MultiCompanySyncModalPartial" />

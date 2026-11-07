@@ -2776,39 +2776,7 @@
 
 
         function triggerAutoMultiCompanySync() {
-
-            if (!confirm('Hệ thống sẽ tự động đồng bộ hóa đơn ngầm cho tất cả các doanh nghiệp có thông tin kết nối Cổng Thuế của bạn. Tiếp tục?')) {
-
-                return;
-
-            }
-
-
-
-            var token = $('input[name="__RequestVerificationToken"]').val();
-
-            $.ajax({
-
-                url: '/Import/AutoMultiCompanySync',
-
-                type: 'POST',
-
-                headers: { "RequestVerificationToken": token },
-
-                success: function(res) {
-
-                    alert(res.message || 'Đã gửi lệnh đồng bộ nhiều công ty.');
-
-                },
-
-                error: function() {
-
-                    alert('Lỗi khi gửi yêu cầu đồng bộ nhiều công ty.');
-
-                }
-
-            });
-
+            openMultiCompanySyncModal();
         }
 
 
@@ -3590,4 +3558,6 @@
 <partial name="_ImportModalPartial" />
 
 <partial name="_TaxDeclarationModalPartial" />
+
+<partial name="_MultiCompanySyncModalPartial" />
 

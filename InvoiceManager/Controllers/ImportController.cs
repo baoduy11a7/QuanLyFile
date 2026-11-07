@@ -924,6 +924,195 @@ namespace InvoiceManager.Controllers
             });
         }
 
+        [HttpGet]
+        [Authorize(Roles = "Admin,Accountant")]
+        public async Task<IActionResult> GetMultiCompanySyncAccounts()
+        {
+            var currentAccount = await _taxAccountContext.GetCurrentTaxAccountAsync();
+            var currentId = currentAccount?.Id ?? 0;
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            List<TaxAccount> accounts;
+
+            if (User.IsInRole("Admin"))
+            {
+                accounts = await _db.TaxAccounts.OrderBy(a => a.TaxCode).ToListAsync();
+            }
+            else
+            {
+                accounts = await _db.UserTaxAccounts
+                    .Include(u => u.TaxAccount)
+                    .Where(u => u.UserId == userId && u.TaxAccount != null)
+                    .Select(u => u.TaxAccount!)
+                    .OrderBy(a => a.TaxCode)
+                    .ToListAsync();
+            }
+
+            var accountIds = accounts.Select(a => a.Id).ToList();
+            var connections = await _db.RemoteConnections
+                .Where(r => r.ProviderName == "Gdt" && accountIds.Contains(r.TaxAccountId))
+                .ToListAsync();
+
+            var result = accounts.Select(a =>
+            {
+                var conn = connections.FirstOrDefault(c => c.TaxAccountId == a.Id);
+                bool hasCreds = conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword);
+                var activeToken = GdtPortalProvider.GetCachedToken(a.TaxCode, a.Id);
+                bool hasToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
+
+                return new MultiCompanyAccountItemDto
+                {
+                    Id = a.Id,
+                    TaxCode = a.TaxCode,
+                    CompanyName = !string.IsNullOrWhiteSpace(a.ShortName) ? a.ShortName : a.CompanyName,
+                    AliasName = a.ShortName,
+                    HasCredentials = hasCreds,
+                    HasActiveToken = hasToken,
+                    IsCurrent = a.Id == currentId
+                };
+            }).OrderByDescending(x => x.IsCurrent).ThenBy(x => x.CompanyName).ToList();
+
+            return Json(new { success = true, accounts = result });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> StartMultiCompanySync([FromBody] MultiCompanySyncRequestModel model)
+        {
+            if (model == null || model.AccountIds == null || !model.AccountIds.Any())
+            {
+                return Json(new { success = false, message = "Vui lòng chọn ít nhất một công ty để đồng bộ." });
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTime.Today;
+            var defaultFrom = now.AddDays(-30);
+            var defaultTo = now;
+
+            DateTime resolvedFrom = defaultFrom;
+            if (!string.IsNullOrWhiteSpace(model.FromDate))
+            {
+                if (DateTime.TryParseExact(model.FromDate.Trim(), new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dFrom))
+                    resolvedFrom = dFrom;
+                else if (DateTime.TryParse(model.FromDate, out var dFromAny))
+                    resolvedFrom = dFromAny;
+            }
+
+            DateTime resolvedTo = defaultTo;
+            if (!string.IsNullOrWhiteSpace(model.ToDate))
+            {
+                if (DateTime.TryParseExact(model.ToDate.Trim(), new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dTo))
+                    resolvedTo = dTo;
+                else if (DateTime.TryParse(model.ToDate, out var dToAny))
+                    resolvedTo = dToAny;
+            }
+
+            var accounts = await _db.TaxAccounts
+                .Where(a => model.AccountIds.Contains(a.Id))
+                .ToListAsync();
+
+            var jobs = new List<MultiCompanyJobStatusDto>();
+
+            foreach (var acc in accounts)
+            {
+                var activeToken = GdtPortalProvider.GetCachedToken(acc.TaxCode, acc.Id);
+                bool hasToken = !string.IsNullOrWhiteSpace(activeToken) && !GdtPortalProvider.IsJwtExpired(activeToken);
+
+                string? plainPassword = null;
+                var conn = await _db.RemoteConnections
+                    .Where(r => r.ProviderName == "Gdt" && (r.TaxAccountId == acc.Id || r.Username == acc.TaxCode))
+                    .OrderByDescending(r => !string.IsNullOrEmpty(r.EncryptedPassword))
+                    .FirstOrDefaultAsync();
+
+                if (conn != null && !string.IsNullOrEmpty(conn.EncryptedPassword))
+                {
+                    plainPassword = _credentialProtector.Unprotect(conn.EncryptedPassword);
+                }
+
+                var cred = new ProviderCredentials
+                {
+                    TaxCode = acc.TaxCode,
+                    Username = conn?.Username ?? acc.TaxCode,
+                    Password = plainPassword ?? string.Empty,
+                    BearerToken = hasToken ? activeToken : null
+                };
+
+                var fetchReq = new FetchRequest
+                {
+                    TaxCode = acc.TaxCode,
+                    FromDate = resolvedFrom,
+                    ToDate = resolvedTo,
+                    InvoiceType = string.IsNullOrWhiteSpace(model.Direction) ? "All" : model.Direction,
+                    CategoryType = string.IsNullOrWhiteSpace(model.Category) ? "All" : model.Category
+                };
+
+                var jobId = Guid.NewGuid().ToString("N");
+                _jobTracker.CreateJob(jobId, out _);
+
+                DispatchRemoteFetchJob(
+                    jobId,
+                    acc.Id,
+                    "Gdt",
+                    cred,
+                    fetchReq,
+                    true,
+                    userId);
+
+                jobs.Add(new MultiCompanyJobStatusDto
+                {
+                    AccountId = acc.Id,
+                    TaxCode = acc.TaxCode,
+                    CompanyName = !string.IsNullOrWhiteSpace(acc.ShortName) ? acc.ShortName : acc.CompanyName,
+                    JobId = jobId,
+                    Status = "Running",
+                    Percent = 10,
+                    Stage = "Đang kết nối Cổng Thuế...",
+                    IsFinished = false
+                });
+            }
+
+            return Json(new { success = true, jobs = jobs });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Accountant")]
+        [IgnoreAntiforgeryToken]
+        public IActionResult GetMultiCompanyJobStatuses([FromBody] List<string> jobIds)
+        {
+            if (jobIds == null || !jobIds.Any())
+            {
+                return Json(new { success = true, jobs = new List<object>() });
+            }
+
+            var list = new List<object>();
+            foreach (var jobId in jobIds)
+            {
+                var info = _jobTracker.GetProgress(jobId);
+                if (info != null)
+                {
+                    list.Add(new
+                    {
+                        jobId = info.JobId,
+                        status = info.Status,
+                        percent = info.Percent,
+                        stage = info.CurrentStage,
+                        totalFound = info.TotalFound,
+                        successCount = info.SuccessCount,
+                        newCount = info.NewCount,
+                        updatedCount = info.UpdatedCount,
+                        duplicateCount = info.DuplicateCount,
+                        failedCount = info.FailedCount,
+                        filesDownloadedCount = info.FilesDownloadedCount,
+                        errorMessage = info.ErrorMessage,
+                        isFinished = info.IsFinished
+                    });
+                }
+            }
+
+            return Json(new { success = true, jobs = list });
+        }
+
         [HttpPost]
         [Authorize(Roles = "Admin,Accountant")]
         [IgnoreAntiforgeryToken]
