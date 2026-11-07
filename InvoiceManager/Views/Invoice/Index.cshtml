@@ -390,72 +390,50 @@
 
     }
 
-    /* Thanh cuộn tự nhiên của bảng: hiển thị đẹp, rõ ràng ở cuối bảng */
+    /* Ẩn thanh cuộn cố định ở cuối bảng vì đã có thanh trượt linh hoạt luôn đi theo đáy màn hình */
+    #invoiceTable,
+    #invoiceDetailTable {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+
     #invoiceTable::-webkit-scrollbar,
     #invoiceDetailTable::-webkit-scrollbar {
-        height: 14px !important;
+        display: none !important;
+        height: 0 !important;
+        width: 0 !important;
     }
 
-    #invoiceTable::-webkit-scrollbar-track,
-    #invoiceDetailTable::-webkit-scrollbar-track {
-        background: #f1f5f9 !important;
-        border-radius: 4px !important;
-    }
-
-    #invoiceTable::-webkit-scrollbar-thumb,
-    #invoiceDetailTable::-webkit-scrollbar-thumb {
-        background: #64748b !important;
-        border-radius: 8px !important;
-        border: 2px solid #f1f5f9 !important;
-    }
-
-    #invoiceTable::-webkit-scrollbar-thumb:hover,
-    #invoiceDetailTable::-webkit-scrollbar-thumb:hover {
-        background: #334155 !important;
-    }
-
-    /* Thanh trượt nổi tuỳ chỉnh chuyên nghiệp - không bao giờ bị Windows ẩn */
+    /* Thanh trượt ngang linh hoạt luôn nằm ở phía dưới màn hình (không cố định ở cuối trang) */
     #fdiFloatingScrollBar {
         position: fixed !important;
-        bottom: 0 !important;
-        height: 22px !important;
+        bottom: 0px;
+        height: 18px !important;
         background: #f1f5f9 !important;
-        border-top: 2px solid #cbd5e1 !important;
+        border-top: 1px solid #cbd5e1 !important;
         border-bottom: 1px solid #cbd5e1 !important;
-        z-index: 1045 !important;
+        z-index: 2147483000 !important;
         display: none;
         cursor: pointer;
-        box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.22) !important;
+        box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.08) !important;
         user-select: none;
     }
 
     #fdiScrollBarThumb {
         position: absolute;
         top: 2px;
-        height: 16px;
-        min-width: 45px;
-        background: #3b82f6;
+        height: 12px;
+        min-width: 50px;
+        background: #94a3b8;
         border-radius: 9999px;
         cursor: grab;
         transition: background-color 0.15s ease;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
 
     #fdiScrollBarThumb:hover,
     #fdiScrollBarThumb.active {
-        background: #1d4ed8;
+        background: #64748b;
         cursor: grabbing;
-    }
-
-    .fdi-thumb-grip {
-        width: 24px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.85);
-        border-radius: 2px;
-        pointer-events: none;
     }
 
 </style>
@@ -1701,10 +1679,8 @@
 </div>
 
 <!-- Thanh trượt ngang linh hoạt nổi ở đáy màn hình khi xem dữ liệu bảng -->
-<div id="fdiFloatingScrollBar" title="Bấm hoặc kéo con trượt để xem các cột thông tin bên phải">
-    <div id="fdiScrollBarThumb">
-        <span class="fdi-thumb-grip"></span>
-    </div>
+<div id="fdiFloatingScrollBar" title="Bấm hoặc kéo thanh trượt để xem các cột thông tin bên phải">
+    <div id="fdiScrollBarThumb"></div>
 </div>
 
 
@@ -1888,11 +1864,15 @@
             });
         }
 
-        // Thiết lập thanh trượt nổi tuỳ chỉnh chuyên nghiệp (Custom Floating Scrollbar)
+        // Thiết lập thanh trượt nổi linh hoạt luôn đi theo đáy màn hình (Custom Floating Scrollbar)
         function setupCustomFloatingScrollBar() {
             var bar = document.getElementById('fdiFloatingScrollBar');
             var thumb = document.getElementById('fdiScrollBarThumb');
             if (!bar || !thumb) return;
+
+            if (bar.parentElement !== document.body) {
+                document.body.appendChild(bar);
+            }
 
             var isDragging = false;
             var isInternalSync = false;
@@ -1919,15 +1899,15 @@
                 var rect = activeTable.getBoundingClientRect();
                 var winH = window.innerHeight || document.documentElement.clientHeight;
 
-                // Hiển thị thanh trượt nổi khi bảng đang ở trong vùng nhìn thấy của màn hình
-                var isVisible = rect.top < (winH - 20) && rect.bottom > 60;
+                // Hiển thị thanh trượt khi bảng đang nằm trong vùng nhìn thấy của màn hình
+                var isVisible = rect.top < (winH - 20) && rect.bottom > 40;
                 if (!isVisible) {
                     bar.style.display = 'none';
                     return;
                 }
 
-                var left = Math.max(0, rect.left);
-                var right = Math.min(window.innerWidth, rect.right);
+                var left = Math.max(0, Math.round(rect.left));
+                var right = Math.min(window.innerWidth, Math.round(rect.right));
                 var barWidth = right - left;
 
                 if (barWidth <= 60) {
@@ -1935,8 +1915,13 @@
                     return;
                 }
 
+                // Khi đang ở giữa danh sách hóa đơn (rect.bottom > winH) -> nằm sát đáy màn hình (bottom: 0px)
+                // Khi cuộn tới đáy bảng hóa đơn (rect.bottom <= winH) -> neo ngay sát đáy bảng (phía trên phân trang)
+                var bottomOffset = Math.max(0, Math.round(winH - rect.bottom));
+
                 bar.style.left = left + 'px';
                 bar.style.width = barWidth + 'px';
+                bar.style.bottom = bottomOffset + 'px';
                 bar.style.display = 'block';
 
                 // Tính toán độ dài con trượt tỉ lệ với dữ liệu
@@ -2019,6 +2004,15 @@
                 }
             });
 
+            // Hỗ trợ lăn chuột ngay trên thanh trượt để cuộn ngang
+            bar.addEventListener('wheel', function(e) {
+                var activeTable = getActiveTableWrapper();
+                if (activeTable) {
+                    e.preventDefault();
+                    activeTable.scrollLeft += (e.deltaX !== 0 ? e.deltaX : e.deltaY);
+                }
+            }, { passive: false });
+
             // Khi bảng tự cuộn (kéo chuột trên bảng, bàn phím, shift+lăn chuột, cuộn tự nhiên)
             ['invoiceTable', 'invoiceDetailTable'].forEach(function(tableId) {
                 var el = document.getElementById(tableId);
@@ -2043,6 +2037,7 @@
             window.updateDynamicFloatingScrollbar = updateBarMetrics;
 
             window.addEventListener('scroll', updateBarMetrics, { passive: true });
+            document.addEventListener('scroll', updateBarMetrics, { capture: true, passive: true });
             window.addEventListener('resize', updateBarMetrics);
 
             updateBarMetrics();
@@ -2050,7 +2045,7 @@
             setTimeout(updateBarMetrics, 200);
             setTimeout(updateBarMetrics, 500);
             setTimeout(updateBarMetrics, 1200);
-            setInterval(updateBarMetrics, 400);
+            setInterval(updateBarMetrics, 300);
         }
 
         function copyLookupCodeAndOpen(code, sellerMst, event) {
