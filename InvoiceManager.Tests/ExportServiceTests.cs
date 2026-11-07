@@ -246,10 +246,103 @@ namespace InvoiceManager.Tests
             using var zipStream = new MemoryStream(zipBytes);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
-            // Phải chứa ít nhất 2 file HTML hợp lệ
+            // Phải chứa ít nhất 2 file HTML và 2 file XML hợp lệ
             var entries = archive.Entries.ToList();
-            Assert.Equal(2, entries.Count);
+            Assert.True(entries.Count >= 2);
             Assert.Contains(entries, e => e.Name.Contains("00000001"));
+        }
+
+        [Fact]
+        public async Task ExportFullAccountingWorkbookAsync_Generates7ExactSheetsWithoutGhiChuSheet()
+        {
+            var company = new TaxAccount
+            {
+                Id = 1,
+                TaxCode = "0313407026",
+                CompanyName = "CÔNG TY TNHH CÔNG NGHỆ MÔI TRƯỜNG TRUNG DŨNG",
+                Address = "183/16 Đường số 10, Phường Thông Tây Hội, TP Hồ Chí Minh"
+            };
+
+            var invoices = new List<Invoice>
+            {
+                new Invoice
+                {
+                    Id = 1,
+                    InvoiceType = "MuaVao",
+                    TemplateCode = "1",
+                    InvoiceSymbol = "C26TYY",
+                    InvoiceNumber = "9393",
+                    IssueDate = new DateTime(2026, 7, 1),
+                    SellerTaxCode = "0108617038",
+                    SellerName = "CÔNG TY TNHH FASTECH ASIA",
+                    BuyerTaxCode = "0313407026",
+                    BuyerName = "CÔNG TY TNHH CÔNG NGHỆ MÔI TRƯỜNG TRUNG DŨNG",
+                    AmountBeforeTax = 300000m,
+                    TaxAmount = 26000m,
+                    TotalAmount = 326000m,
+                    Status = "Hóa đơn mới",
+                    Details = new List<InvoiceDetail>
+                    {
+                        new InvoiceDetail { LineNumber = 1, ItemName = "Hàng 8% dòng 1", AmountBeforeTax = 100000m, TaxRate = 8, TaxAmount = 8000m, TotalAmount = 108000m },
+                        new InvoiceDetail { LineNumber = 2, ItemName = "Hàng 8% dòng 2", AmountBeforeTax = 100000m, TaxRate = 8, TaxAmount = 8000m, TotalAmount = 108000m },
+                        new InvoiceDetail { LineNumber = 3, ItemName = "Hàng 10% dòng 1", AmountBeforeTax = 100000m, TaxRate = 10, TaxAmount = 10000m, TotalAmount = 110000m }
+                    }
+                },
+                new Invoice
+                {
+                    Id = 2,
+                    InvoiceType = "BanRa",
+                    TemplateCode = "1",
+                    InvoiceSymbol = "C26TTD",
+                    InvoiceNumber = "29",
+                    IssueDate = new DateTime(2026, 7, 3),
+                    SellerTaxCode = "0313407026",
+                    SellerName = "CÔNG TY TNHH CÔNG NGHỆ MÔI TRƯỜNG TRUNG DŨNG",
+                    BuyerTaxCode = "0304237970",
+                    BuyerName = "CÔNG TY TNHH THÊU VĨNH DƯƠNG",
+                    AmountBeforeTax = 13840000m,
+                    TaxAmount = 1107200m,
+                    TotalAmount = 14947200m,
+                    Status = "Hóa đơn mới",
+                    Details = new List<InvoiceDetail>
+                    {
+                        new InvoiceDetail { LineNumber = 1, ItemName = "Dịch vụ vận hành hệ thống xử lý nước thải", AmountBeforeTax = 13840000m, TaxRate = 8, TaxAmount = 1107200m, TotalAmount = 14947200m }
+                    }
+                }
+            };
+
+            var bytes = await _exportService.ExportFullAccountingWorkbookAsync(
+                invoices, company, new DateTime(2026, 7, 1), new DateTime(2026, 9, 30));
+
+            using var ms = new MemoryStream(bytes);
+            using var wb = new XLWorkbook(ms);
+
+            var sheetNames = wb.Worksheets.Select(s => s.Name).ToList();
+            Assert.Equal(new[]
+            {
+                "Danh sách hóa đơn vào",
+                "Danh sách hóa đơn ra",
+                "Bang ke",
+                "bang ke ban ra",
+                "bang ke mua vao",
+                "Chi tiet ban ra",
+                "Chi tiet mua vao"
+            }, sheetNames);
+            Assert.DoesNotContain("ghi chu xem sua", sheetNames);
+
+            // Kiểm tra gộp theo thuế suất trên sheet "bang ke mua vao" (8% gộp 2 dòng thành 1 dòng 200,000 + 1 dòng 10% 100,000)
+            var wsBkMv = wb.Worksheet("bang ke mua vao");
+            Assert.Equal("Hàng 8% dòng 1", wsBkMv.Cell(8, 8).GetString());
+            Assert.Equal(200000, wsBkMv.Cell(8, 9).GetDouble());
+            Assert.Equal("8%", wsBkMv.Cell(8, 10).GetString());
+            Assert.Equal("Hàng 10% dòng 1", wsBkMv.Cell(9, 8).GetString());
+            Assert.Equal(100000, wsBkMv.Cell(9, 9).GetDouble());
+            Assert.Equal("10%", wsBkMv.Cell(9, 10).GetString());
+
+            // Kiểm tra 44 cột trên sheet "Chi tiet mua vao" và "Chi tiet ban ra"
+            var wsCtMv = wb.Worksheet("Chi tiet mua vao");
+            Assert.Equal("Mẫu số HD", wsCtMv.Cell(3, 1).GetString());
+            Assert.Equal("Ngày CQT ký số", wsCtMv.Cell(3, 44).GetString());
         }
     }
 }

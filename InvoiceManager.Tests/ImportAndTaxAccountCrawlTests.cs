@@ -66,7 +66,9 @@ namespace InvoiceManager.Tests
                 mockProtector.Object,
                 mockAudit.Object,
                 mockLookup.Object,
-                db);
+                db,
+                new Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().Object,
+                new Mock<Microsoft.Extensions.Logging.ILogger<ImportController>>().Object);
 
             var result = await controller.Index();
 
@@ -104,7 +106,9 @@ namespace InvoiceManager.Tests
                 mockProtector.Object,
                 mockAudit.Object,
                 mockLookup.Object,
-                db)
+                db,
+                new Mock<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().Object,
+                new Mock<Microsoft.Extensions.Logging.ILogger<ImportController>>().Object)
             {
                 ControllerContext = CreateControllerContextWithUser("user-123")
             };

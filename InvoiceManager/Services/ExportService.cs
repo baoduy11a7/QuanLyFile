@@ -984,246 +984,254 @@ namespace InvoiceManager.Services
             ws.Column(1).Width = 7; // Thu gọn cột STT vừa vặn số thứ tự
         }
 
-                private void BuildDanhSachHoaDonVaoSheet(IXLWorksheet ws, List<Invoice> invoices, TaxAccount? taxAccount, DateTime fromDate, DateTime toDate)
+        private static (int templateNum, string cleanSymbol) SplitTemplateAndSymbol(Invoice inv)
+        {
+            string rawSym = (inv.InvoiceSymbol ?? "").Trim();
+            string rawTpl = (inv.TemplateCode ?? "").Trim();
+            int tpl = 1;
+            if (!string.IsNullOrEmpty(rawTpl) && int.TryParse(rawTpl, out var parsedTpl) && parsedTpl > 0)
+            {
+                tpl = parsedTpl;
+            }
+            else if (rawSym.Length > 1 && char.IsDigit(rawSym[0]))
+            {
+                tpl = rawSym[0] - '0';
+            }
+
+            string sym = rawSym.Length > 1 && char.IsDigit(rawSym[0]) ? rawSym.Substring(1) : rawSym;
+            return (tpl, sym);
+        }
+
+        private static string ResolveVerificationResult(Invoice inv)
+        {
+            if (!string.IsNullOrWhiteSpace(inv.VerificationResult))
+                return inv.VerificationResult;
+            var (_, sym) = SplitTemplateAndSymbol(inv);
+            if (!string.IsNullOrWhiteSpace(inv.TaxAuthorityCode) || sym.StartsWith("C", StringComparison.OrdinalIgnoreCase))
+                return "Đã cấp mã hoá đơn";
+            return "Tổng cục thuế đã nhận không mã";
+        }
+
+        private void BuildDanhSachHoaDonVaoSheet(IXLWorksheet ws, List<Invoice> invoices, TaxAccount? taxAccount, DateTime fromDate, DateTime toDate)
         {
             ws.ShowGridLines = true;
 
-            // Thông tin công ty
-            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, false);
-            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
-            ws.Cell("A1").Style.Font.Bold = true;
-            ws.Cell("A1").Style.Font.FontSize = 10.5;
-            ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
-            ws.Range("A1:H1").Merge();
-
-            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
-            ws.Cell("A2").Style.Font.Italic = true;
-            ws.Cell("A2").Style.Font.FontSize = 9.5;
-            ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
-            ws.Range("A2:H2").Merge();
-
-            ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN ĐIỆN TỬ MUA VÀO";
+            ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN";
             ws.Cell("A3").Style.Font.Bold = true;
-            ws.Cell("A3").Style.Font.FontSize = 13;
-            ws.Cell("A3").Style.Font.FontColor = XLColor.FromHtml("#B45309");
-            ws.Range("A3:H3").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A3").Style.Font.FontSize = 14;
+            ws.Range("A3:V3").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            ws.Cell("A4").Value = $"Từ ngày {fromDate:dd/MM/yyyy} đến ngày {toDate:dd/MM/yyyy}  |  Tổng số hóa đơn: {invoices.Count:N0}";
-            ws.Cell("A4").Style.Font.Italic = true;
-            ws.Cell("A4").Style.Font.FontSize = 9.5;
-            ws.Range("A4:H4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A4").Value = $"Từ ngày {fromDate:dd-MM-yyyy} đến ngày {toDate:dd-MM-yyyy}";
+            ws.Cell("A4").Style.Font.FontSize = 11;
+            ws.Range("A4:V4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            int startRow = 5;
+            int startRow = 6;
             string[] headers = new[]
             {
-                "Ký hiệu hóa đơn", "Số hóa đơn", "Ngày lập", "MST người bán/MST người xuất hàng",
-                "Tên người bán/Tên người xuất hàng", "Địa chỉ người bán", "MST người mua/MST người nhận hàng",
-                "Tên người mua/Tên người nhận hàng", "Tổng tiền chưa thuế", "Tổng tiền thuế",
-                "Tổng tiền chiết khấu thương mại", "Tổng tiền phí", "Tổng tiền thanh toán",
-                "Đơn vị tiền tệ", "Tỷ giá", "Trạng thái hóa đơn", "Thông điệp tra cứu hóa đơn",
+                "STT", "Ký hiệu mẫu số", "Ký hiệu hóa đơn", "Số hóa đơn", "Ngày lập",
+                "MST người bán/MST người xuất hàng", "Tên người bán/Tên người xuất hàng", "Địa chỉ người bán",
+                "MST người mua/MST người nhận hàng", "Tên người mua/Tên người nhận hàng",
+                "Tổng tiền chưa thuế", "Tổng tiền thuế", "Tổng tiền chiết khấu thương mại", "Tổng tiền phí", "Tổng tiền thanh toán",
+                "Đơn vị tiền tệ", "Tỷ giá", "Trạng thái hóa đơn", "Đường dẫn tra cứu hóa đơn",
                 "Mã tra cứu hóa đơn", "Kết quả kiểm tra hóa đơn", "Tên file xuất hóa đơn (XML/HTML/PDF)"
             };
 
-            var headerFill = XLColor.FromHtml("#F59E0B");
+            var headerFill = XLColor.FromHtml("#FFC000");
             for (int col = 0; col < headers.Length; col++)
             {
                 var cell = ws.Cell(startRow, col + 1);
                 cell.Value = headers[col];
                 cell.Style.Font.Bold = true;
-                cell.Style.Font.FontSize = 9;
+                cell.Style.Font.FontSize = 11;
                 cell.Style.Font.FontColor = XLColor.Black;
                 cell.Style.Fill.BackgroundColor = headerFill;
                 cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+                cell.Style.Alignment.SetWrapText(true);
                 cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
             }
-            ws.Row(startRow).Height = 28;
+            ws.Row(startRow).Height = 30;
 
             int r = startRow + 1;
-            string myTaxCode = taxAccount?.TaxCode ?? "";
-            string myCompanyName = taxAccount?.CompanyName ?? "";
+            int stt = 1;
+            var (compName, compTaxCode, _) = ResolveCompanyInfo(taxAccount, invoices, false);
 
             foreach (var inv in invoices)
             {
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
+                var (tplNum, cleanSym) = SplitTemplateAndSymbol(inv);
+                bool hasLongNum = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongNum ? sn.ToString() : inv.InvoiceNumber;
                 string sellerMst = inv.SellerTaxCode ?? "";
-                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHd}_{sellerMst}";
+                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHdStr}_{sellerMst}";
 
-                ws.Cell(r, 1).Value = inv.InvoiceSymbol;
-                ws.Cell(r, 2).Value = soHd;
-                ws.Cell(r, 3).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                ws.Cell(r, 4).Value = sellerMst;
-                ws.Cell(r, 5).Value = inv.SellerName ?? "";
-                ws.Cell(r, 6).Value = inv.SellerAddress ?? "";
-                ws.Cell(r, 7).Value = !string.IsNullOrEmpty(inv.BuyerTaxCode) ? inv.BuyerTaxCode : myTaxCode;
-                ws.Cell(r, 8).Value = !string.IsNullOrEmpty(inv.BuyerName) ? inv.BuyerName : myCompanyName;
-                ws.Cell(r, 9).Value = inv.AmountBeforeTax;
-                ws.Cell(r, 10).Value = inv.TaxAmount;
-                ws.Cell(r, 11).Value = 0;
-                ws.Cell(r, 12).Value = "";
-                ws.Cell(r, 13).Value = inv.TotalAmount;
-                ws.Cell(r, 14).Value = "VND";
-                ws.Cell(r, 15).Value = 1.00;
-                ws.Cell(r, 16).Value = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
-                ws.Cell(r, 17).Value = "";
-                ws.Cell(r, 18).Value = inv.TaxAuthorityCode ?? "";
-                ws.Cell(r, 19).Value = "Đã cấp mã hóa đơn";
-                ws.Cell(r, 20).Value = fileName;
+                ws.Cell(r, 1).Value = stt++;
+                ws.Cell(r, 2).Value = tplNum;
+                ws.Cell(r, 3).Value = cleanSym;
+                if (hasLongNum) ws.Cell(r, 4).Value = sn; else ws.Cell(r, 4).Value = soHdStr;
+                ws.Cell(r, 5).Value = inv.IssueDate.ToString("dd/MM/yyyy");
+                ws.Cell(r, 6).Value = sellerMst;
+                ws.Cell(r, 7).Value = inv.SellerName ?? "";
+                ws.Cell(r, 8).Value = inv.SellerAddress ?? "";
+                ws.Cell(r, 9).Value = !string.IsNullOrEmpty(inv.BuyerTaxCode) ? inv.BuyerTaxCode : compTaxCode;
+                ws.Cell(r, 10).Value = !string.IsNullOrEmpty(inv.BuyerName) ? inv.BuyerName : compName;
+                ws.Cell(r, 11).Value = inv.AmountBeforeTax;
+                ws.Cell(r, 12).Value = inv.TaxAmount;
+                ws.Cell(r, 13).Value = inv.DiscountAmount;
+                if (inv.FeeAmount > 0) ws.Cell(r, 14).Value = inv.FeeAmount; else ws.Cell(r, 14).Value = "";
+                ws.Cell(r, 15).Value = inv.TotalAmount;
+                ws.Cell(r, 16).Value = !string.IsNullOrEmpty(inv.Currency) ? inv.Currency : "VND";
+                ws.Cell(r, 17).Value = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1m;
+                ws.Cell(r, 18).Value = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
+                ws.Cell(r, 19).Value = inv.LookupUrl ?? "";
+                ws.Cell(r, 20).Value = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (inv.TaxAuthorityCode ?? "");
+                ws.Cell(r, 21).Value = ResolveVerificationResult(inv);
+                ws.Cell(r, 22).Value = fileName;
 
                 ws.Cell(r, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 3).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 4).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 7).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 14).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 15).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 6).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 9).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 16).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 17).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 18).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 19).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-                ws.Cell(r, 9).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 10).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 15).Style.NumberFormat.Format = "0.00";
+                ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 12).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 15).Style.NumberFormat.Format = "#,##0";
 
                 for (int c = 1; c <= headers.Length; c++)
                 {
                     ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                    ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
+                    ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#D1D5DB");
                 }
                 r++;
             }
 
             ws.Columns().AdjustToContents();
-            ws.Column(1).Width = Math.Max(12, ws.Column(1).Width);
-            ws.Column(2).Width = Math.Max(10, ws.Column(2).Width);
-            ws.Column(5).Width = Math.Max(30, ws.Column(5).Width);
-            ws.Column(6).Width = Math.Max(35, ws.Column(6).Width);
-            ws.Column(8).Width = Math.Max(30, ws.Column(8).Width);
-            ws.Column(20).Width = Math.Max(26, ws.Column(20).Width);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 10;
+            ws.Column(3).Width = 14;
+            ws.Column(4).Width = 12;
+            ws.Column(7).Width = Math.Max(32, ws.Column(7).Width);
+            ws.Column(8).Width = Math.Max(36, ws.Column(8).Width);
+            ws.Column(10).Width = Math.Max(32, ws.Column(10).Width);
+            ws.Column(22).Width = Math.Max(26, ws.Column(22).Width);
         }
 
         private void BuildDanhSachHoaDonRaSheet(IXLWorksheet ws, List<Invoice> invoices, TaxAccount? taxAccount, DateTime fromDate, DateTime toDate)
         {
             ws.ShowGridLines = true;
 
-            // Thông tin công ty
-            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, false);
-            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
-            ws.Cell("A1").Style.Font.Bold = true;
-            ws.Cell("A1").Style.Font.FontSize = 10.5;
-            ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
-            ws.Range("A1:H1").Merge();
-
-            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
-            ws.Cell("A2").Style.Font.Italic = true;
-            ws.Cell("A2").Style.Font.FontSize = 9.5;
-            ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
-            ws.Range("A2:H2").Merge();
-
-            ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN ĐIỆN TỬ BÁN RA";
+            ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN";
             ws.Cell("A3").Style.Font.Bold = true;
-            ws.Cell("A3").Style.Font.FontSize = 13;
-            ws.Cell("A3").Style.Font.FontColor = XLColor.FromHtml("#B45309");
-            ws.Range("A3:H3").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A3").Style.Font.FontSize = 14;
+            ws.Range("A3:W3").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            ws.Cell("A4").Value = $"Từ ngày {fromDate:dd/MM/yyyy} đến ngày {toDate:dd/MM/yyyy}  |  Tổng số hóa đơn: {invoices.Count:N0}";
-            ws.Cell("A4").Style.Font.Italic = true;
-            ws.Cell("A4").Style.Font.FontSize = 9.5;
-            ws.Range("A4:H4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A4").Value = $"Từ ngày {fromDate:dd-MM-yyyy} đến ngày {toDate:dd-MM-yyyy}";
+            ws.Cell("A4").Style.Font.FontSize = 11;
+            ws.Range("A4:W4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            int startRow = 5;
+            int startRow = 6;
             string[] headers = new[]
             {
-                "Ký hiệu hóa đơn", "Số hóa đơn", "Ngày lập", "MST người bán/MST người xuất hàng",
-                "Tên người bán/Tên người xuất hàng", "MST người mua/MST người nhận hàng",
-                "Tên người mua/Tên người nhận hàng", "Địa chỉ người mua", "Tổng tiền chưa thuế", "Tổng tiền thuế",
-                "Tổng tiền chiết khấu thương mại", "Tổng tiền phí", "Tổng tiền thanh toán",
+                "STT", "Ký hiệu mẫu số", "Ký hiệu hóa đơn", "Số hóa đơn", "Ngày lập",
+                "MST người bán/MST người xuất hàng", "Tên người bán/Tên người xuất hàng",
+                "MST người mua/MST người nhận hàng", "Tên người mua/Tên người nhận hàng", "Địa chỉ người mua",
+                "Tổng tiền chưa thuế", "Tổng tiền thuế", "Tổng tiền chiết khấu thương mại", "Tổng tiền phí", "Tổng tiền thanh toán",
                 "Đơn vị tiền tệ", "Tỷ giá", "Trạng thái hóa đơn", "Kết quả kiểm tra hóa đơn",
                 "Đường dẫn tra cứu hóa đơn", "Mã tra cứu hóa đơn", "Kết quả kiểm tra hóa đơn", "Tên file xuất hóa đơn (XML/HTML/PDF)"
             };
 
-            var headerFill = XLColor.FromHtml("#F59E0B");
+            var headerFill = XLColor.FromHtml("#FFC000");
             for (int col = 0; col < headers.Length; col++)
             {
                 var cell = ws.Cell(startRow, col + 1);
                 cell.Value = headers[col];
                 cell.Style.Font.Bold = true;
-                cell.Style.Font.FontSize = 9;
+                cell.Style.Font.FontSize = 11;
                 cell.Style.Font.FontColor = XLColor.Black;
                 cell.Style.Fill.BackgroundColor = headerFill;
                 cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+                cell.Style.Alignment.SetWrapText(true);
                 cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
             }
-            ws.Row(startRow).Height = 28;
+            ws.Row(startRow).Height = 30;
 
             int r = startRow + 1;
-            string myTaxCode = taxAccount?.TaxCode ?? "";
-            string myCompanyName = taxAccount?.CompanyName ?? "";
+            int stt = 1;
+            var (compName, compTaxCode, _) = ResolveCompanyInfo(taxAccount, invoices, true);
 
             foreach (var inv in invoices)
             {
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
-                string sellerMst = !string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : myTaxCode;
-                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHd}_{sellerMst}";
+                var (tplNum, cleanSym) = SplitTemplateAndSymbol(inv);
+                bool hasLongNum = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongNum ? sn.ToString() : inv.InvoiceNumber;
+                string sellerMst = !string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : compTaxCode;
+                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHdStr}_{sellerMst}";
+                string verifyRes = ResolveVerificationResult(inv);
 
-                ws.Cell(r, 1).Value = inv.InvoiceSymbol;
-                ws.Cell(r, 2).Value = soHd;
-                ws.Cell(r, 3).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                ws.Cell(r, 4).Value = sellerMst;
-                ws.Cell(r, 5).Value = !string.IsNullOrEmpty(inv.SellerName) ? inv.SellerName : myCompanyName;
-                ws.Cell(r, 6).Value = inv.BuyerTaxCode ?? "";
-                ws.Cell(r, 7).Value = inv.BuyerName ?? "";
-                ws.Cell(r, 8).Value = inv.BuyerAddress ?? "";
-                ws.Cell(r, 9).Value = inv.AmountBeforeTax;
-                ws.Cell(r, 10).Value = inv.TaxAmount;
-                ws.Cell(r, 11).Value = 0;
-                ws.Cell(r, 12).Value = "";
-                ws.Cell(r, 13).Value = inv.TotalAmount;
-                ws.Cell(r, 14).Value = "VND";
-                ws.Cell(r, 15).Value = 1.00;
-                ws.Cell(r, 16).Value = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
-                ws.Cell(r, 17).Value = "Đã cấp mã hóa đơn";
-                ws.Cell(r, 18).Value = "";
-                ws.Cell(r, 19).Value = inv.TaxAuthorityCode ?? "";
-                ws.Cell(r, 20).Value = "Đã cấp mã hóa đơn";
-                ws.Cell(r, 21).Value = fileName;
+                ws.Cell(r, 1).Value = stt++;
+                ws.Cell(r, 2).Value = tplNum;
+                ws.Cell(r, 3).Value = cleanSym;
+                if (hasLongNum) ws.Cell(r, 4).Value = sn; else ws.Cell(r, 4).Value = soHdStr;
+                ws.Cell(r, 5).Value = inv.IssueDate.ToString("dd/MM/yyyy");
+                ws.Cell(r, 6).Value = sellerMst;
+                ws.Cell(r, 7).Value = !string.IsNullOrEmpty(inv.SellerName) ? inv.SellerName : compName;
+                ws.Cell(r, 8).Value = inv.BuyerTaxCode ?? "";
+                ws.Cell(r, 9).Value = inv.BuyerName ?? "";
+                ws.Cell(r, 10).Value = inv.BuyerAddress ?? "";
+                ws.Cell(r, 11).Value = inv.AmountBeforeTax;
+                ws.Cell(r, 12).Value = inv.TaxAmount;
+                ws.Cell(r, 13).Value = inv.DiscountAmount;
+                if (inv.FeeAmount > 0) ws.Cell(r, 14).Value = inv.FeeAmount; else ws.Cell(r, 14).Value = "";
+                ws.Cell(r, 15).Value = inv.TotalAmount;
+                ws.Cell(r, 16).Value = !string.IsNullOrEmpty(inv.Currency) ? inv.Currency : "VND";
+                ws.Cell(r, 17).Value = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1m;
+                ws.Cell(r, 18).Value = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
+                ws.Cell(r, 19).Value = "Đã cấp mã hóa đơn";
+                ws.Cell(r, 20).Value = inv.LookupUrl ?? "";
+                ws.Cell(r, 21).Value = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : (inv.TaxAuthorityCode ?? "");
+                ws.Cell(r, 22).Value = verifyRes;
+                ws.Cell(r, 23).Value = fileName;
 
                 ws.Cell(r, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 3).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 4).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 6).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 14).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 15).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 16).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 ws.Cell(r, 17).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 19).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                ws.Cell(r, 20).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, 18).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-                ws.Cell(r, 9).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 10).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 15).Style.NumberFormat.Format = "0.00";
+                ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 12).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(r, 15).Style.NumberFormat.Format = "#,##0";
 
                 for (int c = 1; c <= headers.Length; c++)
                 {
                     ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                    ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
+                    ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#D1D5DB");
                 }
                 r++;
             }
 
             ws.Columns().AdjustToContents();
-            ws.Column(1).Width = Math.Max(12, ws.Column(1).Width);
-            ws.Column(2).Width = Math.Max(10, ws.Column(2).Width);
-            ws.Column(5).Width = Math.Max(30, ws.Column(5).Width);
-            ws.Column(7).Width = Math.Max(30, ws.Column(7).Width);
-            ws.Column(8).Width = Math.Max(35, ws.Column(8).Width);
-            ws.Column(21).Width = Math.Max(26, ws.Column(21).Width);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 10;
+            ws.Column(3).Width = 14;
+            ws.Column(4).Width = 12;
+            ws.Column(7).Width = Math.Max(32, ws.Column(7).Width);
+            ws.Column(9).Width = Math.Max(32, ws.Column(9).Width);
+            ws.Column(10).Width = Math.Max(36, ws.Column(10).Width);
+            ws.Column(23).Width = Math.Max(26, ws.Column(23).Width);
         }
 
         private void BuildBangKeSheet(
@@ -1236,62 +1244,68 @@ namespace InvoiceManager.Services
         {
             ws.ShowGridLines = true;
 
-            // Thông tin công ty
-            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, muaVaoInvoices.Concat(banRaInvoices).ToList(), false);
-            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
-            ws.Cell("A1").Style.Font.Bold = true;
-            ws.Cell("A1").Style.Font.FontSize = 10;
-            ws.Cell("A1").Style.Font.FontColor = XLColor.FromHtml("#1E293B");
-            ws.Range("A1:D1").Merge();
+            int r = 25;
+            ws.Cell(r, 2).Value = "I. Hàng hóa, dịch vụ mua vào trong kỳ được áp dụng mức thuế suất thuế giá trị gia tăng 8% (áp dụng cho người nộp thuế kê khai theo phương pháp khấu trừ thuế)";
+            ws.Cell(r, 2).Style.Font.Bold = true;
+            ws.Cell(r, 2).Style.Font.FontSize = 11;
+            r++;
 
-            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
-            ws.Cell("A2").Style.Font.Italic = true;
-            ws.Cell("A2").Style.Font.FontSize = 9;
-            ws.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#475569");
-            ws.Range("A2:D2").Merge();
+            int hdrStartI = r;
+            ws.Range(hdrStartI, 2, hdrStartI + 2, 2).Merge().Value = "STT";
+            ws.Range(hdrStartI, 3, hdrStartI + 2, 3).Merge().Value = "Tên hàng hóa, dịch vụ";
+            ws.Range(hdrStartI, 4, hdrStartI + 2, 4).Merge().Value = "Giá trị hàng hóa, dịch vụ mua vào chưa có thuế GTGT được khấu trừ trong kỳ";
+            ws.Range(hdrStartI, 5, hdrStartI + 2, 5).Merge().Value = "Thuế GTGT của hàng hóa, dịch vụ mua vào được khấu trừ trong kỳ";
 
-            ws.Range("E1:G3").Merge();
-            var noteCell = ws.Cell("E1");
-            noteCell.Value = "Ghi chú:\nBảng kê chi tiết mua vào chưa bao gồm hàng nhập khẩu nộp thuế 8% -> Kế toán tự bổ sung.\nThuế VAT đầu vào trên bảng kê - tiền thuế 10% được làm tròn theo sách hđđt. Một số HĐ có thể lệch do làm tròn số so với trên sheet chi tiết mua vào.";
-            noteCell.Style.Font.FontSize = 8.5;
-            noteCell.Style.Alignment.SetWrapText(true);
-            noteCell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
-            noteCell.Style.Fill.BackgroundColor = XLColor.FromHtml("#FFFF00");
-            ws.Range("E1:G3").Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-
-            ws.Cell("A3").Value = "I. Hàng hóa, dịch vụ mua vào trong kỳ được áp dụng mức thuế suất thuế giá trị gia tăng 8% (áp dụng cho người nộp thuế kê khai thuế GTGT theo phương pháp khấu trừ thuế)";
-            ws.Cell("A3").Style.Font.Bold = true;
-            ws.Cell("A3").Style.Font.Italic = true;
-            ws.Cell("A3").Style.Font.FontSize = 9.5;
-            ws.Range("A3:D3").Merge();
-
-            int startRowI = 4;
-            string[] bkHeaders = new[]
+            ws.Cell(hdrStartI, 8).Value = "Ghi chú:";
+            ws.Cell(hdrStartI + 1, 8).Value = "Bảng kê chi tiết mua vào chưa bao gồm hàng nhập khẩu chịu thuế 8% => Kế toán tự thêm vào";
+            ws.Cell(hdrStartI + 2, 8).Value = "Thuế Vat đầu vào trên bảng kê = tiền trước thuế *8% được làm tròn theo cách htkk. Nên có thể bị lệch do làm tròn nếu so với vat trên sheet chi tiết mua vào";
+            for (int nr = hdrStartI; nr <= hdrStartI + 2; nr++)
             {
-                "STT", "Tên hàng hóa, dịch vụ", "Giá trị hàng hóa, dịch vụ chưa có thuế GTGT",
-                "Thuế GTGT sau khi giảm", "Số hóa đơn", "Tên file hóa đơn (XML/HTML/PDF)", "Ghi chú"
-            };
-
-            var greenHeaderColor = XLColor.FromHtml("#A7F3D0");
-            for (int col = 0; col < bkHeaders.Length; col++)
-            {
-                var cell = ws.Cell(startRowI, col + 1);
-                cell.Value = bkHeaders[col];
-                cell.Style.Font.Bold = true;
-                cell.Style.Font.FontSize = 9;
-                cell.Style.Fill.BackgroundColor = greenHeaderColor;
-                cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
-                cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                ws.Cell(nr, 8).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFFF00");
+                ws.Cell(nr, 8).Style.Font.FontSize = 9;
             }
-            ws.Row(startRowI).Height = 28;
 
-            int r = startRowI + 1;
+            var headerFill = XLColor.FromHtml("#D9E1F2");
+            for (int c = 2; c <= 5; c++)
+            {
+                var rng = ws.Range(hdrStartI, c, hdrStartI + 2, c);
+                rng.Style.Font.Bold = true;
+                rng.Style.Font.FontSize = 9;
+                rng.Style.Fill.BackgroundColor = headerFill;
+                rng.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                rng.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+                rng.Style.Alignment.SetWrapText(true);
+                rng.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+            }
+
+            r = hdrStartI + 3;
+            ws.Cell(r, 1).Value = "";
+            ws.Cell(r, 2).Value = "(1)";
+            ws.Cell(r, 3).Value = "(2)";
+            ws.Cell(r, 4).Value = "(3)";
+            ws.Cell(r, 5).Value = "(4)";
+            ws.Cell(r, 6).Value = "Số hóa  đơn";
+            ws.Cell(r, 7).Value = "Tên file hóa đơn (XML/HTML/PDF)";
+            ws.Cell(r, 8).Value = "Ghi chú";
+
+            for (int c = 2; c <= 8; c++)
+            {
+                ws.Cell(r, c).Style.Font.Bold = true;
+                ws.Cell(r, c).Style.Font.FontSize = 9;
+                ws.Cell(r, c).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                if (c <= 5) ws.Cell(r, c).Style.Fill.BackgroundColor = headerFill;
+            }
+            r++;
+
             int sttI = 1;
-
             foreach (var inv in muaVaoInvoices)
             {
-                var items8 = inv.Details.Where(d => Math.Round(d.TaxRate) == 8).OrderBy(d => d.LineNumber).ToList();
+                if (inv.Status.Contains("bị thay thế", StringComparison.OrdinalIgnoreCase) ||
+                    inv.Status.Contains("hủy", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var items8 = inv.Details.Where(d => Math.Round(d.TaxRate) == 8 || d.TaxRate == 0.08m).OrderBy(d => d.LineNumber).ToList();
                 if (!items8.Any() && inv.AmountBeforeTax > 0 && Math.Round(inv.TaxAmount / inv.AmountBeforeTax * 100) == 8)
                 {
                     items8.Add(new InvoiceDetail
@@ -1304,76 +1318,101 @@ namespace InvoiceManager.Services
                     });
                 }
 
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
-                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHd}_{inv.SellerTaxCode}";
+                bool hasLongSoHd = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongSoHd ? sn.ToString() : inv.InvoiceNumber;
+                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHdStr}_{inv.SellerTaxCode}";
 
                 foreach (var item in items8)
                 {
-                    ws.Cell(r, 1).Value = sttI++;
-                    ws.Cell(r, 2).Value = item.ItemName;
-                    ws.Cell(r, 3).Value = item.AmountBeforeTax;
-                    ws.Cell(r, 4).Value = item.TaxAmount;
-                    ws.Cell(r, 5).Value = soHd;
-                    ws.Cell(r, 6).Value = fileName;
-                    ws.Cell(r, 7).Value = inv.Status.Contains("thay thế", StringComparison.OrdinalIgnoreCase) ? inv.Status : "";
+                    string itemNote = !string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote)
+                        ? inv.ReplacedOrAdjustedNote
+                        : (item.AmountBeforeTax < 0 ? "Kế toán tự bù trừ vào mặt hàng tương ứng của hóa đơn gốc" : "");
 
-                    ws.Cell(r, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 3).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 1).Value = "";
+                    ws.Cell(r, 2).Value = sttI++;
+                    ws.Cell(r, 3).Value = item.ItemName;
+                    ws.Cell(r, 4).Value = item.AmountBeforeTax;
+                    ws.Cell(r, 5).Value = item.TaxAmount;
+                    if (hasLongSoHd) ws.Cell(r, 6).Value = sn; else ws.Cell(r, 6).Value = soHdStr;
+                    ws.Cell(r, 7).Value = fileName;
+                    ws.Cell(r, 8).Value = itemNote;
+                    ws.Cell(r, 9).Value = "";
+
+                    ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(r, 6).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(r, 4).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 5).Style.NumberFormat.Format = "#,##0";
 
-                    for (int c = 1; c <= 7; c++)
+                    for (int c = 2; c <= 8; c++)
                     {
                         ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
+                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#D1D5DB");
                     }
                     r++;
                 }
             }
 
-            int endRowI = r - 1;
-            ws.Cell(r, 1).Value = "Tổng cộng mua vào 8%:";
-            ws.Range(r, 1, r, 2).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
-            ws.Cell(r, 3).FormulaA1 = endRowI >= startRowI + 1 ? $"SUM(C{startRowI + 1}:C{endRowI})" : "0";
-            ws.Cell(r, 4).FormulaA1 = endRowI >= startRowI + 1 ? $"SUM(D{startRowI + 1}:D{endRowI})" : "0";
-            ws.Cell(r, 3).Style.Font.Bold = true;
-            ws.Cell(r, 4).Style.Font.Bold = true;
-            ws.Cell(r, 3).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(r, 4).Style.NumberFormat.Format = "#,##0";
-            ws.Range(r, 1, r, 7).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
-            ws.Range(r, 1, r, 7).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
-            ws.Range(r, 1, r, 7).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
-
-            r += 2;
-
-            ws.Cell(r, 1).Value = "II. Hàng hóa, dịch vụ bán ra trong kỳ được áp dụng mức thuế suất thuế giá trị gia tăng 8% (áp dụng cho người nộp thuế kê khai thuế GTGT theo phương pháp khấu trừ thuế)";
-            ws.Cell(r, 1).Style.Font.Bold = true;
-            ws.Cell("A" + r).Style.Font.Italic = true;
-            ws.Cell("A" + r).Style.Font.FontSize = 9.5;
-            ws.Range(r, 1, r, 4).Merge();
+            ws.Cell(r, 2).Value = "II. Hàng hóa, dịch vụ bán ra trong kỳ";
+            ws.Cell(r, 2).Style.Font.Bold = true;
+            ws.Cell(r, 2).Style.Font.FontSize = 11;
             r++;
 
-            int startRowII = r;
-            for (int col = 0; col < bkHeaders.Length; col++)
+            int hdrStartII = r;
+            ws.Range(hdrStartII, 2, hdrStartII + 2, 2).Merge().Value = "STT";
+            ws.Range(hdrStartII, 3, hdrStartII + 2, 3).Merge().Value = "Tên hàng hóa, dịch vụ";
+            ws.Range(hdrStartII, 4, hdrStartII + 2, 4).Merge().Value = "Giá trị hàng hóa, dịch vụ chưa có thuế GTGT";
+            ws.Range(hdrStartII, 5, hdrStartII + 2, 5).Merge().Value = "Thuế suất thuế GTGT theo quy định";
+            ws.Range(hdrStartII, 6, hdrStartII + 2, 6).Merge().Value = "Thuế suất  thuế GTGT sau giảm";
+            ws.Range(hdrStartII, 7, hdrStartII + 2, 7).Merge().Value = "Thuế GTGT của hàng hóa, dịch vụ bán ra được giảm";
+
+            for (int c = 2; c <= 7; c++)
             {
-                var cell = ws.Cell(startRowII, col + 1);
-                cell.Value = bkHeaders[col];
-                cell.Style.Font.Bold = true;
-                cell.Style.Font.FontSize = 9;
-                cell.Style.Fill.BackgroundColor = greenHeaderColor;
-                cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
-                cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                var rng = ws.Range(hdrStartII, c, hdrStartII + 2, c);
+                rng.Style.Font.Bold = true;
+                rng.Style.Font.FontSize = 9;
+                rng.Style.Fill.BackgroundColor = headerFill;
+                rng.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                rng.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+                rng.Style.Alignment.SetWrapText(true);
+                rng.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
             }
-            ws.Row(startRowII).Height = 28;
+
+            r = hdrStartII + 3;
+            ws.Cell(r, 1).Value = "";
+            ws.Cell(r, 2).Value = "(1)";
+            ws.Cell(r, 3).Value = "(2)";
+            ws.Cell(r, 4).Value = "(3)";
+            ws.Cell(r, 5).Value = "(4)";
+            ws.Cell(r, 6).Value = "(5)=(4)x80%";
+            ws.Cell(r, 7).Value = "(6)=(3)x[(4)-(5)]";
+            ws.Cell(r, 8).Value = "Số hóa  đơn";
+            ws.Cell(r, 9).Value = "Tên file hóa đơn (XML/HTML/PDF)";
+            ws.Cell(r, 10).Value = "Ghi chú";
+
+            for (int c = 2; c <= 10; c++)
+            {
+                ws.Cell(r, c).Style.Font.Bold = true;
+                ws.Cell(r, c).Style.Font.FontSize = 9;
+                ws.Cell(r, c).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                if (c <= 7) ws.Cell(r, c).Style.Fill.BackgroundColor = headerFill;
+            }
             r++;
 
             int sttII = 1;
-            string myTaxCode = taxAccount?.TaxCode ?? "";
+            var (_, compTaxCode, _) = ResolveCompanyInfo(taxAccount, banRaInvoices, true);
 
             foreach (var inv in banRaInvoices)
             {
-                var items8 = inv.Details.Where(d => Math.Round(d.TaxRate) == 8).OrderBy(d => d.LineNumber).ToList();
+                if (inv.Status.Contains("bị thay thế", StringComparison.OrdinalIgnoreCase) ||
+                    inv.Status.Contains("hủy", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var items8 = inv.Details
+                    .Where(d => (Math.Round(d.TaxRate) == 8 || d.TaxRate == 0.08m) && d.AmountBeforeTax != 0)
+                    .OrderBy(d => d.LineNumber)
+                    .ToList();
+
                 if (!items8.Any() && inv.AmountBeforeTax > 0 && Math.Round(inv.TaxAmount / inv.AmountBeforeTax * 100) == 8)
                 {
                     items8.Add(new InvoiceDetail
@@ -1386,55 +1425,49 @@ namespace InvoiceManager.Services
                     });
                 }
 
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
-                string sellerMst = !string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : myTaxCode;
-                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHd}_{sellerMst}";
+                bool hasLongSoHd = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongSoHd ? sn.ToString() : inv.InvoiceNumber;
+                string sellerMst = !string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : compTaxCode;
+                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHdStr}_{sellerMst}";
+                string noteBr = !string.IsNullOrEmpty(inv.ReplacedOrAdjustedNote) ? inv.ReplacedOrAdjustedNote : "";
 
                 foreach (var item in items8)
                 {
-                    ws.Cell(r, 1).Value = sttII++;
-                    ws.Cell(r, 2).Value = item.ItemName;
-                    ws.Cell(r, 3).Value = item.AmountBeforeTax;
-                    ws.Cell(r, 4).Value = item.TaxAmount;
-                    ws.Cell(r, 5).Value = soHd;
-                    ws.Cell(r, 6).Value = fileName;
-                    ws.Cell(r, 7).Value = inv.Status.Contains("thay thế", StringComparison.OrdinalIgnoreCase) ? inv.Status : "";
+                    ws.Cell(r, 1).Value = "";
+                    ws.Cell(r, 2).Value = sttII++;
+                    ws.Cell(r, 3).Value = item.ItemName;
+                    ws.Cell(r, 4).Value = item.AmountBeforeTax;
+                    ws.Cell(r, 5).Value = "";
+                    ws.Cell(r, 6).Value = "";
+                    ws.Cell(r, 7).Value = "";
+                    if (hasLongSoHd) ws.Cell(r, 8).Value = sn; else ws.Cell(r, 8).Value = soHdStr;
+                    ws.Cell(r, 9).Value = fileName;
+                    ws.Cell(r, 10).Value = noteBr;
+                    ws.Cell(r, 11).Value = "";
 
-                    ws.Cell(r, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 3).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(r, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(r, 4).Style.NumberFormat.Format = "#,##0";
 
-                    for (int c = 1; c <= 7; c++)
+                    for (int c = 2; c <= 10; c++)
                     {
                         ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
+                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#D1D5DB");
                     }
                     r++;
                 }
             }
 
-            int endRowII = r - 1;
-            ws.Cell(r, 1).Value = "Tổng cộng bán ra 8%:";
-            ws.Range(r, 1, r, 2).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
-            ws.Cell(r, 3).FormulaA1 = endRowII >= startRowII + 1 ? $"SUM(C{startRowII + 1}:C{endRowII})" : "0";
-            ws.Cell(r, 4).FormulaA1 = endRowII >= startRowII + 1 ? $"SUM(D{startRowII + 1}:D{endRowII})" : "0";
-            ws.Cell(r, 3).Style.Font.Bold = true;
-            ws.Cell(r, 4).Style.Font.Bold = true;
-            ws.Cell(r, 3).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(r, 4).Style.NumberFormat.Format = "#,##0";
-            ws.Range(r, 1, r, 7).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
-            ws.Range(r, 1, r, 7).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
-            ws.Range(r, 1, r, 7).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
-
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7;
-            ws.Column(2).Width = Math.Max(35, ws.Column(2).Width);
-            ws.Column(3).Width = Math.Max(20, ws.Column(3).Width);
-            ws.Column(4).Width = Math.Max(18, ws.Column(4).Width);
-            ws.Column(5).Width = Math.Max(12, ws.Column(5).Width);
-            ws.Column(6).Width = Math.Max(28, ws.Column(6).Width);
-            ws.Column(7).Width = Math.Max(20, ws.Column(7).Width);
+            ws.Column(1).Width = 3;
+            ws.Column(2).Width = 7;
+            ws.Column(3).Width = 48;
+            ws.Column(4).Width = 22;
+            ws.Column(5).Width = 18;
+            ws.Column(6).Width = 16;
+            ws.Column(7).Width = 24;
+            ws.Column(8).Width = 26;
+            ws.Column(9).Width = 28;
+            ws.Column(10).Width = 28;
         }
 
         private void BuildBangKeGtgtSheet(
@@ -1465,55 +1498,70 @@ namespace InvoiceManager.Services
             ws.Cell("A4").Value = sheetTitle.ToUpper();
             ws.Cell("A4").Style.Font.Bold = true;
             ws.Cell("A4").Style.Font.FontSize = 14;
-            ws.Cell("A4").Style.Font.FontColor = XLColor.FromHtml("#006633");
-            ws.Range("A4:J4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            ws.Cell("A4").Style.Font.FontColor = XLColor.FromHtml("#059669");
+            ws.Range("A4:M4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            ws.Cell("A5").Value = $"Kỳ tính thuế: Từ ngày {fDate:dd/MM/yyyy} đến ngày {tDate:dd/MM/yyyy}  |  Bảng kê: Trực tiếp kê khai";
-            ws.Range("A5:J5").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center).Font.SetItalic(true).Font.SetFontSize(9);
-
-            // Bố cục 10 cột chuẩn theo Ảnh 6 & TT80
+            // Bố cục 14 cột chuẩn theo đúng file mẫu
             int startRow = 7;
             string[] bkHeaders = new[]
             {
-                "STT", "Ký hiệu Hđ", "Số Hđ", "Ngày lập",
-                isBanRaOverall ? "Tên người mua" : "Tên người bán",
-                isBanRaOverall ? "MST người mua" : "MST người bán",
-                "Doanh số chưa thuế", "Thuế suất", "Tiền thuế GTGT", "Tên hàng hóa, dịch vụ / Ghi chú"
+                "STT", "Mẫu số HD", "Ký hiệu HĐ", "Số HĐ", "Ngày lập",
+                "Tên đơn vị đối tác", "Mã số thuế", "Tên hàng hóa, dịch vụ",
+                "Doanh số chưa thuế", "Thuế suất", "Thuế GTGT", "Tổng cộng",
+                "Trạng thái hóa đơn", "Kết quả kiểm tra hóa đơn"
             };
 
-            var greenBg = XLColor.FromHtml("#006633");
+            var greenBg = XLColor.FromHtml("#059669");
             for (int col = 0; col < bkHeaders.Length; col++)
             {
                 var cell = ws.Cell(startRow, col + 1);
                 cell.Value = bkHeaders[col];
                 cell.Style.Font.Bold = true;
+                cell.Style.Font.FontSize = 11;
                 cell.Style.Font.FontColor = XLColor.White;
                 cell.Style.Fill.BackgroundColor = greenBg;
                 cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
                 cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                cell.Style.Border.OutsideBorderColor = XLColor.FromHtml("#004d26");
             }
             ws.Row(startRow).Height = 28;
 
             int rowBk = startRow + 1;
             int sttBk = 1;
 
-            foreach (var inv in invoices.OrderBy(i => i.IssueDate).ThenBy(i => i.InvoiceNumber))
-            {
-                string partnerName = isBanRaOverall ? (inv.BuyerName ?? "") : inv.SellerName;
-                string partnerTaxCode = isBanRaOverall ? (inv.BuyerTaxCode ?? "") : inv.SellerTaxCode;
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
-                string symHd = (inv.InvoiceSymbol ?? "").TrimStart('1');
+            var orderedInvoices = invoices
+                .OrderBy(i => i.IssueDate)
+                .ThenBy(i => long.TryParse(i.InvoiceNumber, out var n) ? n : 0)
+                .ThenBy(i => i.InvoiceNumber)
+                .ToList();
 
-                var details = inv.Details.OrderBy(d => d.LineNumber).ToList();
-                if (!details.Any())
+            foreach (var inv in orderedInvoices)
+            {
+                var (tplNum, symHd) = SplitTemplateAndSymbol(inv);
+                string partnerName = isBanRaOverall ? (inv.BuyerName ?? "") : (inv.SellerName ?? "");
+                string partnerTaxCode = isBanRaOverall ? (inv.BuyerTaxCode ?? "") : (inv.SellerTaxCode ?? "");
+                bool hasLongSoHd = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongSoHd ? sn.ToString() : inv.InvoiceNumber;
+                string statusText = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
+                string verifyText = "Đã cấp mã hóa đơn";
+                if (!isBanRaOverall && !string.IsNullOrEmpty(symHd) && symHd.StartsWith("K", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(inv.TaxAuthorityCode))
                 {
-                    decimal defaultRate = inv.AmountBeforeTax > 0 ? Math.Round((inv.TaxAmount / inv.AmountBeforeTax) * 100, 0) : 10;
-                    details.Add(new InvoiceDetail
+                    verifyText = "Tổng cục thuế đã nhận không mã";
+                }
+
+                var validDetails = inv.Details
+                    .Where(d => d.AmountBeforeTax != 0 || d.TaxAmount != 0 || d.TotalAmount != 0)
+                    .OrderBy(d => d.LineNumber)
+                    .ToList();
+
+                if (!validDetails.Any())
+                {
+                    decimal defaultRate = inv.AmountBeforeTax > 0 ? Math.Round((inv.TaxAmount / inv.AmountBeforeTax) * 100, 0) : 0;
+                    string fallbackItemName = inv.Details.FirstOrDefault()?.ItemName ?? $"Hàng hóa, dịch vụ theo HĐ {symHd}-{soHdStr}";
+                    validDetails.Add(new InvoiceDetail
                     {
                         LineNumber = 1,
-                        ItemName = $"Hàng hóa, dịch vụ theo HĐ {symHd}-{soHd}",
+                        ItemName = fallbackItemName,
                         AmountBeforeTax = inv.AmountBeforeTax,
                         TaxRate = defaultRate,
                         TaxAmount = inv.TaxAmount,
@@ -1521,38 +1569,66 @@ namespace InvoiceManager.Services
                     });
                 }
 
-                // 1 hóa đơn lấy tổng theo thuế suất, diễn giải dòng đầu tiên của loại thuế suất (nếu 1 HĐ có 8% và 10% thì tách 2 dòng)
-                var groups = details.GroupBy(d => d.TaxRate).OrderBy(g => g.Key).ToList();
+                // 1 hóa đơn lấy tổng theo thuế suất, diễn giải dòng đầu tiên của loại thuế suất đó
+                var groups = validDetails
+                    .GroupBy(d => d.TaxRate > 0 && d.TaxRate < 1 ? Math.Round(d.TaxRate * 100, 0) : Math.Round(d.TaxRate, 0))
+                    .OrderBy(g => g.Key)
+                    .ToList();
 
                 foreach (var grp in groups)
                 {
-                    var firstItemName = grp.First().ItemName;
-                    var sumAmountBeforeTax = grp.Sum(d => d.AmountBeforeTax);
-                    var sumTaxAmount = grp.Sum(d => d.TaxAmount);
-                    string rateStr = grp.Key == -1 ? "KCT" : $"{grp.Key:0.00}%";
+                    var firstItem = grp.First();
+                    string firstItemName = string.IsNullOrWhiteSpace(firstItem.ItemName) ? "0" : firstItem.ItemName;
+                    decimal sumAmountBeforeTax = grp.Sum(d => d.AmountBeforeTax);
+                    decimal sumTaxAmount = grp.Sum(d => d.TaxAmount);
+                    decimal sumTotalAmount = grp.Sum(d => d.TotalAmount > 0 ? d.TotalAmount : (d.AmountBeforeTax + d.TaxAmount));
+
+                    if (groups.Count == 1)
+                    {
+                        sumAmountBeforeTax = inv.AmountBeforeTax;
+                        sumTaxAmount = inv.TaxAmount;
+                        sumTotalAmount = inv.TotalAmount > 0 ? inv.TotalAmount : (inv.AmountBeforeTax + inv.TaxAmount);
+                    }
 
                     ws.Cell(rowBk, 1).Value = sttBk++;
-                    ws.Cell(rowBk, 2).Value = symHd;
-                    ws.Cell(rowBk, 3).Value = soHd;
-                    ws.Cell(rowBk, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                    ws.Cell(rowBk, 5).Value = partnerName;
-                    ws.Cell(rowBk, 6).Value = partnerTaxCode;
-                    ws.Cell(rowBk, 7).Value = sumAmountBeforeTax;
-                    ws.Cell(rowBk, 8).Value = rateStr;
-                    ws.Cell(rowBk, 9).Value = sumTaxAmount;
-                    ws.Cell(rowBk, 10).Value = firstItemName;
+                    if (isBanRaOverall) ws.Cell(rowBk, 2).Value = tplNum; else ws.Cell(rowBk, 2).Value = "";
+                    ws.Cell(rowBk, 3).Value = symHd;
+                    if (hasLongSoHd) ws.Cell(rowBk, 4).Value = sn; else ws.Cell(rowBk, 4).Value = soHdStr;
+                    ws.Cell(rowBk, 5).Value = inv.IssueDate.ToString("dd/MM/yyyy");
+                    ws.Cell(rowBk, 6).Value = partnerName;
+                    ws.Cell(rowBk, 7).Value = partnerTaxCode;
+                    if (firstItemName == "0") ws.Cell(rowBk, 8).Value = 0; else ws.Cell(rowBk, 8).Value = firstItemName;
+                    ws.Cell(rowBk, 9).Value = sumAmountBeforeTax;
+
+                    if (isBanRaOverall)
+                    {
+                        if (grp.Key < 0) ws.Cell(rowBk, 10).Value = "KCT";
+                        else ws.Cell(rowBk, 10).Value = grp.Key / 100m;
+                    }
+                    else
+                    {
+                        if (grp.Key < 0) ws.Cell(rowBk, 10).Value = "KCT";
+                        else ws.Cell(rowBk, 10).Value = $"{grp.Key:0}%";
+                    }
+
+                    ws.Cell(rowBk, 11).Value = sumTaxAmount;
+                    ws.Cell(rowBk, 12).Value = sumTotalAmount;
+                    ws.Cell(rowBk, 13).Value = statusText;
+                    ws.Cell(rowBk, 14).Value = verifyText;
 
                     ws.Cell(rowBk, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 3).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                     ws.Cell(rowBk, 4).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 6).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(rowBk, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(rowBk, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(rowBk, 7).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    ws.Cell(rowBk, 10).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-                    ws.Cell(rowBk, 7).Style.NumberFormat.Format = "#,##0";
                     ws.Cell(rowBk, 9).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(rowBk, 11).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(rowBk, 12).Style.NumberFormat.Format = "#,##0";
 
-                    for (int c = 1; c <= 10; c++)
+                    for (int c = 1; c <= 14; c++)
                     {
                         ws.Cell(rowBk, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
                         ws.Cell(rowBk, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
@@ -1562,33 +1638,41 @@ namespace InvoiceManager.Services
                 }
             }
 
+            int totalRowsCount = sttBk - 1;
+            ws.Cell("A5").Value = $"Kỳ kê khai: Từ ngày {fDate:dd/MM/yyyy} đến ngày {tDate:dd/MM/yyyy}  |  Tổng số hóa đơn: {totalRowsCount:N0}";
+            ws.Range("A5:M5").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center).Font.SetItalic(true).Font.SetFontSize(9);
+
             int lastDataRow = rowBk - 1;
-            ws.Cell(rowBk, 1).Value = "Tổng cộng:";
-            ws.Range(rowBk, 1, rowBk, 6).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
-            ws.Cell(rowBk, 7).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(G{startRow + 1}:G{lastDataRow})" : "0";
+            ws.Cell(rowBk, 1).Value = "TỔNG CỘNG:";
+            ws.Range(rowBk, 1, rowBk, 7).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
             ws.Cell(rowBk, 9).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(I{startRow + 1}:I{lastDataRow})" : "0";
+            ws.Cell(rowBk, 11).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(K{startRow + 1}:K{lastDataRow})" : "0";
 
-            ws.Cell(rowBk, 7).Style.Font.Bold = true;
             ws.Cell(rowBk, 9).Style.Font.Bold = true;
+            ws.Cell(rowBk, 11).Style.Font.Bold = true;
 
-            ws.Cell(rowBk, 7).Style.NumberFormat.Format = "#,##0";
             ws.Cell(rowBk, 9).Style.NumberFormat.Format = "#,##0";
+            ws.Cell(rowBk, 11).Style.NumberFormat.Format = "#,##0";
 
-            ws.Range(rowBk, 1, rowBk, 10).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
-            ws.Range(rowBk, 1, rowBk, 10).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
-            ws.Range(rowBk, 1, rowBk, 10).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
+            ws.Range(rowBk, 1, rowBk, 14).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
+            ws.Range(rowBk, 1, rowBk, 14).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
+            ws.Range(rowBk, 1, rowBk, 14).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
             ws.Row(rowBk).Height = 26;
 
             ws.Column(1).Width = 6;
-            ws.Column(2).Width = 14;
-            ws.Column(3).Width = 10;
-            ws.Column(4).Width = 13;
-            ws.Column(5).Width = 38;
-            ws.Column(6).Width = 16;
-            ws.Column(7).Width = 20;
-            ws.Column(8).Width = 12;
+            ws.Column(2).Width = 10;
+            ws.Column(3).Width = 12;
+            ws.Column(4).Width = 10;
+            ws.Column(5).Width = 13;
+            ws.Column(6).Width = 38;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 45;
             ws.Column(9).Width = 18;
-            ws.Column(10).Width = 45;
+            ws.Column(10).Width = 12;
+            ws.Column(11).Width = 16;
+            ws.Column(12).Width = 18;
+            ws.Column(13).Width = 22;
+            ws.Column(14).Width = 26;
         }
 
         private void BuildChiTietSheet(
@@ -1602,74 +1686,94 @@ namespace InvoiceManager.Services
         {
             ws.ShowGridLines = true;
 
-            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, isBanRa);
-            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
-            ws.Cell("A1").Style.Font.Bold = true;
-            ws.Cell("A1").Style.Font.FontSize = 10;
-            ws.Range("A1:G1").Merge();
+            if (isBanRa)
+            {
+                for (int i = 1; i <= 31; i++)
+                {
+                    ws.Cell(1, i + 2).Value = i;
+                    ws.Cell(1, i + 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                }
+            }
 
-            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
-            ws.Cell("A2").Style.Font.Italic = true;
-            ws.Cell("A2").Style.Font.FontSize = 9;
-            ws.Range("A2:G2").Merge();
-
-            ws.Cell("A4").Value = sheetTitle.ToUpper();
-            ws.Cell("A4").Style.Font.Bold = true;
-            ws.Cell("A4").Style.Font.FontSize = 14;
-            ws.Cell("A4").Style.Font.FontColor = XLColor.FromHtml("#1E3A8A");
-            ws.Range("A4:R4").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-
-            ws.Cell("A5").Value = $"Kỳ kê khai: Từ ngày {fromDate:dd/MM/yyyy} đến ngày {toDate:dd/MM/yyyy}  |  Tổng số hóa đơn: {invoices.Count:N0}";
-            ws.Range("A5:R5").Merge().Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center).Font.SetItalic(true).Font.SetFontSize(9);
-
-            int startRow = 7;
+            int startRow = isBanRa ? 2 : 3;
             string[] headers = new[]
             {
-                "STT", "Ký hiệu HĐ", "Số HĐ", "Ngày lập",
-                isBanRa ? "MST Người mua" : "MST Người bán",
-                isBanRa ? "Tên người mua" : "Tên người bán",
-                isBanRa ? "Địa chỉ người mua" : "Địa chỉ người bán",
-                "STT Dòng", "Tên hàng hóa / Dịch vụ", "Đơn vị tính", "Số lượng", "Đơn giá",
-                "Thành tiền chưa thuế", "Thuế suất", "Tiền thuế GTGT", "Tổng cộng",
-                "Tên file hóa đơn (XML/HTML/PDF)", "Ghi chú"
+                "Mẫu số HD", "Ký hiệu hóa đơn", "Số hóa đơn", "Ngày lập hóa đơn", "Ngày người bán ký số",
+                "Tên người bán", "MST người bán", "Địa chỉ người bán",
+                "Tên người mua", "MST người mua", "Địa chỉ người mua",
+                "Mã VT", "Tên hàng hóa, dịch vụ", "Đơn vị tính", "Số lượng", "Đơn giá", "Chiết khấu", "Thuế suất",
+                "Tiền chưa thuế nguyên tệ", "Tiền thuế nguyên tệ", "Tiền sau thuế nguyên tệ",
+                "Tiền chưa thuế (VND)", "Tiền thuế (VND)", "Tiền sau thuế (VND)",
+                "Số tiền chiết khấu", "Tổng tiền chiết khấu thương mại", "Tổng tiền phí",
+                "Tổng tiền thanh toán", "Tổng tiền thanh toán (VND)",
+                "Tên file hóa đơn (XML/HTML/PDF)",
+                "Ghi chú: Hóa đơn thay thế, điều chỉnh, bị thay thế, bị điều chỉnh",
+                "Ghi Chú: Các trường hợp đặc biệt kế toán xem xét kỹ hơn",
+                "Ghi chú 1", "Hình thức thanh toán", "Tính chất", "Trạng thái hóa đơn",
+                "Kết quả kiểm tra hóa đơn", "Biển số xe", "tra cứu hóa đơn gốc", "Mã tra cứu hóa đơn gốc",
+                "Đơn vị tiền tệ", "Tỷ giá", "MCCQT", "Ngày CQT ký số"
             };
 
-            var darkBlueBg = XLColor.FromHtml("#1E40AF");
+            var headerBlueBg = XLColor.FromHtml("#9BC2E6");
             for (int col = 0; col < headers.Length; col++)
             {
                 var cell = ws.Cell(startRow, col + 1);
                 cell.Value = headers[col];
                 cell.Style.Font.Bold = true;
-                cell.Style.Font.FontColor = XLColor.White;
-                cell.Style.Fill.BackgroundColor = darkBlueBg;
+                cell.Style.Font.FontSize = 11;
+                cell.Style.Font.FontColor = XLColor.Black;
+                cell.Style.Fill.BackgroundColor = headerBlueBg;
                 cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
                 cell.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+                cell.Style.Alignment.SetWrapText(true);
                 cell.Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
             }
-            ws.Row(startRow).Height = 28;
+            ws.Row(startRow).Height = 30;
 
             int r = startRow + 1;
-            int stt = 1;
-            string myTaxCode = taxAccount?.TaxCode ?? "";
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, isBanRa);
 
             foreach (var inv in invoices.OrderBy(i => i.IssueDate).ThenBy(i => i.InvoiceNumber))
             {
-                string partnerName = isBanRa ? (inv.BuyerName ?? "") : inv.SellerName;
-                string partnerTaxCode = isBanRa ? (inv.BuyerTaxCode ?? "") : inv.SellerTaxCode;
-                string partnerAddress = isBanRa ? (inv.BuyerAddress ?? "") : (inv.SellerAddress ?? "");
-                string soHd = long.TryParse(inv.InvoiceNumber, out var sn) ? sn.ToString() : inv.InvoiceNumber;
-                string sellerMst = isBanRa ? (!string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : myTaxCode) : inv.SellerTaxCode;
-                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHd}_{sellerMst}";
+                var (tplNum, cleanSym) = SplitTemplateAndSymbol(inv);
+                bool hasLongSoHd = long.TryParse(inv.InvoiceNumber, out var sn);
+                string soHdStr = hasLongSoHd ? sn.ToString() : inv.InvoiceNumber;
+
+                string sellerName = isBanRa ? (!string.IsNullOrEmpty(inv.SellerName) ? inv.SellerName : compName) : (inv.SellerName ?? "");
+                string sellerMst = isBanRa ? (!string.IsNullOrEmpty(inv.SellerTaxCode) ? inv.SellerTaxCode : compTaxCode) : (inv.SellerTaxCode ?? "");
+                string sellerAddress = isBanRa ? (!string.IsNullOrEmpty(inv.SellerAddress) ? inv.SellerAddress : compAddress) : (inv.SellerAddress ?? "");
+
+                string buyerName = !isBanRa ? (!string.IsNullOrEmpty(inv.BuyerName) ? inv.BuyerName : compName) : (inv.BuyerName ?? "");
+                string buyerMst = !isBanRa ? (!string.IsNullOrEmpty(inv.BuyerTaxCode) ? inv.BuyerTaxCode : compTaxCode) : (inv.BuyerTaxCode ?? "");
+                string buyerAddress = !isBanRa ? (!string.IsNullOrEmpty(inv.BuyerAddress) ? inv.BuyerAddress : compAddress) : (inv.BuyerAddress ?? "");
+
+                string fileName = $"{inv.IssueDate:yyyy-MM-dd}_{soHdStr}_{sellerMst}";
+                string issueDateStr = inv.IssueDate.ToString("dd/MM/yyyy");
+                string signedDateStr = (inv.SignedDate ?? inv.IssueDate).ToString("dd/MM/yyyy");
+                string statusText = string.IsNullOrEmpty(inv.Status) ? "Hóa đơn mới" : inv.Status;
+                string verifyRes = ResolveVerificationResult(inv);
+                string currency = !string.IsNullOrEmpty(inv.Currency) ? inv.Currency : "VND";
+                decimal exRate = inv.ExchangeRate > 0 ? inv.ExchangeRate : 1m;
+
+                bool isReplaced = statusText.Contains("bị thay thế", StringComparison.OrdinalIgnoreCase) || statusText.Contains("hủy", StringComparison.OrdinalIgnoreCase);
+                bool isReplacing = !isReplaced && statusText.Contains("thay thế", StringComparison.OrdinalIgnoreCase);
+
+                string specialNote = isReplaced ? "Hóa đơn này không được kê khai" : "";
+                if (string.IsNullOrEmpty(specialNote) && !isBanRa && string.IsNullOrWhiteSpace(inv.BuyerAddress))
+                {
+                    specialNote = "Thiếu địa chỉ người mua";
+                }
 
                 var details = inv.Details.OrderBy(d => d.LineNumber).ToList();
                 if (!details.Any())
                 {
-                    decimal defaultRate = inv.AmountBeforeTax > 0 ? Math.Round((inv.TaxAmount / inv.AmountBeforeTax) * 100, 0) : 10;
+                    decimal defaultRate = inv.AmountBeforeTax > 0 ? Math.Round((inv.TaxAmount / inv.AmountBeforeTax) * 100, 0) : 8;
                     details.Add(new InvoiceDetail
                     {
                         LineNumber = 1,
-                        ItemName = $"Hàng hóa/dịch vụ theo HĐ số {soHd}",
-                        Unit = "Lô/Gói",
+                        ItemCode = "0",
+                        ItemName = $"Hàng hóa/dịch vụ theo HĐ số {soHdStr}",
+                        Unit = "",
                         Quantity = 1,
                         UnitPrice = inv.AmountBeforeTax,
                         AmountBeforeTax = inv.AmountBeforeTax,
@@ -1679,78 +1783,128 @@ namespace InvoiceManager.Services
                     });
                 }
 
-                foreach (var item in details)
+                for (int idx = 0; idx < details.Count; idx++)
                 {
-                    ws.Cell(r, 1).Value = stt++;
-                    ws.Cell(r, 2).Value = inv.InvoiceSymbol;
-                    ws.Cell(r, 3).Value = soHd;
-                    ws.Cell(r, 4).Value = inv.IssueDate.ToString("dd/MM/yyyy");
-                    ws.Cell(r, 5).Value = partnerTaxCode;
-                    ws.Cell(r, 6).Value = partnerName;
-                    ws.Cell(r, 7).Value = partnerAddress;
-                    ws.Cell(r, 8).Value = item.LineNumber;
-                    ws.Cell(r, 9).Value = item.ItemName;
-                    ws.Cell(r, 10).Value = item.Unit ?? "";
-                    ws.Cell(r, 11).Value = item.Quantity;
-                    ws.Cell(r, 12).Value = item.UnitPrice;
-                    ws.Cell(r, 13).Value = item.AmountBeforeTax;
-                    ws.Cell(r, 14).Value = item.TaxRate == -1 ? "KCT" : $"{item.TaxRate}%";
-                    ws.Cell(r, 15).Value = item.TaxAmount;
-                    ws.Cell(r, 16).Value = item.TotalAmount > 0 ? item.TotalAmount : (item.AmountBeforeTax + item.TaxAmount);
-                    ws.Cell(r, 17).Value = fileName;
-                    ws.Cell(r, 18).Value = inv.Status.Contains("thay thế", StringComparison.OrdinalIgnoreCase) ? inv.Status : "";
+                    var item = details[idx];
+                    bool isFirstLine = idx == 0;
+                    bool isFreeNoteLine = item.AmountBeforeTax == 0 && item.TaxAmount == 0 && item.TotalAmount == 0 && item.UnitPrice == 0;
 
-                    ws.Cell(r, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 3).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 4).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 10).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-                    ws.Cell(r, 14).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+                    decimal amtBeforeForeign = item.AmountBeforeTaxForeign != 0 ? item.AmountBeforeTaxForeign : item.AmountBeforeTax;
+                    decimal taxForeign = item.TaxAmountForeign != 0 ? item.TaxAmountForeign : item.TaxAmount;
+                    decimal totalForeign = item.TotalAmountForeign != 0 ? item.TotalAmountForeign : (item.TotalAmount != 0 ? item.TotalAmount : amtBeforeForeign + taxForeign);
 
-                    ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0.00";
-                    ws.Cell(r, 12).Style.NumberFormat.Format = "#,##0";
-                    ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0";
-                    ws.Cell(r, 15).Style.NumberFormat.Format = "#,##0";
-                    ws.Cell(r, 16).Style.NumberFormat.Format = "#,##0";
+                    decimal amtBeforeVnd = item.AmountBeforeTaxVnd != 0 ? item.AmountBeforeTaxVnd : Math.Round(amtBeforeForeign * exRate, 0);
+                    decimal taxVnd = item.TaxAmountVnd != 0 ? item.TaxAmountVnd : Math.Round(taxForeign * exRate, 0);
+                    decimal totalVnd = item.TotalAmountVnd != 0 ? item.TotalAmountVnd : (amtBeforeVnd + taxVnd);
 
-                    for (int c = 1; c <= 18; c++)
+                    decimal normalizedRate = item.TaxRate > 0 && item.TaxRate < 1 ? item.TaxRate : (item.TaxRate >= 1 ? item.TaxRate / 100m : item.TaxRate);
+
+                    ws.Cell(r, 1).Value = tplNum;
+                    ws.Cell(r, 2).Value = cleanSym;
+                    if (hasLongSoHd) ws.Cell(r, 3).Value = sn; else ws.Cell(r, 3).Value = soHdStr;
+                    ws.Cell(r, 4).Value = issueDateStr;
+                    ws.Cell(r, 5).Value = signedDateStr;
+                    ws.Cell(r, 6).Value = sellerName;
+                    ws.Cell(r, 7).Value = sellerMst;
+                    ws.Cell(r, 8).Value = sellerAddress;
+                    ws.Cell(r, 9).Value = buyerName;
+                    ws.Cell(r, 10).Value = buyerMst;
+                    ws.Cell(r, 11).Value = buyerAddress;
+
+                    if (string.IsNullOrEmpty(item.ItemCode) || item.ItemCode == "0")
+                        ws.Cell(r, 12).Value = 0;
+                    else
+                        ws.Cell(r, 12).Value = item.ItemCode;
+
+                    ws.Cell(r, 13).Value = item.ItemName ?? "";
+                    ws.Cell(r, 14).Value = item.Unit ?? "";
+
+                    if (!isFreeNoteLine && item.Quantity != 0) ws.Cell(r, 15).Value = item.Quantity; else ws.Cell(r, 15).Value = "";
+                    if (!isFreeNoteLine && item.UnitPrice != 0) ws.Cell(r, 16).Value = item.UnitPrice; else ws.Cell(r, 16).Value = "";
+                    if (!isFreeNoteLine) ws.Cell(r, 17).Value = item.DiscountRate; else ws.Cell(r, 17).Value = "";
+
+                    if (item.TaxRate == -1) ws.Cell(r, 18).Value = "KCT";
+                    else if (item.TaxRate == -2) ws.Cell(r, 18).Value = "KKKNT";
+                    else ws.Cell(r, 18).Value = normalizedRate;
+
+                    if (!isFreeNoteLine) ws.Cell(r, 19).Value = amtBeforeForeign; else ws.Cell(r, 19).Value = "";
+                    ws.Cell(r, 20).Value = taxForeign;
+                    ws.Cell(r, 21).Value = totalForeign;
+                    ws.Cell(r, 22).Value = amtBeforeVnd;
+                    ws.Cell(r, 23).Value = taxVnd;
+                    ws.Cell(r, 24).Value = totalVnd;
+
+                    if (item.DiscountAmount != 0) ws.Cell(r, 25).Value = item.DiscountAmount; else ws.Cell(r, 25).Value = "";
+
+                    if (isFirstLine && !isFreeNoteLine)
+                    {
+                        ws.Cell(r, 26).Value = inv.DiscountAmount;
+                        if (inv.FeeAmount > 0) ws.Cell(r, 27).Value = inv.FeeAmount; else ws.Cell(r, 27).Value = "";
+                        ws.Cell(r, 28).Value = inv.TotalAmount;
+                        ws.Cell(r, 29).Value = inv.TotalAmountVnd > 0 ? inv.TotalAmountVnd : Math.Round(inv.TotalAmount * exRate, 0);
+                    }
+                    else
+                    {
+                        ws.Cell(r, 26).Value = "";
+                        ws.Cell(r, 27).Value = "";
+                        ws.Cell(r, 28).Value = "";
+                        ws.Cell(r, 29).Value = "";
+                    }
+
+                    ws.Cell(r, 30).Value = fileName;
+                    ws.Cell(r, 31).Value = inv.ReplacedOrAdjustedNote ?? "";
+                    ws.Cell(r, 32).Value = specialNote;
+                    ws.Cell(r, 33).Value = item.Notes ?? (inv.Notes ?? "");
+                    ws.Cell(r, 34).Value = !string.IsNullOrEmpty(inv.PaymentMethod) ? inv.PaymentMethod : "TM/CK";
+                    ws.Cell(r, 35).Value = isFreeNoteLine ? "Hàng hoá/dịch vụ không tính tiền" : (!string.IsNullOrEmpty(inv.InvoiceProperty) ? inv.InvoiceProperty : "Hàng hoá/dịch vụ");
+                    ws.Cell(r, 36).Value = statusText;
+                    ws.Cell(r, 37).Value = verifyRes;
+                    ws.Cell(r, 38).Value = inv.VehicleNumber ?? "";
+                    ws.Cell(r, 39).Value = inv.LookupUrl ?? "";
+                    ws.Cell(r, 40).Value = !string.IsNullOrEmpty(inv.LookupCode) ? inv.LookupCode : "";
+                    ws.Cell(r, 41).Value = currency;
+                    ws.Cell(r, 42).Value = exRate;
+                    ws.Cell(r, 43).Value = inv.TaxAuthorityCode ?? "";
+                    ws.Cell(r, 44).Value = !string.IsNullOrEmpty(inv.TaxAuthorityCode) ? signedDateStr : "";
+
+                    ws.Cell(r, 16).Style.NumberFormat.Format = "#,##0.##";
+                    ws.Cell(r, 19).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 20).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 21).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 22).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 23).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 24).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 28).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(r, 29).Style.NumberFormat.Format = "#,##0";
+
+                    for (int c = 1; c <= headers.Length; c++)
                     {
                         ws.Cell(r, c).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#E2E8F0");
+                        ws.Cell(r, c).Style.Border.OutsideBorderColor = XLColor.FromHtml("#D1D5DB");
+                        if (isReplaced)
+                        {
+                            ws.Cell(r, c).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFFF00");
+                        }
+                        else if (isReplacing)
+                        {
+                            ws.Cell(r, c).Style.Fill.BackgroundColor = XLColor.FromHtml("#C5E0B4");
+                        }
                     }
+
                     r++;
                 }
             }
 
-            int lastDataRow = r - 1;
-            ws.Cell(r, 1).Value = "TỔNG CỘNG:";
-            ws.Range(r, 1, r, 12).Merge().Style.Font.SetBold(true).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
-            ws.Cell(r, 13).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(M{startRow + 1}:M{lastDataRow})" : "0";
-            ws.Cell(r, 15).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(O{startRow + 1}:O{lastDataRow})" : "0";
-            ws.Cell(r, 16).FormulaA1 = lastDataRow >= startRow + 1 ? $"SUM(P{startRow + 1}:P{lastDataRow})" : "0";
-
-            ws.Cell(r, 13).Style.Font.Bold = true;
-            ws.Cell(r, 15).Style.Font.Bold = true;
-            ws.Cell(r, 16).Style.Font.Bold = true;
-
-            ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(r, 15).Style.NumberFormat.Format = "#,##0";
-            ws.Cell(r, 16).Style.NumberFormat.Format = "#,##0";
-
-            ws.Range(r, 1, r, 18).Style.Fill.BackgroundColor = XLColor.FromHtml("#DBEAFE");
-            ws.Range(r, 1, r, 18).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
-            ws.Range(r, 1, r, 18).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
-
             ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7;
+            ws.Column(1).Width = 8;
             ws.Column(2).Width = 12;
             ws.Column(3).Width = 10;
             ws.Column(6).Width = Math.Max(30, ws.Column(6).Width);
-            ws.Column(7).Width = Math.Max(35, ws.Column(7).Width);
-            ws.Column(9).Width = Math.Max(35, ws.Column(9).Width);
-            ws.Column(17).Width = Math.Max(26, ws.Column(17).Width);
+            ws.Column(8).Width = Math.Max(34, ws.Column(8).Width);
+            ws.Column(9).Width = Math.Max(30, ws.Column(9).Width);
+            ws.Column(11).Width = Math.Max(34, ws.Column(11).Width);
+            ws.Column(13).Width = Math.Max(38, ws.Column(13).Width);
+            ws.Column(30).Width = Math.Max(26, ws.Column(30).Width);
         }
 
         private static string GenerateSmartSlug(string text)
