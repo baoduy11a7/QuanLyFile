@@ -330,8 +330,23 @@ namespace InvoiceManager.Tests
             }, sheetNames);
             Assert.DoesNotContain("ghi chu xem sua", sheetNames);
 
+            // Kiểm tra thông tin công ty hiển thị ở header A1, A2 của các sheet
+            var wsDsVao = wb.Worksheet("Danh sách hóa đơn vào");
+            Assert.Contains("TRUNG DŨNG", wsDsVao.Cell("A1").GetString());
+            Assert.Contains("0313407026", wsDsVao.Cell("A2").GetString());
+
+            var wsDsRa = wb.Worksheet("Danh sách hóa đơn ra");
+            Assert.Contains("TRUNG DŨNG", wsDsRa.Cell("A1").GetString());
+            Assert.Contains("0313407026", wsDsRa.Cell("A2").GetString());
+
+            var wsBk = wb.Worksheet("Bang ke");
+            Assert.Contains("TRUNG DŨNG", wsBk.Cell("A1").GetString());
+            Assert.Contains("0313407026", wsBk.Cell("A2").GetString());
+
             // Kiểm tra gộp theo thuế suất trên sheet "bang ke mua vao" (8% gộp 2 dòng thành 1 dòng 200,000 + 1 dòng 10% 100,000)
             var wsBkMv = wb.Worksheet("bang ke mua vao");
+            Assert.Contains("TRUNG DŨNG", wsBkMv.Cell("A1").GetString());
+            Assert.Contains("0313407026", wsBkMv.Cell("A2").GetString());
             Assert.Equal("Hàng 8% dòng 1", wsBkMv.Cell(8, 8).GetString());
             Assert.Equal(200000, wsBkMv.Cell(8, 9).GetDouble());
             Assert.Equal("8%", wsBkMv.Cell(8, 10).GetString());

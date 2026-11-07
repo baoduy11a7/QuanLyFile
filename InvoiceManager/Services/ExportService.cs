@@ -1071,6 +1071,18 @@ namespace InvoiceManager.Services
         {
             ws.ShowGridLines = true;
 
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, false);
+
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
+            ws.Cell("A1").Style.Font.Bold = true;
+            ws.Cell("A1").Style.Font.FontSize = 10;
+            ws.Range("A1:G1").Merge();
+
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
+            ws.Cell("A2").Style.Font.Italic = true;
+            ws.Cell("A2").Style.Font.FontSize = 9;
+            ws.Range("A2:G2").Merge();
+
             ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN";
             ws.Cell("A3").Style.Font.Bold = true;
             ws.Cell("A3").Style.Font.FontSize = 14;
@@ -1109,7 +1121,6 @@ namespace InvoiceManager.Services
 
             int r = startRow + 1;
             int stt = 1;
-            var (compName, compTaxCode, _) = ResolveCompanyInfo(taxAccount, invoices, false);
 
             foreach (var inv in invoices)
             {
@@ -1178,6 +1189,18 @@ namespace InvoiceManager.Services
         {
             ws.ShowGridLines = true;
 
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, invoices, true);
+
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
+            ws.Cell("A1").Style.Font.Bold = true;
+            ws.Cell("A1").Style.Font.FontSize = 10;
+            ws.Range("A1:G1").Merge();
+
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
+            ws.Cell("A2").Style.Font.Italic = true;
+            ws.Cell("A2").Style.Font.FontSize = 9;
+            ws.Range("A2:G2").Merge();
+
             ws.Cell("A3").Value = "DANH SÁCH HÓA ĐƠN";
             ws.Cell("A3").Style.Font.Bold = true;
             ws.Cell("A3").Style.Font.FontSize = 14;
@@ -1216,7 +1239,6 @@ namespace InvoiceManager.Services
 
             int r = startRow + 1;
             int stt = 1;
-            var (compName, compTaxCode, _) = ResolveCompanyInfo(taxAccount, invoices, true);
 
             foreach (var inv in invoices)
             {
@@ -1292,6 +1314,19 @@ namespace InvoiceManager.Services
             DateTime toDate)
         {
             ws.ShowGridLines = true;
+
+            var allInvoices = muaVaoInvoices.Concat(banRaInvoices).ToList();
+            var (compName, compTaxCode, compAddress) = ResolveCompanyInfo(taxAccount, allInvoices, false);
+
+            ws.Cell("A1").Value = $"ĐƠN VỊ: {compName.ToUpper()}";
+            ws.Cell("A1").Style.Font.Bold = true;
+            ws.Cell("A1").Style.Font.FontSize = 10;
+            ws.Range("A1:G1").Merge();
+
+            ws.Cell("A2").Value = $"MÃ SỐ THUẾ: {compTaxCode}  -  ĐỊA CHỈ: {compAddress}";
+            ws.Cell("A2").Style.Font.Italic = true;
+            ws.Cell("A2").Style.Font.FontSize = 9;
+            ws.Range("A2:G2").Merge();
 
             int r = 25;
             ws.Cell(r, 2).Value = "I. Hàng hóa, dịch vụ mua vào trong kỳ được áp dụng mức thuế suất thuế giá trị gia tăng 8% (áp dụng cho người nộp thuế kê khai theo phương pháp khấu trừ thuế)";
@@ -1449,7 +1484,7 @@ namespace InvoiceManager.Services
             r++;
 
             int sttII = 1;
-            var (_, compTaxCode, _) = ResolveCompanyInfo(taxAccount, banRaInvoices, true);
+            (_, compTaxCode, _) = ResolveCompanyInfo(taxAccount, banRaInvoices, true);
 
             foreach (var inv in banRaInvoices)
             {
