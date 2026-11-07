@@ -1672,6 +1672,26 @@ namespace InvoiceManager.Services.Providers.Gdt
                 }
             }
 
+            // 1b. Ưu tiên hàng đầu: Tải trực tiếp file PDF bản thể hiện gốc từ hệ thống Nhà cung cấp HĐĐT
+            // (Viettel SInvoice, MISA meInvoice, Visnam Vin-HOADON, TS24 XuatHoaDon...) thông qua thông tin tra cứu trong XML
+            if (result.PdfFile == null && result.XmlFile != null && result.XmlFile.Content.Length > 0)
+            {
+                var vendorPdf = await TryDownloadVendorPdfFromXmlAsync(result.XmlFile.Content, ct);
+                if (vendorPdf != null && IsValidPdfSignature(vendorPdf) && vendorPdf.Length > 3500)
+                {
+                    var normNum = long.TryParse(shdonPrimary, out var nv) ? nv.ToString("D7") : inv.InvoiceNumber;
+                    result.Files.Add(new DownloadedInvoiceFile
+                    {
+                        FileName = $"HD_{khmshdon}{khhdon}_{normNum}_GocNCC.pdf",
+                        FileExtension = ".pdf",
+                        ContentType = "application/pdf",
+                        Content = vendorPdf,
+                        Source = "Supplier-DirectPdf",
+                        Sha256Hash = ComputeSha256(vendorPdf)
+                    });
+                }
+            }
+
             // 2. Nếu chưa có file PDF trong kết quả, truy vấn endpoint PDF chuyên dụng của Cổng Thuế
             if (result.PdfFile == null)
             {
@@ -1850,42 +1870,233 @@ namespace InvoiceManager.Services.Providers.Gdt
             try
             {
                 var xmlText = Encoding.UTF8.GetString(xmlBytes);
-                // 1. Kiểm tra MISA meInvoice (MSTTCGP: 0101243150)
-                string? code = null;
 
-                // Tìm TransactionID trong TTin
-                var mTrans = System.Text.RegularExpressions.Regex.Match(xmlText, @"<TTruong>TransactionID</TTruong>\s*<KDLieu>[^<]*</KDLieu>\s*<DLieu>([^<]+)</DLieu>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (mTrans.Success)
-                {
-                    code = mTrans.Groups[1].Value.Trim();
-                }
+                // Trích xuất MSTTCGP, MST người bán (<NBan><MST>), DLHDon Id, và từ điển các trường <TTin> (<TTruong> <-> <DLieu>)
+                string? msttcgp = null;
+                var mTcgp = System.Text.RegularExpressions.Regex.Match(xmlText, @"<MSTTCGP>\s*([^<\s]+)\s*</MSTTCGP>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mTcgp.Success) msttcgp = mTcgp.Groups[1].Value.Trim();
 
-                if (string.IsNullOrEmpty(code))
+                string? sellerTaxCode = null;
+                var mSeller = System.Text.RegularExpressions.Regex.Match(xmlText, @"<NBan>[\s\S]*?<MST>\s*([^<\s]+)\s*</MST>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mSeller.Success) sellerTaxCode = mSeller.Groups[1].Value.Trim();
+
+                string? dlhdonId = null;
+                var mId = System.Text.RegularExpressions.Regex.Match(xmlText, @"<DLHDon\s+Id=""([^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mId.Success) dlhdonId = mId.Groups[1].Value.Trim();
+
+                var ttinMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (System.Text.RegularExpressions.Match mTtin in System.Text.RegularExpressions.Regex.Matches(xmlText, @"<TTin>([\s\S]*?)</TTin>", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                 {
-                    // Hoặc DLHDon Id
-                    var mId = System.Text.RegularExpressions.Regex.Match(xmlText, @"<DLHDon\s+Id=""([^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    if (mId.Success)
+                    var block = mTtin.Groups[1].Value;
+                    var mTruong = System.Text.RegularExpressions.Regex.Match(block, @"<TTruong>\s*([^<]+?)\s*</TTruong>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    var mDlieu = System.Text.RegularExpressions.Regex.Match(block, @"<DLieu>\s*([^<]+?)\s*</DLieu>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (mTruong.Success && mDlieu.Success)
                     {
-                        var cand = mId.Groups[1].Value.Trim();
-                        if (cand.Length >= 8 && !cand.StartsWith("_") && !cand.Contains(" "))
+                        var k = mTruong.Groups[1].Value.Trim();
+                        var v = mDlieu.Groups[1].Value.Trim();
+                        if (!string.IsNullOrEmpty(k) && !string.IsNullOrEmpty(v) && !ttinMap.ContainsKey(k))
                         {
-                            code = cand;
+                            ttinMap[k] = v;
                         }
                     }
                 }
 
-                if (!string.IsNullOrEmpty(code))
+                using var handler = new HttpClientHandler
                 {
-                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-                    var url = $"https://www.meinvoice.vn/tra-cuu/DownloadHandler.ashx?Type=pdf&Code={Uri.EscapeDataString(code)}";
-                    var resp = await httpClient.GetAsync(url, ct);
-                    if (resp.IsSuccessStatusCode)
+                    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+                };
+                using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+                httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+                // =========================================================================
+                // 1. VIETTEL SInvoice (MSTTCGP: 0100109106 - vinvoice.viettel.vn)
+                // Trường XML: <TTruong>Mã số bí mật</TTruong> + <NBan><MST>
+                // =========================================================================
+                string? viettelSecret = null;
+                if (ttinMap.TryGetValue("Mã số bí mật", out var vs1)) viettelSecret = vs1;
+                else if (ttinMap.TryGetValue("MaSoBiMat", out var vs2)) viettelSecret = vs2;
+                else if (ttinMap.TryGetValue("reservationCode", out var vs3)) viettelSecret = vs3;
+
+                if (!string.IsNullOrEmpty(viettelSecret) && !string.IsNullOrEmpty(sellerTaxCode))
+                {
+                    string[] viettelGetUrls =
                     {
-                        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-                        if (IsValidPdfSignature(bytes))
+                        $"https://api-vinvoice.viettel.vn/services/einvoiceapplication/sync/utility/generatePDF?reservationCode={Uri.EscapeDataString(viettelSecret)}&supplierTaxCode={Uri.EscapeDataString(sellerTaxCode)}&taxCode={Uri.EscapeDataString(sellerTaxCode)}",
+                        $"https://api-vinvoice.viettel.vn/services/einvoicequery/sync/utility/generatePDF?reservationCode={Uri.EscapeDataString(viettelSecret)}&supplierTaxCode={Uri.EscapeDataString(sellerTaxCode)}&taxCode={Uri.EscapeDataString(sellerTaxCode)}"
+                    };
+
+                    foreach (var vUrl in viettelGetUrls)
+                    {
+                        try
                         {
-                            return bytes;
+                            var resp = await httpClient.GetAsync(vUrl, ct);
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                                if (IsValidPdfSignature(bytes) && bytes.Length > 3500)
+                                {
+                                    return bytes;
+                                }
+                            }
                         }
+                        catch { }
+                    }
+
+                    try
+                    {
+                        var postUrl = $"https://api-vinvoice.viettel.vn/services/einvoicequery/sync/utility/downloadPDF?taxCode={Uri.EscapeDataString(sellerTaxCode)}";
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            supplierTaxCode = sellerTaxCode,
+                            reservationCode = viettelSecret,
+                            taxCode = sellerTaxCode
+                        });
+                        using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                        var resp = await httpClient.PostAsync(postUrl, content, ct);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                            if (IsValidPdfSignature(bytes) && bytes.Length > 3500)
+                            {
+                                return bytes;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // =========================================================================
+                // 2. VISNAM Vin-HOADON (MSTTCGP: 0401486901 - tracuu.vin-hoadon.com)
+                // Trường XML: <TTruong>QuanLy_SoBaoMat</TTruong> + <NBan><MST>
+                // =========================================================================
+                if (ttinMap.TryGetValue("QuanLy_SoBaoMat", out var vinSoBaoMat) && !string.IsNullOrEmpty(vinSoBaoMat) && !string.IsNullOrEmpty(sellerTaxCode))
+                {
+                    string[] vinEndpoints =
+                    {
+                        "https://tracuu.vin-hoadon.com/api/services/hddt/TraCuuHoaDon/DownloadPdfFromMail",
+                        "https://tracuu.vin-hoadon.com/api/services/hddt/TraCuuHoaDon/DownloadPdfFromTraCuu"
+                    };
+
+                    var vinPayload = JsonSerializer.Serialize(new
+                    {
+                        doanhNghiep_MST = sellerTaxCode,
+                        maSoBiMat = vinSoBaoMat,
+                        key = "",
+                        captcha = ""
+                    });
+
+                    foreach (var vinUrl in vinEndpoints)
+                    {
+                        try
+                        {
+                            using var content = new StringContent(vinPayload, Encoding.UTF8, "application/json");
+                            var resp = await httpClient.PostAsync(vinUrl, content, ct);
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var rawResp = await resp.Content.ReadAsByteArrayAsync(ct);
+                                if (IsValidPdfSignature(rawResp) && rawResp.Length > 3500)
+                                {
+                                    return rawResp;
+                                }
+
+                                var jsonStr = Encoding.UTF8.GetString(rawResp);
+                                using var doc = JsonDocument.Parse(jsonStr);
+                                if (doc.RootElement.TryGetProperty("result", out var resElem) && resElem.ValueKind == JsonValueKind.Object)
+                                {
+                                    string? b64 = null;
+                                    if (resElem.TryGetProperty("fileData", out var fdElem) && fdElem.ValueKind == JsonValueKind.String)
+                                        b64 = fdElem.GetString();
+                                    else if (resElem.TryGetProperty("base64", out var b64Elem) && b64Elem.ValueKind == JsonValueKind.String)
+                                        b64 = b64Elem.GetString();
+
+                                    if (!string.IsNullOrWhiteSpace(b64))
+                                    {
+                                        var pdfBytes = Convert.FromBase64String(b64.Trim());
+                                        if (IsValidPdfSignature(pdfBytes) && pdfBytes.Length > 3500)
+                                        {
+                                            return pdfBytes;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // =========================================================================
+                // 3. TS24 XuatHoaDon (MSTTCGP: 0309478306 - tracuu.xuathoadon.vn)
+                // Trường XML: <TTruong>MNHDon</TTruong>
+                // =========================================================================
+                if (ttinMap.TryGetValue("MNHDon", out var ts24Code) && !string.IsNullOrEmpty(ts24Code))
+                {
+                    string[] ts24Urls =
+                    {
+                        $"https://tracuu.xuathoadon.vn/invoice/download/pdf/1/{Uri.EscapeDataString(ts24Code)}",
+                        $"https://tracuu.xuathoadon.vn/invoice/download/print-pdf/1/{Uri.EscapeDataString(ts24Code)}"
+                    };
+
+                    foreach (var tsUrl in ts24Urls)
+                    {
+                        try
+                        {
+                            var resp = await httpClient.GetAsync(tsUrl, ct);
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                                if (IsValidPdfSignature(bytes) && bytes.Length > 3500)
+                                {
+                                    return bytes;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // =========================================================================
+                // 4. MISA meInvoice (MSTTCGP: 0101243150 - meinvoice.vn)
+                // Trường XML: <TTruong>TransactionID</TTruong> hoặc <DLHDon Id="...">
+                // =========================================================================
+                string? misaCode = null;
+                if (ttinMap.TryGetValue("TransactionID", out var transId) && !string.IsNullOrEmpty(transId))
+                {
+                    misaCode = transId;
+                }
+                else if (string.Equals(msttcgp, "0101243150", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(dlhdonId))
+                {
+                    misaCode = dlhdonId;
+                }
+                else if (!string.IsNullOrEmpty(dlhdonId) && dlhdonId.Length >= 8 && dlhdonId.Length <= 20 &&
+                         !dlhdonId.StartsWith("_") && !dlhdonId.Contains("-") && !dlhdonId.Contains(" ") &&
+                         !string.Equals(dlhdonId, "data123", StringComparison.OrdinalIgnoreCase))
+                {
+                    misaCode = dlhdonId;
+                }
+
+                if (!string.IsNullOrEmpty(misaCode))
+                {
+                    string[] misaUrls =
+                    {
+                        $"https://www.meinvoice.vn/tra-cuu/DownloadHandler.ashx?Type=pdf&Code={Uri.EscapeDataString(misaCode)}",
+                        $"https://meinvoice.vn/tra-cuu/DownloadHandler.ashx?Type=pdf&Code={Uri.EscapeDataString(misaCode)}"
+                    };
+
+                    foreach (var mUrl in misaUrls)
+                    {
+                        try
+                        {
+                            var resp = await httpClient.GetAsync(mUrl, ct);
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                                if (IsValidPdfSignature(bytes) && bytes.Length > 3500)
+                                {
+                                    return bytes;
+                                }
+                            }
+                        }
+                        catch { }
                     }
                 }
             }

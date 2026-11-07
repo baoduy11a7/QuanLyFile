@@ -121,12 +121,14 @@ namespace InvoiceManager.Services
                 invoice.Files.Add(fileEntity);
                 savedFiles.Add(fileEntity);
 
-                // Cập nhật đường dẫn cho các trường kế thừa
+                // Cập nhật đường dẫn cho các trường kế thừa (ưu tiên ghi đè nếu là PDF gốc trực tiếp từ nhà cung cấp)
                 if (cleanExt == ".xml" && string.IsNullOrEmpty(invoice.RawXmlPath))
                 {
                     invoice.RawXmlPath = fullPath;
                 }
-                else if (cleanExt == ".pdf" && string.IsNullOrEmpty(invoice.RawPdfPath))
+                else if (cleanExt == ".pdf" && (string.IsNullOrEmpty(invoice.RawPdfPath) ||
+                         string.Equals(dlFile.Source, "Supplier-DirectPdf", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(dlFile.Source, "UploadOriginal", StringComparison.OrdinalIgnoreCase)))
                 {
                     invoice.RawPdfPath = fullPath;
                 }
@@ -159,6 +161,14 @@ namespace InvoiceManager.Services
             var existing = invoice.Files.FirstOrDefault(f => f.Sha256Hash == hash);
             if (existing != null && File.Exists(existing.FilePath))
             {
+                if (string.Equals(existing.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase) &&
+                    (string.Equals(source, "Supplier-DirectPdf", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(source, "UploadOriginal", StringComparison.OrdinalIgnoreCase)) &&
+                    !string.Equals(invoice.RawPdfPath, existing.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    invoice.RawPdfPath = existing.FilePath;
+                    await _db.SaveChangesAsync(ct);
+                }
                 return existing;
             }
 
@@ -196,7 +206,9 @@ namespace InvoiceManager.Services
             {
                 invoice.RawXmlPath = fullPath;
             }
-            else if (cleanExt == ".pdf" && string.IsNullOrEmpty(invoice.RawPdfPath))
+            else if (cleanExt == ".pdf" && (string.IsNullOrEmpty(invoice.RawPdfPath) ||
+                     string.Equals(source, "Supplier-DirectPdf", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(source, "UploadOriginal", StringComparison.OrdinalIgnoreCase)))
             {
                 invoice.RawPdfPath = fullPath;
             }
@@ -360,7 +372,111 @@ namespace InvoiceManager.Services
                 };
             }
 
-            // 1. Kiểm tra nếu đã có tệp PDF gốc hợp lệ được lưu trong hệ thống (Cache) - Bỏ qua mọi file Mock hoặc bản thể hiện nội bộ
+            // 1. Ưu tiên kiểm tra nếu đã có tệp PDF gốc trực tiếp từ Nhà cung cấp (Supplier-DirectPdf / UploadOriginal / GDT-ZipEntry) trong hệ thống
+            var directSupplierPdfFile = invoice.Files
+                .Where(f => string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase)
+                            && f.Status == "Valid"
+                            && (string.Equals(f.Source, "Supplier-DirectPdf", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(f.Source, "UploadOriginal", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(f.Source, "GDT-ZipEntry", StringComparison.OrdinalIgnoreCase))
+                            && !string.IsNullOrWhiteSpace(f.FilePath)
+                            && File.Exists(f.FilePath))
+                .OrderByDescending(f => f.DownloadedAt)
+                .FirstOrDefault();
+
+            if (directSupplierPdfFile != null)
+            {
+                try
+                {
+                    var directBytes = await File.ReadAllBytesAsync(directSupplierPdfFile.FilePath, ct);
+                    if (GdtPortalProvider.IsValidPdfSignature(directBytes) && directBytes.Length > 3500)
+                    {
+                        return new OriginalPdfFetchResult
+                        {
+                            Success = true,
+                            PdfBytes = directBytes,
+                            FileName = !string.IsNullOrWhiteSpace(directSupplierPdfFile.OriginalFileName)
+                                ? directSupplierPdfFile.OriginalFileName
+                                : $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_GocNCC.pdf",
+                            ContentType = "application/pdf",
+                            Sha256Hash = !string.IsNullOrWhiteSpace(directSupplierPdfFile.Sha256Hash)
+                                ? directSupplierPdfFile.Sha256Hash
+                                : ComputeSha256(directBytes),
+                            Source = directSupplierPdfFile.Source,
+                            SavedFilePath = directSupplierPdfFile.FilePath,
+                            HttpStatusCode = 200
+                        };
+                    }
+                }
+                catch { }
+            }
+
+            var siblingInvoices = await _db.Invoices
+                .Include(i => i.Files)
+                .Where(i => i.Id != invoice.Id &&
+                            i.SellerTaxCode == invoice.SellerTaxCode &&
+                            i.InvoiceSymbol == invoice.InvoiceSymbol &&
+                            i.InvoiceNumber == invoice.InvoiceNumber)
+                .ToListAsync(ct);
+
+            // 1b. Nếu chưa có PDF gốc trực tiếp từ Nhà cung cấp, kiểm tra ngay file XML của hóa đơn
+            // để gọi API trực tiếp của Nhà cung cấp (Viettel SInvoice, MISA meInvoice, Vin-HOADON, TS24...) lấy đúng bản thể hiện gốc có logo
+            var xmlCandidates = new List<string>();
+            if (!string.IsNullOrEmpty(invoice.RawXmlPath) && File.Exists(invoice.RawXmlPath))
+            {
+                xmlCandidates.Add(invoice.RawXmlPath);
+            }
+            foreach (var f in invoice.Files.Where(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.FilePath) && File.Exists(f.FilePath)))
+            {
+                if (!xmlCandidates.Contains(f.FilePath, StringComparer.OrdinalIgnoreCase)) xmlCandidates.Add(f.FilePath);
+            }
+            foreach (var sib in siblingInvoices)
+            {
+                if (!string.IsNullOrEmpty(sib.RawXmlPath) && File.Exists(sib.RawXmlPath) && !xmlCandidates.Contains(sib.RawXmlPath, StringComparer.OrdinalIgnoreCase))
+                {
+                    xmlCandidates.Add(sib.RawXmlPath);
+                }
+                foreach (var sf in sib.Files.Where(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.FilePath) && File.Exists(f.FilePath)))
+                {
+                    if (!xmlCandidates.Contains(sf.FilePath, StringComparer.OrdinalIgnoreCase)) xmlCandidates.Add(sf.FilePath);
+                }
+            }
+
+            foreach (var xmlPath in xmlCandidates)
+            {
+                try
+                {
+                    var xBytes = await File.ReadAllBytesAsync(xmlPath, ct);
+                    var vPdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(xBytes, ct);
+                    if (vPdf != null && GdtPortalProvider.IsValidPdfSignature(vPdf) && vPdf.Length > 3500)
+                    {
+                        var savedVPdf = await SaveSingleFileAsync(
+                            invoiceId,
+                            taxAccountId,
+                            $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_GocNCC.pdf",
+                            ".pdf",
+                            "application/pdf",
+                            vPdf,
+                            "Supplier-DirectPdf",
+                            ct);
+
+                        return new OriginalPdfFetchResult
+                        {
+                            Success = true,
+                            PdfBytes = vPdf,
+                            FileName = savedVPdf.OriginalFileName,
+                            ContentType = "application/pdf",
+                            Sha256Hash = savedVPdf.Sha256Hash,
+                            Source = savedVPdf.Source,
+                            SavedFilePath = savedVPdf.FilePath,
+                            HttpStatusCode = 200
+                        };
+                    }
+                }
+                catch { }
+            }
+
+            // 1c. Dự phòng: Nếu nhà cung cấp không có API tải PDF trực tiếp không cần CAPTCHA, sử dụng tệp PDF đã lưu trong Cache (ví dụ GDT-OfficialPackagePdf)
             var cachedPdfFile = invoice.Files
                 .Where(f => string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase)
                             && f.Status == "Valid"
@@ -426,15 +542,7 @@ namespace InvoiceManager.Services
                 }
             }
 
-            // 1a. Kiểm tra nếu có bản ghi cùng hóa đơn (cùng SellerTaxCode, InvoiceSymbol, InvoiceNumber) đã có sẵn tệp PDF hoặc ZIP gốc trên đĩa
-            var siblingInvoices = await _db.Invoices
-                .Include(i => i.Files)
-                .Where(i => i.Id != invoice.Id &&
-                            i.SellerTaxCode == invoice.SellerTaxCode &&
-                            i.InvoiceSymbol == invoice.InvoiceSymbol &&
-                            i.InvoiceNumber == invoice.InvoiceNumber)
-                .ToListAsync(ct);
-
+            // 1d. Kiểm tra nếu có bản ghi cùng hóa đơn (cùng SellerTaxCode, InvoiceSymbol, InvoiceNumber) đã có sẵn tệp PDF trên đĩa
             foreach (var sib in siblingInvoices)
             {
                 var sibPdfPaths = sib.Files
@@ -484,51 +592,6 @@ namespace InvoiceManager.Services
                     }
                     catch { }
                 }
-            }
-
-            // 1b. Kiểm tra nếu có file XML của nhà cung cấp (ví dụ MISA meInvoice) có thể tải trực tiếp PDF gốc
-            var xmlCandidates = new List<string>();
-            if (!string.IsNullOrEmpty(invoice.RawXmlPath) && File.Exists(invoice.RawXmlPath))
-            {
-                xmlCandidates.Add(invoice.RawXmlPath);
-            }
-            foreach (var f in invoice.Files.Where(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(f.FilePath) && File.Exists(f.FilePath)))
-            {
-                if (!xmlCandidates.Contains(f.FilePath)) xmlCandidates.Add(f.FilePath);
-            }
-
-            foreach (var xmlPath in xmlCandidates)
-            {
-                try
-                {
-                    var xBytes = await File.ReadAllBytesAsync(xmlPath, ct);
-                    var vPdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(xBytes, ct);
-                    if (vPdf != null && GdtPortalProvider.IsValidPdfSignature(vPdf))
-                    {
-                        var savedVPdf = await SaveSingleFileAsync(
-                            invoiceId,
-                            taxAccountId,
-                            $"HD_{invoice.InvoiceSymbol}_{invoice.InvoiceNumber}_GocNCC.pdf",
-                            ".pdf",
-                            "application/pdf",
-                            vPdf,
-                            "Supplier-DirectPdf",
-                            ct);
-
-                        return new OriginalPdfFetchResult
-                        {
-                            Success = true,
-                            PdfBytes = vPdf,
-                            FileName = savedVPdf.OriginalFileName,
-                            ContentType = "application/pdf",
-                            Sha256Hash = savedVPdf.Sha256Hash,
-                            Source = savedVPdf.Source,
-                            SavedFilePath = savedVPdf.FilePath,
-                            HttpStatusCode = 200
-                        };
-                    }
-                }
-                catch { }
             }
 
             // 1c. Nếu đã lưu gói ZIP gốc từ Tổng cục Thuế (GDT-PackageZip) trong hệ thống thì kết xuất PDF từ gói bản thể hiện gốc của GDT và lưu cache

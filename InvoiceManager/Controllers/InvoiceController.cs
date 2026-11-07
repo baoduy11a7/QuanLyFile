@@ -842,15 +842,25 @@ namespace InvoiceManager.Controllers
                 ProcessedAt = DateTime.Now
             };
 
-            // 1. Kiểm tra nếu đã tồn tại file hợp lệ và cấu hình bỏ qua nếu đã có
-            var existingPdf = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+            // 1. Kiểm tra nếu đã tồn tại file PDF gốc trực tiếp từ nhà cung cấp và cấu hình bỏ qua nếu đã có
+            bool needPdf = config.DownloadPdf || config.DownloadBoth;
+            bool needXml = config.DownloadXml || config.DownloadBoth;
+
+            var existingPdf = inv.Files.FirstOrDefault(f =>
+                string.Equals(f.FileExtension, ".pdf", StringComparison.OrdinalIgnoreCase) &&
+                f.Status == "Valid" &&
+                (string.Equals(f.Source, "Supplier-DirectPdf", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(f.Source, "UploadOriginal", StringComparison.OrdinalIgnoreCase)) &&
+                System.IO.File.Exists(f.FilePath));
             var existingXml = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".xml", StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
             if (existingXml == null && !string.IsNullOrEmpty(inv.RawXmlPath) && System.IO.File.Exists(inv.RawXmlPath))
             {
                 existingXml = new InvoiceFile { FilePath = inv.RawXmlPath };
             }
 
-            if (config.SkipExistingFiles && !forceReDownload && (existingPdf != null || existingXml != null))
+            if (config.SkipExistingFiles && !forceReDownload &&
+                (!needPdf || existingPdf != null) &&
+                (!needXml || existingXml != null))
             {
                 var formatsList = new System.Collections.Generic.List<string>();
                 if (existingXml != null) formatsList.Add("XML");
@@ -865,8 +875,6 @@ namespace InvoiceManager.Controllers
             }
 
             // 2. Tải hóa đơn gốc theo cấu hình
-            bool needPdf = config.DownloadPdf || config.DownloadBoth;
-            bool needXml = config.DownloadXml || config.DownloadBoth;
 
             string? savedPdfPath = null;
             string? savedXmlPath = null;
@@ -999,17 +1007,25 @@ namespace InvoiceManager.Controllers
 
                 foreach (var inv in invoices)
                 {
-                    // 1. Thêm PDF gốc nếu có
-                    var pdfFile = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".pdf", System.StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+                    // 1. Thêm PDF gốc (ưu tiên bản thể hiện gốc trực tiếp từ nhà cung cấp qua GetOrFetchOriginalPdfAsync)
                     byte[]? pdfBytes = null;
-                    if (pdfFile != null)
-                    {
-                        try { pdfBytes = await System.IO.File.ReadAllBytesAsync(pdfFile.FilePath, ct); } catch { }
-                    }
-                    if (pdfBytes == null)
+                    try
                     {
                         var pdfRes = await _invoiceFileService.GetOrFetchOriginalPdfAsync(inv.Id, taxAccountId.Value, null, ct);
-                        if (pdfRes.Success && pdfRes.PdfBytes != null) pdfBytes = pdfRes.PdfBytes;
+                        if (pdfRes.Success && pdfRes.PdfBytes != null && pdfRes.PdfBytes.Length > 0)
+                        {
+                            pdfBytes = pdfRes.PdfBytes;
+                        }
+                    }
+                    catch { }
+
+                    if (pdfBytes == null)
+                    {
+                        var pdfFile = inv.Files.FirstOrDefault(f => string.Equals(f.FileExtension, ".pdf", System.StringComparison.OrdinalIgnoreCase) && f.Status == "Valid" && System.IO.File.Exists(f.FilePath));
+                        if (pdfFile != null)
+                        {
+                            try { pdfBytes = await System.IO.File.ReadAllBytesAsync(pdfFile.FilePath, ct); } catch { }
+                        }
                     }
 
                     if (pdfBytes != null && pdfBytes.Length > 0)

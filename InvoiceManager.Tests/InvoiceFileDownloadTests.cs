@@ -507,5 +507,37 @@ namespace InvoiceManager.Tests
                 try { Directory.Delete(tempDir, true); } catch { }
             }
         }
+
+        [Fact]
+        public async Task TryDownloadVendorPdfFromXmlAsync_Viettel_Misa_VinHoadon_Ts24_ReturnsAuthenticSupplierPdf()
+        {
+            // 1. Viettel SInvoice (VIỆN Y TẾ CÔNG CỘNG TP.HCM - 1C26TAA - 16767)
+            var viettelXml = Encoding.UTF8.GetBytes(@"<HDon><DLHDon Id=""ID1""><TTChung><SHDon>16767</SHDon><MSTTCGP>0100109106</MSTTCGP></TTChung><NDHDon><NBan><MST>0301260925</MST></NBan></NDHDon><TTKhac><TTin><DLieu>8PBB72IUFNE8GMD</DLieu><KDLieu>string</KDLieu><TTruong>Mã số bí mật</TTruong></TTin></TTKhac></DLHDon></HDon>");
+            var viettelPdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(viettelXml);
+            Assert.NotNull(viettelPdf);
+            Assert.True(GdtPortalProvider.IsValidPdfSignature(viettelPdf));
+            Assert.True(viettelPdf!.Length > 100_000);
+
+            // 2. Visnam Vin-HOADON (CÔNG TY CỔ PHẦN CÔNG NGHỆ VISE - 1C26TVS - 202)
+            var vinXml = Encoding.UTF8.GetBytes(@"<HDon><DLHDon Id=""ID2""><TTChung><SHDon>202</SHDon><MSTTCGP>0401486901</MSTTCGP></TTChung><NDHDon><NBan><MST>0316802779</MST></NBan></NDHDon><TTKhac><TTin><TTruong>QuanLy_SoBaoMat</TTruong><KDLieu>string</KDLieu><DLieu>1J4DLMD3CMXW</DLieu></TTin></TTKhac></DLHDon></HDon>");
+            var vinPdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(vinXml);
+            Assert.NotNull(vinPdf);
+            Assert.True(GdtPortalProvider.IsValidPdfSignature(vinPdf));
+            Assert.True(vinPdf!.Length > 50_000);
+
+            // 3. TS24 XuatHoaDon (CÔNG TY TNHH THƯƠNG MẠI HOÁ CHẤT UY LONG - 1C26TUL - 1702)
+            var ts24Xml = Encoding.UTF8.GetBytes(@"<HDon><DLHDon Id=""ID3""><TTChung><SHDon>1702</SHDon><MSTTCGP>0309478306</MSTTCGP></TTChung><NDHDon><NBan><MST>0310208576</MST></NBan><TTKhac><TTin><TTruong>MNHDon</TTruong><KDLieu> Chuỗi ký tự </KDLieu><DLieu>2610281151509970317668491</DLieu></TTin></TTKhac></NDHDon></DLHDon></HDon>");
+            var ts24Pdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(ts24Xml);
+            Assert.NotNull(ts24Pdf);
+            Assert.True(GdtPortalProvider.IsValidPdfSignature(ts24Pdf));
+            Assert.True(ts24Pdf!.Length > 50_000);
+
+            // 4. MISA meInvoice (CÔNG TY TNHH SINH HỌC PHƯƠNG NAM - 1C26TKT - 00001038)
+            var misaXml = Encoding.UTF8.GetBytes(@"<HDon><DLHDon Id=""1ZF8CJ890BR3""><TTChung><SHDon>00001038</SHDon><MSTTCGP>0101243150</MSTTCGP></TTChung><NDHDon><NBan><MST>1100821033</MST></NBan></NDHDon><TTKhac><TTin><TTruong>TransactionID</TTruong><KDLieu>String</KDLieu><DLieu>1ZF8CJ890BR3</DLieu></TTin></TTKhac></DLHDon></HDon>");
+            var misaPdf = await GdtPortalProvider.TryDownloadVendorPdfFromXmlAsync(misaXml);
+            Assert.NotNull(misaPdf);
+            Assert.True(GdtPortalProvider.IsValidPdfSignature(misaPdf));
+            Assert.True(misaPdf!.Length > 50_000);
+        }
     }
 }
