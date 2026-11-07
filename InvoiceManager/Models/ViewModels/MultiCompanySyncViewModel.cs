@@ -43,3 +43,4 @@ namespace InvoiceManager.Models.ViewModels
         public bool IsFinished { get; set; }
     }
 }
+

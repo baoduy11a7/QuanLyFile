@@ -332,6 +332,12 @@ IF COL_LENGTH('InvoiceDetails', 'TotalAmountForeign') IS NULL ALTER TABLE [Invoi
 IF COL_LENGTH('InvoiceDetails', 'AmountBeforeTaxVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [AmountBeforeTaxVnd] decimal(18,2) NOT NULL DEFAULT 0;
 IF COL_LENGTH('InvoiceDetails', 'TaxAmountVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [TaxAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
 IF COL_LENGTH('InvoiceDetails', 'TotalAmountVnd') IS NULL ALTER TABLE [InvoiceDetails] ADD [TotalAmountVnd] decimal(18,2) NOT NULL DEFAULT 0;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Invoices_TaxAccountId_IssueDate')
+    CREATE NONCLUSTERED INDEX IX_Invoices_TaxAccountId_IssueDate ON [Invoices] ([TaxAccountId], [IssueDate]);
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_InvoiceDetails_InvoiceId')
+    CREATE NONCLUSTERED INDEX IX_InvoiceDetails_InvoiceId ON [InvoiceDetails] ([InvoiceId]);
 ";
                 try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
             }
@@ -364,7 +370,9 @@ IF COL_LENGTH('InvoiceDetails', 'TotalAmountVnd') IS NULL ALTER TABLE [InvoiceDe
                     "ALTER TABLE InvoiceDetails ADD COLUMN TotalAmountForeign REAL NOT NULL DEFAULT 0;",
                     "ALTER TABLE InvoiceDetails ADD COLUMN AmountBeforeTaxVnd REAL NOT NULL DEFAULT 0;",
                     "ALTER TABLE InvoiceDetails ADD COLUMN TaxAmountVnd REAL NOT NULL DEFAULT 0;",
-                    "ALTER TABLE InvoiceDetails ADD COLUMN TotalAmountVnd REAL NOT NULL DEFAULT 0;"
+                    "ALTER TABLE InvoiceDetails ADD COLUMN TotalAmountVnd REAL NOT NULL DEFAULT 0;",
+                    "CREATE INDEX IF NOT EXISTS IX_Invoices_TaxAccountId_IssueDate ON Invoices (TaxAccountId, IssueDate);",
+                    "CREATE INDEX IF NOT EXISTS IX_InvoiceDetails_InvoiceId ON InvoiceDetails (InvoiceId);"
                 };
                 foreach (var c in cols)
                 {
@@ -401,7 +409,9 @@ IF COL_LENGTH('InvoiceDetails', 'TotalAmountVnd') IS NULL ALTER TABLE [InvoiceDe
                     "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TotalAmountForeign\" numeric(18,2) NOT NULL DEFAULT 0;",
                     "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"AmountBeforeTaxVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
                     "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TaxAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
-                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TotalAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;"
+                    "ALTER TABLE \"InvoiceDetails\" ADD COLUMN IF NOT EXISTS \"TotalAmountVnd\" numeric(18,2) NOT NULL DEFAULT 0;",
+                    "CREATE INDEX IF NOT EXISTS \"IX_Invoices_TaxAccountId_IssueDate\" ON \"Invoices\" (\"TaxAccountId\", \"IssueDate\");",
+                    "CREATE INDEX IF NOT EXISTS \"IX_InvoiceDetails_InvoiceId\" ON \"InvoiceDetails\" (\"InvoiceId\");"
                 };
                 foreach (var c in pgCols)
                 {

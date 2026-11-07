@@ -175,10 +175,23 @@ namespace InvoiceManager.Services
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF3C7");
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7;  // Thu gọn cột STT vừa vặn số thứ tự
-            ws.Column(6).Width = Math.Max(35, ws.Column(6).Width + 3); // Cột Tên người bán tự động mở rộng theo tên dài nhất, không bị ngắt chữ
-            ws.Column(8).Width = Math.Max(35, ws.Column(8).Width + 3); // Cột Tên hàng hóa tự động mở rộng theo tên dài nhất
+            // Tối ưu tốc độ cao: Đặt độ rộng chuẩn cho các cột mà không cần quét toàn bộ font metric
+            ws.Column(1).Width = 7;
+            ws.Column(2).Width = 14;
+            ws.Column(3).Width = 12;
+            ws.Column(4).Width = 12;
+            ws.Column(5).Width = 16;
+            ws.Column(6).Width = 35;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 35;
+            ws.Column(9).Width = 10;
+            ws.Column(10).Width = 12;
+            ws.Column(11).Width = 14;
+            ws.Column(12).Width = 16;
+            ws.Column(13).Width = 10;
+            ws.Column(14).Width = 16;
+            ws.Column(15).Width = 18;
+            ws.Column(16).Width = 20;
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
@@ -306,9 +319,19 @@ namespace InvoiceManager.Services
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#D1FAE5");
             ws.Range(currentRow, 1, currentRow, headers.Length).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7; // Thu gọn cột STT vừa vặn số thứ tự
-            ws.Column(6).Width = Math.Max(35, ws.Column(6).Width + 3); // Cột Tên người bán tự động mở rộng theo tên dài nhất, không bị ngắt chữ
+            // Tối ưu tốc độ cao: Đặt độ rộng chuẩn cho các cột
+            ws.Column(1).Width = 7;
+            ws.Column(2).Width = 14;
+            ws.Column(3).Width = 12;
+            ws.Column(4).Width = 12;
+            ws.Column(5).Width = 16;
+            ws.Column(6).Width = 35;
+            ws.Column(7).Width = 18;
+            ws.Column(8).Width = 16;
+            ws.Column(9).Width = 20;
+            ws.Column(10).Width = 14;
+            ws.Column(11).Width = 16;
+            ws.Column(12).Width = 22;
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
@@ -870,10 +893,28 @@ namespace InvoiceManager.Services
             ws.Range(curRow, 8, curRow, 12).Style.Font.SetItalic(true).Font.SetFontSize(9).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
             ws.Range(curRow, 15, curRow, 21).Style.Font.SetItalic(true).Font.SetFontSize(9).Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
 
-            // Tối ưu độ rộng cột
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = Math.Max(15, ws.Column(1).Width);
-            ws.Column(8).Width = Math.Max(34, ws.Column(8).Width); // Diễn giải
+            // Tối ưu tốc độ cao: Đặt độ rộng chuẩn cho các cột
+            ws.Column(1).Width = 15;
+            ws.Column(2).Width = 12;
+            ws.Column(3).Width = 12;
+            ws.Column(4).Width = 14;
+            ws.Column(5).Width = 14;
+            ws.Column(6).Width = 10;
+            ws.Column(7).Width = 10;
+            ws.Column(8).Width = 35; // Diễn giải
+            ws.Column(9).Width = 16;
+            ws.Column(10).Width = 16;
+            ws.Column(11).Width = 16;
+            ws.Column(12).Width = 14;
+            ws.Column(13).Width = 16;
+            ws.Column(14).Width = 14;
+            ws.Column(15).Width = 16;
+            ws.Column(16).Width = 16;
+            ws.Column(17).Width = 16;
+            ws.Column(18).Width = 16;
+            ws.Column(19).Width = 16;
+            ws.Column(20).Width = 16;
+            ws.Column(21).Width = 16;
             ws.Column(22).Width = 3; // Cột V ngăn cách
         }
 
@@ -980,8 +1021,22 @@ namespace InvoiceManager.Services
             ws.Range(rowTq, 1, rowTq, 15).Style.Border.SetTopBorder(XLBorderStyleValues.Thin);
             ws.Range(rowTq, 1, rowTq, 15).Style.Border.SetBottomBorder(XLBorderStyleValues.Double);
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 7; // Thu gọn cột STT vừa vặn số thứ tự
+            // Tối ưu tốc độ cao: Đặt độ rộng chuẩn cho các cột
+            ws.Column(1).Width = 7;
+            ws.Column(2).Width = 12;
+            ws.Column(3).Width = 14;
+            ws.Column(4).Width = 12;
+            ws.Column(5).Width = 12;
+            ws.Column(6).Width = 16;
+            ws.Column(7).Width = 35;
+            ws.Column(8).Width = 16;
+            ws.Column(9).Width = 35;
+            ws.Column(10).Width = 16;
+            ws.Column(11).Width = 16;
+            ws.Column(12).Width = 16;
+            ws.Column(13).Width = 16;
+            ws.Column(14).Width = 18;
+            ws.Column(15).Width = 20;
         }
 
         private static (int templateNum, string cleanSymbol) SplitTemplateAndSymbol(Invoice inv)
@@ -1111,15 +1166,12 @@ namespace InvoiceManager.Services
                 r++;
             }
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 6;
-            ws.Column(2).Width = 10;
-            ws.Column(3).Width = 14;
-            ws.Column(4).Width = 12;
-            ws.Column(7).Width = Math.Max(32, ws.Column(7).Width);
-            ws.Column(8).Width = Math.Max(36, ws.Column(8).Width);
-            ws.Column(10).Width = Math.Max(32, ws.Column(10).Width);
-            ws.Column(22).Width = Math.Max(26, ws.Column(22).Width);
+            // Preset column widths for sub-second generation
+            int[] dsvColWidths = { 6, 10, 14, 12, 12, 16, 35, 36, 16, 32, 16, 16, 16, 16, 18, 8, 10, 16, 20, 30, 36, 28 };
+            for (int i = 0; i < dsvColWidths.Length; i++)
+            {
+                ws.Column(i + 1).Width = dsvColWidths[i];
+            }
         }
 
         private void BuildDanhSachHoaDonRaSheet(IXLWorksheet ws, List<Invoice> invoices, TaxAccount? taxAccount, DateTime fromDate, DateTime toDate)
@@ -1223,15 +1275,12 @@ namespace InvoiceManager.Services
                 r++;
             }
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 6;
-            ws.Column(2).Width = 10;
-            ws.Column(3).Width = 14;
-            ws.Column(4).Width = 12;
-            ws.Column(7).Width = Math.Max(32, ws.Column(7).Width);
-            ws.Column(9).Width = Math.Max(32, ws.Column(9).Width);
-            ws.Column(10).Width = Math.Max(36, ws.Column(10).Width);
-            ws.Column(23).Width = Math.Max(26, ws.Column(23).Width);
+            // Preset column widths for sub-second generation
+            int[] dsrColWidths = { 6, 10, 14, 12, 12, 16, 35, 16, 32, 36, 16, 16, 16, 16, 18, 8, 10, 16, 20, 20, 30, 36, 28 };
+            for (int i = 0; i < dsrColWidths.Length; i++)
+            {
+                ws.Column(i + 1).Width = dsrColWidths[i];
+            }
         }
 
         private void BuildBangKeSheet(
@@ -1895,16 +1944,18 @@ namespace InvoiceManager.Services
                 }
             }
 
-            ws.Columns().AdjustToContents();
-            ws.Column(1).Width = 8;
-            ws.Column(2).Width = 12;
-            ws.Column(3).Width = 10;
-            ws.Column(6).Width = Math.Max(30, ws.Column(6).Width);
-            ws.Column(8).Width = Math.Max(34, ws.Column(8).Width);
-            ws.Column(9).Width = Math.Max(30, ws.Column(9).Width);
-            ws.Column(11).Width = Math.Max(34, ws.Column(11).Width);
-            ws.Column(13).Width = Math.Max(38, ws.Column(13).Width);
-            ws.Column(30).Width = Math.Max(26, ws.Column(30).Width);
+            // Preset column widths for sub-second generation
+            int[] ctColWidths = {
+                8, 12, 10, 12, 14, 30, 16, 34, 30, 16,
+                34, 14, 38, 12, 10, 14, 14, 14, 16, 16,
+                16, 16, 16, 16, 16, 16, 16, 18, 18, 28,
+                20, 20, 20, 12, 24, 16, 24, 16, 20, 24,
+                8, 10, 36, 16
+            };
+            for (int i = 0; i < ctColWidths.Length; i++)
+            {
+                ws.Column(i + 1).Width = ctColWidths[i];
+            }
         }
 
         private static string GenerateSmartSlug(string text)

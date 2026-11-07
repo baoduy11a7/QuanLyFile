@@ -36,6 +36,12 @@ namespace InvoiceManager.Data
                 .HasIndex(i => new { i.TaxAccountId, i.InvoiceType, i.IssueDate });
 
             builder.Entity<Invoice>()
+                .HasIndex(i => new { i.TaxAccountId, i.IssueDate });
+
+            builder.Entity<InvoiceDetail>()
+                .HasIndex(d => d.InvoiceId);
+
+            builder.Entity<Invoice>()
                 .HasIndex(i => i.SellerTaxCode);
 
             builder.Entity<Invoice>()

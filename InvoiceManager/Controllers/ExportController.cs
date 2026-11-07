@@ -63,6 +63,7 @@ namespace InvoiceManager.Controllers
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
             var query = _db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Details)
                 .Where(i => i.TaxAccountId == taxAccountId.Value);
 
@@ -93,6 +94,7 @@ namespace InvoiceManager.Controllers
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
             var query = _db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Details)
                 .Where(i => i.TaxAccountId == taxAccountId.Value);
 
@@ -183,6 +185,7 @@ namespace InvoiceManager.Controllers
             if (!taxAccountId.HasValue) return BadRequest("Chưa chọn tài khoản thuế.");
 
             var query = _db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Details)
                 .Where(i => i.TaxAccountId == taxAccountId.Value);
 
@@ -233,6 +236,7 @@ namespace InvoiceManager.Controllers
             var parsedTo = ParseFlexibleDate(toDate);
 
             var query = _db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Details)
                 .Where(i => i.TaxAccountId == taxAccountId);
 
@@ -426,7 +430,7 @@ namespace InvoiceManager.Controllers
 
             var core = await BuildCustomExportCoreAsync(invoiceType, fromDate, toDate);
             var invoices = core.Invoices;
-            var files = new List<object>
+            var files = new List<object>(invoices.Count * 3 + 1)
             {
                 new
                 {
@@ -435,6 +439,24 @@ namespace InvoiceManager.Controllers
                     base64 = Convert.ToBase64String(core.ExcelBytes)
                 }
             };
+
+            // Nếu người dùng chỉ xuất file Excel (không chọn kèm HTML/XML/PDF), hoàn tất tức thì
+            if (!includeHtml && !includeXml && !includePdf)
+            {
+                await _auditLog.LogActionAsync(
+                    "Xuất trực tiếp vào thư mục máy tính",
+                    $"{invoices.Count} hóa đơn (1 file Excel siêu tốc)",
+                    $"Từ {fromDate ?? "đầu"} đến {toDate ?? "cuối"}",
+                    taxAccountId.Value);
+
+                return Json(new
+                {
+                    success = true,
+                    invoiceCount = invoices.Count,
+                    fileCount = files.Count,
+                    files
+                });
+            }
 
             var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -771,6 +793,7 @@ namespace InvoiceManager.Controllers
         private IQueryable<Invoice> GetFilteredInvoicesQuery(InvoiceFilterViewModel filter, int taxAccountId)
         {
             var query = _db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Details)
                 .Where(i => i.TaxAccountId == taxAccountId);
 
