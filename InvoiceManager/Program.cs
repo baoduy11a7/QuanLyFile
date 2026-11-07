@@ -129,6 +129,8 @@ builder.Services.AddScoped<IInvoiceFileService, InvoiceFileService>();
 builder.Services.AddScoped<IOriginalInvoiceConfigService, OriginalInvoiceConfigService>();
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddSingleton<InvoiceManager.Services.TaxEngine.ITaxFormRegistry, InvoiceManager.Services.TaxEngine.TaxFormRegistry>();
+builder.Services.AddSingleton<InvoiceManager.Services.TaxEngine.ITaxExpressionEvaluator, InvoiceManager.Services.TaxEngine.TaxExpressionEvaluator>();
 builder.Services.AddScoped<ITaxDeclarationService, TaxDeclarationService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<InvoiceAutoSyncJob>();

@@ -3105,72 +3105,75 @@
 
 
 
-        function togglePeriodControls() {
+        function onPeriodChange() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val() || 'Quarter';
+            var quarter = parseInt($('#taxQuarter').val(), 10) || 4;
+            var month = parseInt($('#taxMonth').val(), 10) || 10;
+            var year = parseInt($('#taxYear').val(), 10) || 2026;
 
-            var periodType = $('input[name="taxPeriodType"]:checked').val();
+            // Xác định phiên bản pháp lý sơ bộ theo kỳ tính thuế
+            var isNewTT89 = (periodType === 'Quarter' && (year > 2026 || (year === 2026 && quarter >= 3))) ||
+                            (periodType === 'Month' && (year > 2026 || (year === 2026 && month >= 7)));
 
-            if (periodType === 'Quarter') {
-
-                $('#boxQuarterSelect').removeClass('d-none');
-
-                $('#boxMonthSelect').addClass('d-none');
-
+            if (isNewTT89) {
+                $('#taxDecLegalTitle').text('Thông tư 89/2026/TT-BTC');
+                $('#badgeFormVersion').text('TT 89/2026/TT-BTC');
+                $('#lblLegalDocRef').text('Thông tư 89/2026/TT-BTC (Mẫu 01/GTGT mới)');
+                $('#lblCashThreshold').text('5.000.000 đ (Luật 48/2024)');
             } else {
-
-                $('#boxQuarterSelect').addClass('d-none');
-
-                $('#boxMonthSelect').removeClass('d-none');
-
+                $('#taxDecLegalTitle').text('Thông tư 80/2021/TT-BTC');
+                $('#badgeFormVersion').text('TT 80/2021/TT-BTC');
+                $('#lblLegalDocRef').text('Thông tư 80/2021/TT-BTC');
+                $('#lblCashThreshold').text('20.000.000 đ (TT 219/2013)');
             }
 
-            calculateDeclaration();
+            autoFetchPriorTarget43();
+        }
 
+        function autoFetchPriorTarget43() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val() || 'Quarter';
+            var quarter = parseInt($('#taxQuarter').val(), 10) || 4;
+            var month = parseInt($('#taxMonth').val(), 10) || 10;
+            var year = parseInt($('#taxYear').val(), 10) || 2026;
+
+            $.ajax({
+                url: '/TaxDeclaration/GetPriorPeriodTarget43?periodType=' + encodeURIComponent(periodType) +
+                     '&periodValue=' + (periodType === 'Quarter' ? quarter : month) +
+                     '&year=' + year,
+                type: 'GET',
+                success: function(res) {
+                    if (res && res.success && res.target43 > 0) {
+                        $('#taxCarriedForward').val(Number(res.target43).toLocaleString('vi-VN'));
+                    }
+                    calculateDeclaration();
+                },
+                error: function() {
+                    calculateDeclaration();
+                }
+            });
         }
 
 
 
-        function toggleZeroActivity(checked) {
-
-            if (checked) {
-
-                $('#val_ct23').text('0 đ');
-
-                $('#val_ct24').text('0 đ');
-
-                $('#val_ct25').text('0 đ');
-
-                $('#val_ct26').text('0 đ');
-
-                $('#val_ct27').text('0 đ');
-
-                $('#val_ct28').text('0 đ');
-
-                $('#val_ct29').text('0 đ');
-
-                $('#val_ct30').text('0 đ');
-
-                $('#val_ct31').text('0 đ');
-
-                $('#val_ct32').text('0 đ');
-
-                $('#val_ct33').text('0 đ');
-
-                $('#val_ct34').text('0 đ');
-
-                $('#val_ct35').text('0 đ');
-
-                $('#val_ct36').text('0 đ');
-
-                $('#val_ct40').text('0 đ');
-
-                $('#val_ct43').text($('#val_ct22').text());
-
+        function togglePeriodControls() {
+            var periodType = $('input[name="taxPeriodType"]:checked').val();
+            if (periodType === 'Quarter') {
+                $('#boxQuarterSelect').removeClass('d-none');
+                $('#boxMonthSelect').addClass('d-none');
             } else {
-
-                calculateDeclaration();
-
+                $('#boxQuarterSelect').addClass('d-none');
+                $('#boxMonthSelect').removeClass('d-none');
             }
+            onPeriodChange();
+        }
 
+        function toggleZeroActivity(checked) {
+            if (checked) {
+                $('#val_ct23, #val_ct24, #val_ct24_sub, #val_ct25, #val_ct26, #val_ct27, #val_ct28, #val_ct29, #val_ct30, #val_ct31, #val_ct32, #val_ct32b, #val_ct33, #val_ct34, #val_ct35, #val_ct36, #val_ct40').text('0 đ');
+                $('#val_ct43').text($('#val_ct22').text());
+            } else {
+                calculateDeclaration();
+            }
         }
 
 
@@ -3272,109 +3275,87 @@
 
 
                     var d = res.data;
-
                     $('#taxDecCompanyName').text('Doanh nghiệp: ' + d.companyName + ' (MST: ' + d.taxCode + ')');
-
                     $('#taxDecPeriodLabel').text(d.periodDescription);
+                    $('#taxDecLegalTitle').text(d.legalDocRef);
+                    $('#badgeFormVersion').text(d.legalDocRef);
+                    $('#lblLegalDocRef').text(d.legalDocFullTitle || d.legalDocRef);
+                    $('#lblCashThreshold').text(formatVnd(d.cashThresholdApplied));
 
-
-
-                    // Cập nhật các chỉ tiêu
-
-                    $('#val_ct22').text(formatVnd(d.indicator22_TaxCarriedForwardPreviousPeriod));
-
-                    $('#val_ct23').text(formatVnd(d.indicator23_PurchaseTotalAmountBeforeTax));
-
-                    $('#val_ct24').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
-
-                    $('#val_ct24_sub').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
-
-                    $('#val_ct25').text(formatVnd(d.indicator25_DeductiblePurchaseTaxAmount));
-
-
-
-                    $('#val_ct26').text(formatVnd(d.indicator26_RevenueNonTaxable));
-
-                    $('#val_ct27').text(formatVnd(d.indicator27_RevenueTax0Percent));
-
-                    $('#val_ct28').text(formatVnd(d.indicator28_RevenueTax5Percent));
-
-                    $('#val_ct29').text(formatVnd(d.indicator29_TaxAmount5Percent));
-
-                    $('#val_ct30').text(formatVnd(d.indicator30_RevenueTax8Percent));
-
-                    $('#val_ct31').text(formatVnd(d.indicator31_TaxAmount8Percent));
-
-                    $('#val_ct32').text(formatVnd(d.indicator32_RevenueTax10Percent));
-
-                    $('#val_ct33').text(formatVnd(d.indicator33_TaxAmount10Percent));
-
-                    $('#val_ct34').text(formatVnd(d.indicator34_TotalRevenue));
-
-                    $('#val_ct35').text(formatVnd(d.indicator35_TotalOutputTax));
-
-
-
-                    $('#val_ct36').text(formatVnd(d.indicator36_VatIncurredPeriod));
-
-                    $('#val_ct40').text(formatVnd(d.indicator40_VatPayable));
-
-                    $('#val_ct43').text(formatVnd(d.indicator43_VatDeductibleNextPeriod));
-
-
-
-                    // Badges
-
-                    $('#badgeCountMuaVao').text(d.purchaseInvoices ? d.purchaseInvoices.length : 0);
-
-                    $('#badgeCountBanRa').text(d.soldInvoices ? d.soldInvoices.length : 0);
-
-                    $('#badgeCount8Percent').text(d.tax8PercentReductionItems ? d.tax8PercentReductionItems.length : 0);
-
-
-
-                    // Bảng kê mua vào
-
-                    var mvHtml = '';
-
-                    if (d.purchaseInvoices && d.purchaseInvoices.length > 0) {
-
-                        for (var i = 0; i < d.purchaseInvoices.length; i++) {
-
-                            var item = d.purchaseInvoices[i];
-
-                            mvHtml += '<tr>' +
-
-                                '<td class="text-center">' + (i + 1) + '</td>' +
-
-                                '<td>' + (item.invoiceSymbol || '') + '</td>' +
-
-                                '<td>' + (item.invoiceNumber || '') + '</td>' +
-
-                                '<td class="text-center">' + (item.issueDate || '') + '</td>' +
-
-                                '<td>' + (item.sellerName || '') + '</td>' +
-
-                                '<td>' + (item.sellerTaxCode || '') + '</td>' +
-
-                                '<td class="text-end fw-semibold">' + formatVnd(item.amountBeforeTax) + '</td>' +
-
-                                '<td class="text-center">' + (item.taxRate || '') + '</td>' +
-
-                                '<td class="text-end fw-semibold text-danger">' + formatVnd(item.taxAmount) + '</td>' +
-
-                                '<td>' + (item.note || '') + '</td>' +
-
-                            '</tr>';
-
+                    if (d.submissionDeadline) {
+                        var dl = new Date(d.submissionDeadline);
+                        var dlStr = ('0' + dl.getDate()).slice(-2) + '/' + ('0' + (dl.getMonth() + 1)).slice(-2) + '/' + dl.getFullYear();
+                        $('#lblSubmissionDeadline').text(dlStr);
+                        if (d.isOverdue) {
+                            $('#badgeDeadlineStatus').removeClass('d-none bg-success').addClass('bg-danger').text('Quá hạn');
+                        } else {
+                            $('#badgeDeadlineStatus').removeClass('d-none bg-danger').addClass('bg-success').text('Đúng hạn');
                         }
-
-                    } else {
-
-                        mvHtml = '<tr><td colspan="10" class="text-center text-muted py-3">Không có hóa đơn mua vào trong kỳ này.</td></tr>';
-
                     }
 
+                    // Cảnh báo tuân thủ pháp luật (Audit/Rule checks)
+                    if (d.validationAlerts && d.validationAlerts.length > 0) {
+                        var aHtml = '';
+                        for (var a = 0; a < d.validationAlerts.length; a++) {
+                            aHtml += '<li>' + d.validationAlerts[a] + '</li>';
+                        }
+                        $('#taxComplianceAlertList').html(aHtml);
+                        $('#taxComplianceAlertBox').removeClass('d-none');
+                    } else {
+                        $('#taxComplianceAlertBox').addClass('d-none');
+                    }
+
+                    // Cập nhật các chỉ tiêu
+                    $('#val_ct22').text(formatVnd(d.indicator22_TaxCarriedForwardPreviousPeriod));
+                    $('#val_ct23').text(formatVnd(d.indicator23_PurchaseTotalAmountBeforeTax));
+                    $('#val_ct24').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
+                    $('#val_ct24_sub').text(formatVnd(d.indicator24_PurchaseTotalTaxAmount));
+                    $('#val_ct25').text(formatVnd(d.indicator25_DeductiblePurchaseTaxAmount));
+
+                    $('#val_ct26').text(formatVnd(d.indicator26_RevenueNonTaxable));
+                    $('#val_ct27').text(formatVnd(d.indicator27_RevenueTax0Percent));
+                    $('#val_ct28').text(formatVnd(d.indicator28_RevenueTax5Percent));
+                    $('#val_ct29').text(formatVnd(d.indicator29_TaxAmount5Percent));
+                    $('#val_ct30').text(formatVnd(d.indicator30_RevenueTax8Percent));
+                    $('#val_ct31').text(formatVnd(d.indicator31_TaxAmount8Percent));
+                    $('#val_ct32').text(formatVnd(d.indicator32_RevenueTax10Percent));
+                    $('#val_ct32b').text(formatVnd(d.target32b_SalesAmountNoTax || 0));
+                    $('#val_ct33').text(formatVnd(d.indicator33_TaxAmount10Percent));
+                    $('#val_ct34').text(formatVnd(d.indicator34_TotalRevenue));
+                    $('#val_ct35').text(formatVnd(d.indicator35_TotalOutputTax));
+
+                    $('#val_ct36').text(formatVnd(d.indicator36_VatIncurredPeriod));
+                    $('#val_ct40').text(formatVnd(d.indicator40_VatPayable));
+                    $('#val_ct43').text(formatVnd(d.indicator43_VatDeductibleNextPeriod));
+
+                    // Badges
+                    $('#badgeCountMuaVao').text(d.purchaseInvoices ? d.purchaseInvoices.length : 0);
+                    $('#badgeCountBanRa').text(d.soldInvoices ? d.soldInvoices.length : 0);
+                    $('#badgeCount8Percent').text(d.tax8PercentReductionItems ? d.tax8PercentReductionItems.length : 0);
+
+                    // Bảng kê mua vào
+                    var mvHtml = '';
+                    if (d.purchaseInvoices && d.purchaseInvoices.length > 0) {
+                        for (var i = 0; i < d.purchaseInvoices.length; i++) {
+                            var item = d.purchaseInvoices[i];
+                            var trClass = item.isCashPaymentWarning ? 'table-danger' : '';
+                            var warnText = item.isCashPaymentWarning ? '<br><small class="text-danger fw-bold"><i class="bi bi-exclamation-triangle"></i> TM >= ' + (d.cashThresholdApplied / 1000000) + 'tr</small>' : '';
+                            mvHtml += '<tr class="' + trClass + '">' +
+                                '<td class="text-center">' + (i + 1) + '</td>' +
+                                '<td>' + (item.invoiceSymbol || '') + '</td>' +
+                                '<td>' + (item.invoiceNumber || '') + '</td>' +
+                                '<td class="text-center">' + (item.issueDate || '') + '</td>' +
+                                '<td>' + (item.sellerName || '') + '</td>' +
+                                '<td>' + (item.sellerTaxCode || '') + '</td>' +
+                                '<td class="text-end fw-semibold">' + formatVnd(item.amountBeforeTax) + '</td>' +
+                                '<td class="text-center">' + (item.taxRate || '') + '</td>' +
+                                '<td class="text-end fw-semibold text-danger">' + formatVnd(item.taxAmount) + '</td>' +
+                                '<td>' + (item.paymentMethod ? '<strong>' + item.paymentMethod + '</strong> ' : '') + (item.note || '') + warnText + '</td>' +
+                            '</tr>';
+                        }
+                    } else {
+                        mvHtml = '<tr><td colspan="10" class="text-center text-muted py-3">Không có hóa đơn mua vào trong kỳ này.</td></tr>';
+                    }
                     $('#tblTaxMuaVaoBody').html(mvHtml);
 
 

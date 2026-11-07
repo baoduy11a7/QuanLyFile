@@ -1,5 +1,6 @@
 using InvoiceManager.Models.ViewModels;
 using InvoiceManager.Services;
+using InvoiceManager.Services.TaxEngine;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -54,9 +55,34 @@ namespace InvoiceManager.Controllers
                 year,
                 req?.FromDate,
                 req?.ToDate,
-                cTax);
+                cTax,
+                req?.Indicator21_NoActivity);
+
+            await _auditLog.LogActionAsync(
+                "Tính toán Tờ khai thuế GTGT",
+                $"Kỳ: {model.PeriodDescription}",
+                $"Mẫu: {model.FormVersionCode} ({model.LegalDocRef}) | Thuế phải nộp: {model.Target40_TaxToPay:N0} đ | Khấu trừ: {model.Target43_CarriedForwardDeduction:N0} đ",
+                taxAccountId.Value);
 
             return Json(new { success = true, data = model });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPriorPeriodTarget43(string periodType, int periodValue, int year)
+        {
+            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+            if (!taxAccountId.HasValue) return Json(new { success = false, target43 = 0 });
+
+            decimal prior43 = await _taxDeclarationService.GetPriorPeriodTarget43Async(taxAccountId.Value, periodType, periodValue, year);
+            return Json(new { success = true, target43 = prior43 });
+        }
+
+        [HttpGet]
+        public IActionResult GetLegalCatalog()
+        {
+            var registry = _taxDeclarationService.GetRegistry();
+            var versions = registry.GetAllVersions();
+            return Json(new { success = true, versions });
         }
 
         [HttpGet]
@@ -98,15 +124,20 @@ namespace InvoiceManager.Controllers
                 y,
                 bodyReq?.FromDate,
                 bodyReq?.ToDate,
-                cTax);
+                cTax,
+                bodyReq?.Indicator21_NoActivity);
 
             string xml = _taxDeclarationService.GenerateDeclarationXml(model);
             byte[] bytes = Encoding.UTF8.GetBytes(xml);
 
             string kyStr = pType == "Quarter" ? $"Q{pVal}_{y}" : $"T{pVal:D2}_{y}";
-            string fileName = $"ToKhai_01GTGT_{taxAccount?.TaxCode}_{kyStr}.xml";
+            string fileName = $"ToKhai_01GTGT_{taxAccount?.TaxCode}_{model.FormVersionCode}_{kyStr}.xml";
 
-            await _auditLog.LogActionAsync("Xuất XML Tờ khai thuế GTGT", fileName, $"Kỳ: {kyStr}, Thuế GTGT: {model.Target36_TaxPayable:N0} đ", taxAccountId.Value);
+            await _auditLog.LogActionAsync(
+                "Xuất XML Tờ khai thuế GTGT",
+                fileName,
+                $"Căn cứ: {model.LegalDocRef} | Kỳ: {kyStr} | Thuế phải nộp: {model.Target40_TaxToPay:N0} đ",
+                taxAccountId.Value);
 
             return File(bytes, "application/xml", fileName);
         }
@@ -150,14 +181,19 @@ namespace InvoiceManager.Controllers
                 y,
                 bodyReq?.FromDate,
                 bodyReq?.ToDate,
-                cTax);
+                cTax,
+                bodyReq?.Indicator21_NoActivity);
 
             byte[] bytes = await _taxDeclarationService.ExportDeclarationExcelAsync(model, taxAccountId.Value);
 
             string kyStr = pType == "Quarter" ? $"Q{pVal}_{y}" : $"T{pVal:D2}_{y}";
-            string fileName = $"BangKe_ToKhai_01GTGT_{taxAccount?.TaxCode}_{kyStr}.xlsx";
+            string fileName = $"BangKe_ToKhai_01GTGT_{taxAccount?.TaxCode}_{model.FormVersionCode}_{kyStr}.xlsx";
 
-            await _auditLog.LogActionAsync("Xuất Excel Tờ khai thuế GTGT", fileName, $"Kỳ: {kyStr}", taxAccountId.Value);
+            await _auditLog.LogActionAsync(
+                "Xuất Excel Tờ khai thuế GTGT & Bảng kê",
+                fileName,
+                $"Căn cứ: {model.LegalDocRef} | Kỳ: {kyStr}",
+                taxAccountId.Value);
 
             return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
