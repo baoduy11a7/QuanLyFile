@@ -44,7 +44,7 @@ namespace InvoiceManager.Services
             DateTime? customTo = null,
             decimal carriedOverTax = 0,
             bool? isZeroActivity = null,
-            bool autoFetchPriorPeriod = true)
+            bool autoFetchPriorPeriod = false)
         {
             var taxAccount = await _db.TaxAccounts.AsNoTracking().FirstOrDefaultAsync(t => t.Id == taxAccountId);
 
@@ -112,7 +112,7 @@ namespace InvoiceManager.Services
                 model.IndicatorTooltips[f.Code] = tt;
             }
 
-            // 3. Tự động lấy [22] từ [43] kỳ trước nếu người dùng chưa nhập tay
+            // 3. Tự động lấy [22] từ [43] kỳ trước nếu được yêu cầu và chưa có số thuế chuyển sang
             if (autoFetchPriorPeriod && carriedOverTax == 0)
             {
                 decimal prior43 = await GetPriorPeriodTarget43Async(taxAccountId, periodType, periodValue, year);
@@ -490,8 +490,8 @@ namespace InvoiceManager.Services
                     }
                 }
 
-                // Tính toán sơ bộ kỳ trước để lấy [43] (autoFetchPriorPeriod = false để tránh đệ quy vô hạn)
-                var priorModel = await CalculateDeclarationAsync(taxAccountId, periodType, priorPeriodVal, priorYear, carriedOverTax: 0, autoFetchPriorPeriod: false);
+                // Tính toán sơ bộ kỳ trước để lấy [43] (autoFetchPriorPeriod = false để tránh đệ quy)
+                var priorModel = await CalculateDeclarationAsync(taxAccountId, periodType, priorPeriodVal, priorYear, carriedOverTax: 0, isZeroActivity: null, autoFetchPriorPeriod: false);
                 return priorModel.Target43_CarriedForwardDeduction;
             }
             catch

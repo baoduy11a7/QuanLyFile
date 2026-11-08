@@ -17,7 +17,7 @@ namespace InvoiceManager.Services
             DateTime? customTo = null,
             decimal carriedOverTax = 0,
             bool? isZeroActivity = null,
-            bool autoFetchPriorPeriod = true);
+            bool autoFetchPriorPeriod = false);
 
         string GenerateDeclarationXml(TaxDeclarationViewModel model);
         Task<byte[]> ExportDeclarationExcelAsync(TaxDeclarationViewModel model, int taxAccountId);

@@ -364,5 +364,22 @@ namespace InvoiceManager.Tests
             Assert.NotNull(cashWarning);
             Assert.True(cashWarning.Contains("5,000,000") || cashWarning.Contains("5.000.000"));
         }
+
+        [Fact]
+        public async Task Test8_Month6_2026_TT80_CalculatesSuccessfullyWithoutCycle()
+        {
+            // Kiểm tra kỳ Tháng 6/2026 áp dụng Thông tư 80/2021/TT-BTC
+            // Đảm bảo không bị lỗi phụ thuộc vòng giữa các chỉ tiêu hoặc treo xoay
+            var decl = await _taxService.CalculateDeclarationAsync(
+                taxAccountId: 1,
+                periodType: "Month",
+                periodValue: 6,
+                year: 2026);
+
+            Assert.NotNull(decl);
+            Assert.Equal("01_GTGT_TT80", decl.FormVersionCode);
+            Assert.Contains("80/2021/TT-BTC", decl.LegalDocRef);
+            Assert.Equal(20000000m, decl.CashThresholdApplied); // Ngưỡng 20tr của TT 80
+        }
     }
 }

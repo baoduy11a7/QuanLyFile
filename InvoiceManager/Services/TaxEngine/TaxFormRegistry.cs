@@ -283,3 +283,4 @@ namespace InvoiceManager.Services.TaxEngine
         }
     }
 }
+

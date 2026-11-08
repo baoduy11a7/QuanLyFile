@@ -3263,13 +3263,14 @@
                 }),
 
                 success: function(res) {
-
                     if (!res || !res.success) {
-
+                        $('#taxIndicatorsBody td[id^="val_ct"]').each(function() {
+                            if ($(this).find('.spinner-border').length > 0) {
+                                $(this).text('0 đ');
+                            }
+                        });
                         alert(res?.message || 'Không thể tính toán tờ khai.');
-
                         return;
-
                     }
 
 
@@ -3449,9 +3450,12 @@
                 },
 
                 error: function() {
-
+                    $('#taxIndicatorsBody td[id^="val_ct"]').each(function() {
+                        if ($(this).find('.spinner-border').length > 0) {
+                            $(this).text('0 đ');
+                        }
+                    });
                     alert('Lỗi kết nối khi tính toán tờ khai thuế.');
-
                 }
 
             });

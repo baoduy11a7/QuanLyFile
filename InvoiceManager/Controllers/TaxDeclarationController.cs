@@ -29,42 +29,49 @@ namespace InvoiceManager.Controllers
         [HttpPost]
         public async Task<IActionResult> Calculate([FromBody] CalculateDeclarationRequest req)
         {
-            var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
-            if (!taxAccountId.HasValue) return BadRequest("Chưa chọn doanh nghiệp.");
-
-            string pType = string.IsNullOrWhiteSpace(req?.PeriodType) ? "Quarter" : req.PeriodType;
-            int pVal = 1;
-            if (string.Equals(pType, "Month", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                pVal = req?.Month ?? req?.PeriodValue ?? DateTime.Today.Month;
-                if (pVal < 1 || pVal > 12) pVal = DateTime.Today.Month;
+                var taxAccountId = await _taxAccountContext.GetCurrentTaxAccountIdAsync();
+                if (!taxAccountId.HasValue) return BadRequest("Chưa chọn doanh nghiệp.");
+
+                string pType = string.IsNullOrWhiteSpace(req?.PeriodType) ? "Quarter" : req.PeriodType;
+                int pVal = 1;
+                if (string.Equals(pType, "Month", StringComparison.OrdinalIgnoreCase))
+                {
+                    pVal = req?.Month ?? req?.PeriodValue ?? DateTime.Today.Month;
+                    if (pVal < 1 || pVal > 12) pVal = DateTime.Today.Month;
+                }
+                else
+                {
+                    pVal = req?.Quarter ?? req?.PeriodValue ?? ((DateTime.Today.Month - 1) / 3 + 1);
+                    if (pVal < 1 || pVal > 4) pVal = 4;
+                }
+
+                int year = (req?.Year > 0) ? req.Year : DateTime.Today.Year;
+                decimal cTax = req?.CarriedOverTax ?? req?.TaxCarriedForwardPreviousPeriod ?? 0;
+
+                var model = await _taxDeclarationService.CalculateDeclarationAsync(
+                    taxAccountId.Value,
+                    pType,
+                    pVal,
+                    year,
+                    req?.FromDate,
+                    req?.ToDate,
+                    cTax,
+                    req?.Indicator21_NoActivity);
+
+                await _auditLog.LogActionAsync(
+                    "Tính toán Tờ khai thuế GTGT",
+                    $"Kỳ: {model.PeriodDescription}",
+                    $"Mẫu: {model.FormVersionCode} ({model.LegalDocRef}) | Thuế phải nộp: {model.Target40_TaxToPay:N0} đ | Khấu trừ: {model.Target43_CarriedForwardDeduction:N0} đ",
+                    taxAccountId.Value);
+
+                return Json(new { success = true, data = model });
             }
-            else
+            catch (Exception ex)
             {
-                pVal = req?.Quarter ?? req?.PeriodValue ?? ((DateTime.Today.Month - 1) / 3 + 1);
-                if (pVal < 1 || pVal > 4) pVal = 4;
+                return Json(new { success = false, message = "Lỗi khi tính toán tờ khai thuế: " + ex.Message });
             }
-
-            int year = (req?.Year > 0) ? req.Year : DateTime.Today.Year;
-            decimal cTax = req?.CarriedOverTax ?? req?.TaxCarriedForwardPreviousPeriod ?? 0;
-
-            var model = await _taxDeclarationService.CalculateDeclarationAsync(
-                taxAccountId.Value,
-                pType,
-                pVal,
-                year,
-                req?.FromDate,
-                req?.ToDate,
-                cTax,
-                req?.Indicator21_NoActivity);
-
-            await _auditLog.LogActionAsync(
-                "Tính toán Tờ khai thuế GTGT",
-                $"Kỳ: {model.PeriodDescription}",
-                $"Mẫu: {model.FormVersionCode} ({model.LegalDocRef}) | Thuế phải nộp: {model.Target40_TaxToPay:N0} đ | Khấu trừ: {model.Target43_CarriedForwardDeduction:N0} đ",
-                taxAccountId.Value);
-
-            return Json(new { success = true, data = model });
         }
 
         [HttpGet]
